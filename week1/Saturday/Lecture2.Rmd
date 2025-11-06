@@ -1,0 +1,2166 @@
+---
+title: |
+  | **The Basetable Timeline**
+  | Intermediate Predictive Analytics
+subtitle: "Constructing Temporal Structures for Predictive Modeling"
+author: "Prof. Asc.Endri Raco, Ph.D."
+institute: |
+  | Department of Mathematical Engineering
+  | Polytechnic University of Tirana
+date: "November 2025"
+output:
+  beamer_presentation:
+    theme: "Madrid"
+    colortheme: "default"
+    fonttheme: "professionalfonts"
+    slide_level: 2
+    toc: false
+    keep_tex: false
+header-includes:
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
+  - \usepackage{graphicx}
+  - \usepackage{booktabs}
+  - \usepackage{tikz}
+  - \usepackage{xcolor}
+  - \definecolor{datablue}{RGB}{0,102,204}
+  - \definecolor{datagreen}{RGB}{0,153,76}
+  - \definecolor{datared}{RGB}{204,0,0}
+  - \definecolor{dataorange}{RGB}{255,140,0}
+  - \definecolor{datapurple}{RGB}{128,0,128}
+  - \definecolor{datacyan}{RGB}{0,191,255}
+  - \definecolor{datalime}{RGB}{50,205,50}
+  - \setbeamercolor{structure}{fg=datablue}
+  - \setbeamertemplate{navigation symbols}{}
+  - \setbeamertemplate{footline}[frame number]
+  - \setbeamertemplate{frametitle}{\vspace{0.5em}\insertframetitle}
+  - \newcommand{\pbar}{\overline{p}}
+  - \usepackage{pifont}
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = 'center',
+  fig.width = 6,
+  fig.height = 4,
+  out.width = '80%'
+)
+
+# Load required libraries
+library(tidyverse)
+library(lubridate)
+library(knitr)
+library(kableExtra)
+```
+
+# Introduction
+
+## The Predictive Modeling Process
+
+\begin{block}{Foundations of Predictive Analytics I}
+\begin{itemize}
+  \item Build predictive models
+  \item Evaluate predictive models
+  \item Present predictive models to business stakeholders
+\end{itemize}
+\end{block}
+
+\begin{block}{Foundations of Predictive Analytics II}
+\begin{itemize}
+  \item \textcolor{datagreen}{\textbf{Construct the basetable}}
+\end{itemize}
+\end{block}
+
+## Learning Objectives
+
+\begin{block}{By the end of this lecture, you will be able to:}
+\begin{enumerate}
+  \item Define and construct a basetable for predictive modeling
+  \item Understand the temporal structure of prediction problems
+  \item Implement timeline-compliant data partitioning
+  \item Define population eligibility criteria
+  \item Create binary and continuous target variables
+  \item Apply set operations for population filtering
+\end{enumerate}
+\end{block}
+
+# The Basetable
+
+## What is a Basetable? (1/4)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8]
+  % Draw the main rectangle
+  \draw[line width=2pt, black] (0,0) rectangle (10,3);
+  
+  % Draw vertical separator
+  \draw[line width=2pt, black] (8,0) -- (8,3);
+\end{tikzpicture}
+\end{center}
+
+\vspace{1em}
+
+\begin{block}{Definition}
+A basetable is a \textbf{structured data matrix} where:
+\begin{itemize}
+  \item Each \textcolor{datablue}{\textbf{row}} represents an observation unit (customer, donor, patient)
+  \item Each \textcolor{dataorange}{\textbf{column}} represents a variable (predictor or target)
+\end{itemize}
+\end{block}
+
+## What is a Basetable? (2/4)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8]
+  % Draw the main rectangle
+  \draw[line width=2pt, black] (0,0) rectangle (10,3);
+  
+  % Draw vertical separator
+  \draw[line width=2pt, black] (8,0) -- (8,3);
+  
+  % Add population icons on left
+  \node at (-1, 2.3) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 2.3) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  
+  \node at (-1, 1.5) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 1.5) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  
+  \node at (-1, 0.7) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 0.7) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  
+  % Add label
+  \node[left] at (-1.5, 1.5) {\textbf{Population}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+\begin{block}{Population}
+The set of \textcolor{datablue}{\textbf{observation units}} eligible for analysis.
+\end{block}
+
+## What is a Basetable? (3/4)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.7]
+  % Draw the main rectangle
+  \draw[line width=2pt, black] (0,0) rectangle (10,3);
+  
+  % Draw vertical separator
+  \draw[line width=2pt, black] (8,0) -- (8,3);
+  
+  % Add population icons on left
+  \node at (-1, 2.3) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 2.3) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  
+  \node at (-1, 1.5) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 1.5) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  
+  \node at (-1, 0.7) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 0.7) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  
+  % Add label
+  \node[left] at (-1.5, 1.5) {\textbf{Population}};
+  
+  % Add column headers
+  \node at (2, 3.5) {\small \textbf{Age}};
+  \node at (4, 3.5) {\small \textbf{Gender}};
+  \node at (6, 3.5) {\small \textbf{Previous gifts}};
+  
+  % Add data
+  \node at (2, 2.3) {25};
+  \node at (4, 2.3) {F};
+  \node at (6, 2.3) {12};
+  
+  \node at (2, 1.5) {60};
+  \node at (4, 1.5) {M};
+  \node at (6, 1.5) {5};
+  
+  \node at (2, 0.7) {45};
+  \node at (4, 0.7) {F};
+  \node at (6, 0.7) {9};
+  
+  % Add header label
+  \node at (4, 4.2) {\textcolor{datagreen}{\textbf{Candidate predictors}}};
+\end{tikzpicture}
+\end{center}
+
+\begin{block}{Candidate Predictors}
+Historical features calculated from data available \textcolor{datagreen}{\textbf{before}} the observation point.
+\end{block}
+
+## What is a Basetable? (4/4)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.65]
+  % Draw the main rectangle
+  \draw[line width=2pt, black] (0,0) rectangle (10,3);
+  
+  % Draw vertical separator
+  \draw[line width=2pt, black] (8,0) -- (8,3);
+  
+  % Add population icons on left
+  \node at (-1, 2.3) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 2.3) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  
+  \node at (-1, 1.5) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 1.5) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  
+  \node at (-1, 0.7) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 0.7) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  
+  % Add label
+  \node[left] at (-1.5, 1.5) {\textbf{Population}};
+  
+  % Add column headers
+  \node at (2, 3.5) {\small \textbf{Age}};
+  \node at (4, 3.5) {\small \textbf{Gender}};
+  \node at (6, 3.5) {\small \textbf{Previous gifts}};
+  \node at (9, 3.5) {\small \textbf{Donate}};
+  
+  % Add data
+  \node at (2, 2.3) {25};
+  \node at (4, 2.3) {F};
+  \node at (6, 2.3) {12};
+  \node at (9, 2.3) {0};
+  
+  \node at (2, 1.5) {60};
+  \node at (4, 1.5) {M};
+  \node at (6, 1.5) {5};
+  \node at (9, 1.5) {1};
+  
+  \node at (2, 0.7) {45};
+  \node at (4, 0.7) {F};
+  \node at (6, 0.7) {9};
+  \node at (9, 0.7) {0};
+  
+  % Add header labels
+  \node at (4, 4.2) {\textcolor{datagreen}{\textbf{Candidate predictors}}};
+  \node at (9, 4.2) {\textcolor{datacyan}{\textbf{Target}}};
+\end{tikzpicture}
+\end{center}
+
+\begin{block}{Target Variable}
+The outcome variable measured \textcolor{datacyan}{\textbf{after}} the observation point that we aim to predict.
+\end{block}
+
+# The Timeline
+
+## The Timeline Concept (1/4)
+
+\begin{center}
+\begin{tikzpicture}[scale=1.2]
+  % Draw arrow
+  \draw[->, line width=3pt, black] (0,0) -- (10,0);
+\end{tikzpicture}
+\end{center}
+
+\vspace{2em}
+
+\begin{block}{Temporal Structure}
+Predictive modeling requires a clear \textbf{temporal separation} between:
+\begin{itemize}
+  \item \textcolor{datagreen}{\textbf{Past}}: Data used to calculate predictors
+  \item \textcolor{datacyan}{\textbf{Future}}: Outcomes to be predicted
+\end{itemize}
+\end{block}
+
+## The Timeline Concept (2/4)
+
+\begin{center}
+\begin{tikzpicture}[scale=1.2]
+  % Draw arrow
+  \draw[->, line width=3pt, black] (0,0) -- (10,0);
+  
+  % Add observation date marker
+  \node at (5, 0.5) {\Large \textcolor{datared}{$\bigotimes$}};
+  \node[above] at (5, 0.8) {\small \textbf{May 1st 2018}};
+  
+  % Add target period
+  \fill[datacyan, opacity=0.3] (5,0.3) rectangle (7.5,-0.3);
+  \node[below] at (6.25, -0.6) {\small \textcolor{datacyan}{\textbf{Target period (3 months)}}};
+  
+  % Add end date
+  \node[below] at (7.5, 0.5) {\small \textbf{August 1st 2018}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{1em}
+
+\begin{block}{Key Dates}
+\begin{itemize}
+  \item \textcolor{datared}{\textbf{Observation date}}: Reference point (e.g., mailing date)
+  \item \textcolor{datacyan}{\textbf{Target period}}: Window for measuring outcomes
+\end{itemize}
+\end{block}
+
+## The Timeline Concept (3/4)
+
+\begin{center}
+\begin{tikzpicture}[scale=1.2]
+  % Draw arrow
+  \draw[->, line width=3pt, black] (0,0) -- (10,0);
+  
+  % Add observation date marker
+  \node at (5, 0.5) {\Large \textcolor{datared}{$\bigotimes$}};
+  \node[above] at (5, 0.8) {\small \textbf{May 1st 2018}};
+  
+  % Add predictor period
+  \fill[datalime, opacity=0.3] (0,0.3) rectangle (5,-0.3);
+  \node[below] at (2.5, -0.6) {\small \textcolor{datagreen}{\textbf{Predictive variables}}};
+  
+  % Add target period
+  \fill[datacyan, opacity=0.3] (5,0.3) rectangle (7.5,-0.3);
+  \node[below] at (6.25, -0.9) {\small \textcolor{datacyan}{\textbf{Target period}}};
+  
+  % Add end date
+  \node[below] at (7.5, 0.5) {\small \textbf{August 1st 2018}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+\begin{alertblock}{Critical Principle}
+\textbf{No data leakage}: Predictors must be calculated using \textcolor{datagreen}{\textbf{only}} information available before the observation date.
+\end{alertblock}
+
+## The Timeline Concept (4/4)
+
+\begin{block}{Why is Timeline Important?}
+\begin{enumerate}
+  \item \textbf{Prevents data leakage}: Ensures predictors don't contain future information
+  \item \textbf{Mimics deployment}: Replicates real-world prediction scenarios
+  \item \textbf{Valid evaluation}: Enables honest assessment of model performance
+  \item \textbf{Temporal validity}: Accounts for time-dependent patterns
+\end{enumerate}
+\end{block}
+
+\begin{exampleblock}{Real-world Example}
+To predict donations in May-July 2018 using a mailing sent May 1st, we can only use donor characteristics and behavior from before May 1st.
+\end{exampleblock}
+
+# Reconstructing History
+
+## Historical Reconstruction (1/3)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.9]
+  % First timeline
+  \draw[->, line width=2pt, black] (0,2) -- (10,2);
+  \node at (5, 2.5) {\Large \textcolor{datared}{$\bigotimes$}};
+  \node[above] at (5, 2.8) {\tiny \textbf{May 1st 2018}};
+  \fill[datalime, opacity=0.3] (0,2.2) rectangle (5,1.8);
+  \node[below] at (2.5, 1.6) {\tiny \textcolor{datagreen}{\textbf{Predictive variables}}};
+  \fill[datacyan, opacity=0.3] (5,2.2) rectangle (7.5,1.8);
+  \node[below] at (6.25, 1.6) {\tiny \textcolor{datacyan}{\textbf{Target (3 months)}}};
+  \node[below] at (7.5, 2.3) {\tiny \textbf{Aug 1st 2018}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{1em}
+
+\begin{block}{Training Data Construction}
+To build robust models, we need \textbf{multiple observation points} from historical data.
+\end{block}
+
+## Historical Reconstruction (2/3)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.85]
+  % First timeline (2018)
+  \draw[->, line width=1.5pt, black] (0,3) -- (10,3);
+  \node at (5, 3.4) {\small \textcolor{datared}{$\bigotimes$}};
+  \node[above] at (5, 3.6) {\tiny \textbf{May 1st 2018}};
+  \fill[datalime, opacity=0.3] (0,3.15) rectangle (5,2.85);
+  \node[below] at (2.5, 2.7) {\tiny \textcolor{datagreen}{\textbf{Predictive variables}}};
+  \fill[datacyan, opacity=0.3] (5,3.15) rectangle (7.5,2.85);
+  \node[below] at (6.25, 2.7) {\tiny \textcolor{datacyan}{\textbf{Target (3 mo)}}};
+  \node[below] at (7.5, 3.2) {\tiny \textbf{Aug 2018}};
+  
+  % Second timeline (2017)
+  \draw[->, line width=1.5pt, black] (0,1.5) -- (9,1.5);
+  \node at (5, 1.9) {\small \textcolor{datared}{$\bigotimes$}};
+  \node[above] at (5, 2.1) {\tiny \textbf{May 1st 2017}};
+  \fill[datalime, opacity=0.3] (0,1.65) rectangle (5,1.35);
+  \node[below] at (2.5, 1.2) {\tiny \textcolor{datagreen}{\textbf{Predictive variables}}};
+  \fill[datacyan, opacity=0.3] (5,1.65) rectangle (7.5,1.35);
+  \node[below] at (6.25, 1.2) {\tiny \textcolor{datacyan}{\textbf{Target (3 mo)}}};
+  \node[below] at (7.5, 1.7) {\tiny \textbf{Aug 2017}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+\begin{block}{Multiple Snapshots}
+By shifting the observation date backward, we create additional training samples while maintaining timeline integrity.
+\end{block}
+
+## Historical Reconstruction (3/3)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.7]
+  % Three timelines
+  \draw[->, line width=1.2pt, black] (0,4) -- (10,4);
+  \node at (5, 4.3) {\footnotesize \textcolor{datared}{$\bigotimes$}};
+  \fill[datalime, opacity=0.3] (0,4.1) rectangle (5,3.9);
+  \fill[datacyan, opacity=0.3] (5,4.1) rectangle (7.5,3.9);
+  \node[above] at (5, 4.5) {\tiny \textbf{May 2018}};
+  
+  \draw[->, line width=1.2pt, black] (0,2.5) -- (9,2.5);
+  \node at (5, 2.8) {\footnotesize \textcolor{datared}{$\bigotimes$}};
+  \fill[datalime, opacity=0.3] (0,2.6) rectangle (5,2.4);
+  \fill[datacyan, opacity=0.3] (5,2.6) rectangle (7,2.4);
+  \node[above] at (5, 3.0) {\tiny \textbf{May 2017}};
+  
+  % Basetable representation
+  \draw[line width=2pt, black] (0,0) rectangle (7,1.5);
+  \draw[line width=2pt, black] (5.5,0) -- (5.5,1.5);
+  \node at (2.75, 1.8) {\tiny \textcolor{datagreen}{\textbf{Predictive variables}}};
+  \node at (6.25, 1.8) {\tiny \textcolor{datacyan}{\textbf{Target}}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+\begin{exampleblock}{Result}
+Each historical observation point creates a \textbf{row} in the basetable, increasing sample size for model training.
+\end{exampleblock}
+
+## Selecting Relevant Data in R
+```{r eval=FALSE, size="tiny"}
+# Load and prepare donation data
+library(tidyverse)
+library(lubridate)
+
+gifts <- read_csv("gifts.csv") %>%
+  mutate(date = as.Date(date))
+
+# Define timeline boundaries
+start_target <- as.Date("2018-05-01")  # Observation date
+end_target <- as.Date("2018-08-01")    # End of target period
+
+# Partition data by timeline
+gifts_target <- gifts %>%
+  filter(date >= start_target & date < end_target)
+
+gifts_pred_variables <- gifts %>%
+  filter(date < start_target)  # Only historical data
+```
+
+## R Code: Example Output
+```{r echo=FALSE}
+# Create sample data
+set.seed(123)
+gifts <- tibble(
+  id = rep(1:5, each = 3),
+  date = as.Date(c("2015-10-16", "2014-02-11", "2012-03-28", "2013-12-13", "2012-01-10",
+                   "2016-05-20", "2017-03-15", "2018-01-10", "2015-08-22", "2016-11-30",
+                   "2017-06-15", "2018-03-20", "2014-09-10", "2016-02-28", "2017-12-05")),
+  amount = c(75.0, 111.0, 93.0, 113.0, 93.0, 82.5, 95.0, 105.0, 88.0, 92.5,
+             78.0, 110.0, 87.0, 99.0, 103.0)
+)
+```
+```{r size="tiny"}
+head(gifts, 5)
+```
+
+\vspace{0.5em}
+
+\begin{block}{Data Structure}
+Each row represents a \textbf{donation transaction} with donor ID, date, and amount.
+\end{block}
+
+# The Population
+
+## Population Definition
+
+\begin{block}{What is the Population?}
+The population is the set of \textcolor{datablue}{\textbf{observation units}} (individuals, customers, entities) who are:
+\begin{enumerate}
+  \item \textbf{Eligible} for the intervention or prediction
+  \item \textbf{Available} in the data at the observation date
+  \item \textbf{Relevant} to the business problem
+\end{enumerate}
+\end{block}
+
+\vspace{1em}
+
+\begin{exampleblock}{Example: Donor Prediction}
+Population = donors who:
+\begin{itemize}
+  \item Have a valid mailing address
+  \item Have not opted out of communications
+  \item Have donated at least once before the observation date
+\end{itemize}
+\end{exampleblock}
+
+## Population Requirements
+
+\begin{center}
+\begin{tikzpicture}[scale=0.65]
+  \draw[line width=2pt, black] (0,0) rectangle (10,3);
+  \draw[line width=2pt, black] (8,0) -- (8,3);
+  
+  \node at (-1, 2.3) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 2.3) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  \node at (-1, 1.5) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 1.5) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  \node at (-1, 0.7) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (-0.5, 0.7) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  \node[left] at (-1.5, 1.5) {\textbf{Population}};
+  
+  \node at (2, 3.5) {\small \textbf{Age}};
+  \node at (4, 3.5) {\small \textbf{Gender}};
+  \node at (6, 3.5) {\small \textbf{Prev. gifts}};
+  \node at (9, 3.5) {\small \textbf{Donate}};
+  
+  \node at (2, 2.3) {25};
+  \node at (4, 2.3) {F};
+  \node at (6, 2.3) {12};
+  \node at (9, 2.3) {0};
+  \node at (2, 1.5) {60};
+  \node at (4, 1.5) {M};
+  \node at (6, 1.5) {5};
+  \node at (9, 1.5) {1};
+  \node at (2, 0.7) {45};
+  \node at (4, 0.7) {F};
+  \node at (6, 0.7) {9};
+  \node at (9, 0.7) {0};
+  
+  \node at (4, 4.2) {\textcolor{datagreen}{\textbf{Candidate predictors}}};
+  \node at (9, 4.2) {\textcolor{datacyan}{\textbf{Target}}};
+\end{tikzpicture}
+\end{center}
+
+\begin{block}{Eligibility Criteria}
+\begin{itemize}
+  \item Address available \textcolor{datagreen}{}
+  \item Privacy settings allow contact \textcolor{datagreen}{}
+  \item Active in the system \textcolor{datagreen}{}
+\end{itemize}
+\end{block}
+
+## Timeline Compliant Population: Age (1/2)
+
+\begin{center}
+\begin{tikzpicture}[scale=1.1]
+  % Timeline
+  \draw[->, line width=2.5pt, black] (0,0) -- (10,0);
+  
+  % Observation marker
+  \node at (5, 0.5) {\Large \textcolor{datared}{$\bigotimes$}};
+  \node[above] at (5, 0.8) {\small \textbf{May 1st 2018}};
+  
+  % Periods
+  \fill[datalime, opacity=0.3] (0,0.3) rectangle (5,-0.3);
+  \node[below] at (2.5, -0.6) {\small \textcolor{datagreen}{\textbf{Predictive variables}}};
+  
+  \fill[datacyan, opacity=0.3] (5,0.3) rectangle (8,-0.3);
+  \node[below] at (6.5, -0.6) {\small \textcolor{datacyan}{\textbf{Target period}}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{1em}
+
+\begin{alertblock}{Temporal Consistency}
+Age must be calculated as of the \textcolor{datared}{\textbf{observation date}} (May 1st, 2018), not current age.
+\end{alertblock}
+
+## Timeline Compliant Population: Age (2/2)
+
+\begin{center}
+\begin{tikzpicture}[scale=1.1]
+  % Timeline
+  \draw[->, line width=2.5pt, black] (0,0) -- (10,0);
+  
+  % Observation marker
+  \node at (5, 0.5) {\Large \textcolor{datared}{$\bigotimes$}};
+  \node[above] at (5, 0.8) {\small \textbf{May 1st 2018}};
+  
+  % Periods
+  \fill[datalime, opacity=0.3] (0,0.3) rectangle (5,-0.3);
+  \fill[datacyan, opacity=0.3] (5,0.3) rectangle (8,-0.3);
+  
+  % Person example
+  \node at (5, -1.5) {\Large \textcolor{datablue}{$\bigcirc$}};
+  \node at (5.5, -1.5) {\Large \textcolor{datablue}{$\widehat{\phantom{X}}$}};
+  \node[right] at (6, -1.5) {\textbf{Age 25}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+\begin{exampleblock}{Implementation}
+\texttt{age\_at\_observation = year(observation\_date) - year(birth\_date)}
+\end{exampleblock}
+
+## Timeline Compliant Population: Donations (1/3)
+
+\begin{center}
+\begin{tikzpicture}[scale=1.0]
+  % Timeline
+  \draw[->, line width=2.5pt, black] (0,0) -- (10,0);
+  
+  % Observation marker
+  \node at (5, 0.5) {\Large \textcolor{datared}{$\bigotimes$}};
+  \node[above] at (5, 0.8) {\small \textbf{May 1st 2018}};
+  \node[below] at (7.5, 0.4) {\small \textbf{June 1st 2018}};
+  
+  % Target period only
+  \fill[datacyan, opacity=0.3] (5,0.25) rectangle (7.5,-0.25);
+  \node[below] at (6.25, -0.6) {\small \textcolor{datacyan}{\textbf{Target period}}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{1em}
+
+\begin{block}{Population Filtering by Donation History}
+To ensure population has potential to donate, we often require \textcolor{datagreen}{\textbf{at least one prior donation}}.
+\end{block}
+
+## Timeline Compliant Population: Donations (2/3)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.95]
+  % Timeline
+  \draw[->, line width=2.5pt, black] (0,0) -- (10,0);
+  
+  % Dates
+  \node[below] at (1, 0.4) {\tiny \textbf{Jan 1 2018}};
+  \node at (5, 0.5) {\Large \textcolor{datared}{$\bigotimes$}};
+  \node[above] at (5, 0.8) {\tiny \textbf{May 1 2018}};
+  \node[below] at (7.5, 0.4) {\tiny \textbf{June 1 2018}};
+  
+  % Periods
+  \fill[datalime, opacity=0.3] (1,0.25) rectangle (5,-0.25);
+  \node[below] at (3, -0.55) {\tiny \textcolor{datagreen}{\textbf{At least 1 donation}}};
+  
+  \fill[gray, opacity=0.2] (5,0.25) rectangle (7.5,-0.25);
+  \node[below] at (6.25, -0.55) {\tiny \textbf{No donations}};
+  
+  \fill[datacyan, opacity=0.3] (7.5,0.25) rectangle (9.5,-0.25);
+  \node[below] at (8.5, -0.55) {\tiny \textcolor{datacyan}{\textbf{Target period}}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+\begin{block}{Inclusion Criterion}
+Include donors with $\geq 1$ donation between Jan 1st and May 1st, but \textbf{exclude} those who donated between May 1st and June 1st.
+\end{block}
+
+## Timeline Compliant Population: Donations (3/3)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8]
+  % Timeline 2018
+  \draw[->, line width=2pt, black] (0,2.5) -- (10,2.5);
+  \node[below] at (1, 2.9) {\tiny \textbf{Jan 1 2018}};
+  \node at (5, 3.0) {\small \textcolor{datared}{$\bigotimes$}};
+  \node[above] at (5, 3.3) {\tiny \textbf{May 1 2018}};
+  \node[below] at (7.5, 2.9) {\tiny \textbf{June 1 2018}};
+  \fill[datalime, opacity=0.3] (1,2.65) rectangle (5,2.35);
+  \node[below] at (3, 2.2) {\tiny \textcolor{datagreen}{\textbf{At least 1 donation}}};
+  \fill[gray, opacity=0.2] (5,2.65) rectangle (7.5,2.35);
+  \node[below] at (6.25, 2.2) {\tiny \textbf{No donations}};
+  \fill[datacyan, opacity=0.3] (7.5,2.65) rectangle (9.5,2.35);
+  \node[below] at (8.5, 2.2) {\tiny \textcolor{datacyan}{\textbf{Target}}};
+  
+  % Timeline 2017
+  \draw[->, line width=2pt, black] (0,1) -- (9,1);
+  \node[below] at (1, 1.4) {\tiny \textbf{Jan 1 2017}};
+  \node at (5, 1.5) {\small \textcolor{datared}{$\bigotimes$}};
+  \node[above] at (5, 1.8) {\tiny \textbf{May 1 2017}};
+  \node[below] at (7.5, 1.4) {\tiny \textbf{June 1 2017}};
+  \fill[datalime, opacity=0.3] (1,1.15) rectangle (5,0.85);
+  \fill[gray, opacity=0.2] (5,1.15) rectangle (7.5,0.85);
+  \fill[datacyan, opacity=0.3] (7.5,1.15) rectangle (9.5,0.85);
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+\begin{exampleblock}{Multiple Time Points}
+Apply the same logic to create populations for 2017, 2016, etc., building a larger training dataset.
+\end{exampleblock}
+
+## Population Selection in R: Set Operations
+```{r eval=FALSE, size="tiny"}
+# Identify donors to INCLUDE (donated in 2016)
+donations_2016 <- gifts %>%
+  filter(year(date) == 2016)
+
+donors_include <- unique(donations_2016$id)
+
+# Identify donors to EXCLUDE (donated Jan-Apr 2017)
+donations_2017_early <- gifts %>%
+  filter(year(date) == 2017, month(date) < 5)
+
+donors_exclude <- unique(donations_2017_early$id)
+
+# Population = Include \ Exclude
+population <- setdiff(donors_include, donors_exclude)
+```
+
+## R Code: Set Operations Example
+```{r size="tiny"}
+# Create example donor sets
+set.seed(456)
+donors_include <- c(1002, 3043, 4934, 5012, 7834, 2451, 3047)
+donors_exclude <- c(2451, 3047, 4474)
+
+# Apply set difference
+population <- setdiff(donors_include, donors_exclude)
+population
+```
+
+\vspace{0.5em}
+
+\begin{block}{Set Difference Operation}
+\texttt{setdiff(A, B)} returns elements in set A that are \textbf{not} in set B.
+\end{block}
+
+# The Target Variable
+
+## Target Variable Definition
+
+\begin{block}{What is a Target Variable?}
+The target (dependent variable, outcome, label) is the \textcolor{datacyan}{\textbf{quantity we aim to predict}}, measured during the target period.
+\end{block}
+
+\vspace{0.5em}
+
+\begin{block}{Types of Targets}
+\begin{itemize}
+  \item \textbf{Binary}: Did event occur? (Yes/No, 1/0)
+  \begin{itemize}
+    \item Example: Donated (1) or not (0)
+  \end{itemize}
+  \item \textbf{Continuous}: What magnitude? (Real number)
+  \begin{itemize}
+    \item Example: Total donation amount (\$)
+  \end{itemize}
+  \item \textbf{Categorical}: Which category?
+  \begin{itemize}
+    \item Example: Customer segment (A, B, C)
+  \end{itemize}
+\end{itemize}
+\end{block}
+
+## Target Timeline (1/3)
+
+\begin{center}
+\begin{tikzpicture}[scale=1.1]
+  % Timeline
+  \draw[->, line width=2.5pt, black] (0,0) -- (10,0);
+  
+  % Dates
+  \node[below] at (5, 0.4) {\small \textbf{August 1 2018}};
+  \node[below] at (7.5, 0.4) {\small \textbf{September 1 2018}};
+  
+  % Periods
+  \fill[datalime, opacity=0.3] (0,0.25) rectangle (5,-0.25);
+  \node[below] at (2.5, -0.6) {\small \textcolor{datagreen}{\textbf{Predictive variables}}};
+  
+  \fill[datacyan, opacity=0.3] (5,0.25) rectangle (7.5,-0.25);
+  \node[below] at (6.25, -0.6) {\small \textcolor{datacyan}{\textbf{Target period}}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{1em}
+
+\begin{block}{Target Period Selection}
+The target period should:
+\begin{itemize}
+  \item Be \textcolor{datacyan}{\textbf{actionable}} (e.g., campaign duration)
+  \item Match \textcolor{datacyan}{\textbf{business cycle}} (quarterly, monthly)
+  \item Provide sufficient \textcolor{datacyan}{\textbf{signal}} (not too short/long)
+\end{itemize}
+\end{block}
+
+## Target Timeline (2/3)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.9]
+  % Timeline 2018
+  \draw[->, line width=2pt, black] (0,2.5) -- (10,2.5);
+  \node[below] at (5, 2.9) {\tiny \textbf{Aug 1 2018}};
+  \node[below] at (7.5, 2.9) {\tiny \textbf{Sep 1 2018}};
+  \fill[datalime, opacity=0.3] (0,2.65) rectangle (5,2.35);
+  \node[below] at (2.5, 2.2) {\tiny \textcolor{datagreen}{\textbf{Predictive variables}}};
+  \fill[datacyan, opacity=0.3] (5,2.65) rectangle (7.5,2.35);
+  \node[below] at (6.25, 2.2) {\tiny \textcolor{datacyan}{\textbf{Target period}}};
+  
+  % Timeline 2017
+  \draw[->, line width=2pt, black] (0,1) -- (9,1);
+  \node[below] at (5, 1.4) {\tiny \textbf{Aug 1 2017}};
+  \node[below] at (7, 1.4) {\tiny \textbf{Sep 1 2017}};
+  \fill[datalime, opacity=0.3] (0,1.15) rectangle (5,0.85);
+  \node[below] at (2.5, 0.7) {\tiny \textcolor{datagreen}{\textbf{Predictive variables}}};
+  \fill[datacyan, opacity=0.3] (5,1.15) rectangle (7,0.85);
+  \node[below] at (6, 0.7) {\tiny \textcolor{datacyan}{\textbf{Target period}}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+\begin{block}{Consistent Target Definition}
+The \textcolor{datacyan}{\textbf{same target definition}} must be applied across all historical observation points for valid model training.
+\end{block}
+
+## Target Timeline (3/3)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.7]
+  % Timeline 2018
+  \draw[->, line width=1.5pt, black] (0,3.5) -- (10,3.5);
+  \node[below] at (5, 3.9) {\tiny \textbf{Aug 1 2018}};
+  \node[below] at (7, 3.9) {\tiny \textbf{Sep 1 2018}};
+  \fill[datalime, opacity=0.3] (0,3.65) rectangle (5,3.35);
+  \fill[datacyan, opacity=0.3] (5,3.65) rectangle (7,3.35);
+  
+  % Timeline 2017
+  \draw[->, line width=1.5pt, black] (0,2) -- (9,2);
+  \node[below] at (5, 2.4) {\tiny \textbf{Aug 1 2017}};
+  \node[below] at (6.75, 2.4) {\tiny \textbf{Sep 1 2017}};
+  \fill[datalime, opacity=0.3] (0,2.15) rectangle (5,1.85);
+  \fill[datacyan, opacity=0.3] (5,2.15) rectangle (6.75,1.85);
+  
+  % Arrow pointing to basetable
+  \draw[->, line width=1.5pt, datared] (5, 1.5) -- (5, 0.8);
+  
+  % Basetable
+  \draw[line width=2pt, black] (0,0) rectangle (9,0.7);
+  \draw[line width=2pt, black] (7,0) -- (7,0.7);
+  \node at (3.5, 1.0) {\tiny \textcolor{datagreen}{\textbf{Predictors}}};
+  \node at (8, 1.0) {\tiny \textcolor{datacyan}{\textbf{Target}}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+\begin{exampleblock}{Basetable Construction}
+Each timeline generates one row in the basetable with historical predictors and future target.
+\end{exampleblock}
+
+## Defining Binary Target in R
+```{r eval=FALSE, size="tiny"}
+# Load target period outcomes (e.g., list of unsubscribers)
+unsubscribe_2017 <- c(90112, 65537, 24577, 8196, 73737)
+
+# Create basetable with donor IDs from population
+basetable <- tibble(donor_id = population)
+
+# Define binary target: 1 if unsubscribed, 0 otherwise
+basetable <- basetable %>%
+  mutate(target = if_else(donor_id %in% unsubscribe_2017, 
+                          1, 0))
+```
+
+\vspace{0.5em}
+
+\begin{alertblock}{Binary Encoding}
+\texttt{1} = event occurred (positive class), \texttt{0} = event did not occur (negative class)
+\end{alertblock}
+
+## R Code: Binary Target Example
+```{r size="tiny"}
+# Example binary target creation
+unsubscribe_2017 <- c(65537, 65540)
+basetable <- tibble(
+  donor_id = c(65537, 65538, 65539, 65540, 65541)
+)
+
+basetable <- basetable %>%
+  mutate(target = if_else(donor_id %in% unsubscribe_2017, 1, 0))
+
+basetable
+```
+
+## Defining Aggregated (Continuous) Target in R (1/2)
+```{r eval=FALSE, size="tiny"}
+# Define target period
+start_target <- as.Date("2017-01-01")
+end_target <- as.Date("2018-01-01")
+
+# Select donations in target period
+gifts_target <- gifts %>%
+  filter(date >= start_target & date < end_target)
+
+# Aggregate: sum donations by donor
+gifts_target_byid <- gifts_target %>%
+  group_by(id) %>%
+  summarize(total_amount = sum(amount), .groups = "drop")
+```
+
+## Defining Aggregated (Continuous) Target in R (2/2)
+```{r eval=FALSE, size="tiny"}
+# Define target based on threshold (e.g., donated >$500)
+high_value_donors <- gifts_target_byid %>%
+  filter(total_amount > 500) %>%
+  pull(id)
+
+# Add binary target to basetable
+basetable <- basetable %>%
+  mutate(target = if_else(donor_id %in% high_value_donors, 
+                          1, 0))
+```
+
+\vspace{0.5em}
+
+\begin{block}{Aggregation Strategy}
+For continuous outcomes, we often \textcolor{dataorange}{\textbf{aggregate}} transactions (sum, mean, count) within the target period, then potentially \textcolor{dataorange}{\textbf{threshold}} to create binary targets.
+\end{block}
+
+# Summary
+
+## Key Takeaways
+
+\begin{block}{Core Concepts}
+\begin{enumerate}
+  \item \textbf{Basetable}: Structured matrix with observations (rows) and variables (columns)
+  \item \textbf{Timeline}: Temporal separation between predictor calculation and target measurement
+  \item \textbf{Population}: Eligible observation units defined by business rules
+  \item \textbf{Target}: Outcome variable measured in the target period
+  \item \textbf{Historical reconstruction}: Multiple observation points create training samples
+\end{enumerate}
+\end{block}
+
+## Critical Principles
+
+\begin{alertblock}{Golden Rules}
+\begin{itemize}
+  \item \textcolor{datared}{\textbf{No data leakage}}: Predictors use only pre-observation data
+  \item \textcolor{datared}{\textbf{Consistent definitions}}: Same target/population logic across time
+  \item \textcolor{datared}{\textbf{Timeline integrity}}: Maintain temporal ordering in all operations
+  \item \textcolor{datared}{\textbf{Eligibility criteria}}: Population must be actionable
+\end{itemize}
+\end{alertblock}
+
+## Practical Implementation Steps
+
+\begin{enumerate}
+  \item Define \textcolor{dataorange}{\textbf{business problem}} and target outcome
+  \item Establish \textcolor{dataorange}{\textbf{observation dates}} and target periods
+  \item Specify \textcolor{dataorange}{\textbf{population eligibility}} criteria
+  \item Partition \textcolor{dataorange}{\textbf{data by timeline}} (predictors vs. target)
+  \item Calculate \textcolor{dataorange}{\textbf{features}} from historical data
+  \item Define and measure \textcolor{dataorange}{\textbf{target variable}}
+  \item Construct \textcolor{dataorange}{\textbf{final basetable}}
+  \item Validate \textcolor{dataorange}{\textbf{temporal integrity}}
+\end{enumerate}
+
+## Next Steps
+
+\begin{block}{Coming Up}
+In the next lecture, we will cover:
+\begin{itemize}
+  \item \textbf{Feature engineering}: Creating predictive variables from raw data
+  \item \textbf{Aggregation techniques}: RFM (Recency, Frequency, Monetary) features
+  \item \textbf{Handling missing data}: Imputation strategies
+  \item \textbf{Feature selection}: Identifying the most predictive variables
+\end{itemize}
+\end{block}
+
+\vspace{1em}
+
+\begin{center}
+\textcolor{datablue}{\Large \textbf{Questions?}}
+\end{center}
+
+# Appendix
+
+## Additional Resources
+
+\begin{block}{Recommended Reading}
+\begin{itemize}
+  \item Verbiest, N. et al. (2018). "Building Maintainable Credit Scoring Models Using Time-Consistent Strategies"
+  \item Provost, F., \& Fawcett, T. (2013). \textit{Data Science for Business}. O'Reilly Media.
+  \item Kuhn, M., \& Johnson, K. (2019). \textit{Feature Engineering and Selection: A Practical Approach for Predictive Models}. CRC Press.
+\end{itemize}
+\end{block}
+
+\begin{block}{R Packages}
+\begin{itemize}
+  \item \texttt{tidyverse}: Data manipulation and visualization
+  \item \texttt{lubridate}: Date-time handling
+  \item \texttt{recipes}: Feature engineering framework
+\end{itemize}
+\end{block}
+
+## Practice Exercise
+
+\begin{exampleblock}{Exercise: Construct a Basetable}
+Given a dataset of customer transactions:
+\begin{enumerate}
+  \item Define an observation date (e.g., 2019-06-01)
+  \item Create a 3-month target period
+  \item Filter population: customers with $\geq$ 2 purchases before observation
+  \item Calculate predictor: total spending before observation date
+  \item Define binary target: purchased during target period (1/0)
+  \item Construct final basetable
+\end{enumerate}
+\end{exampleblock}
+
+\vspace{0.5em}
+
+\begin{block}{Deliverable}
+A basetable with columns: \texttt{customer\_id}, \texttt{total\_spending}, \texttt{target}
+\end{block}
+
+
+# The Feature Engineering Mindset
+
+## Think Like a Detective
+
+**Raw Data Says:** "Donor 123 gave €50 last month"
+
+**Good Features Ask:**
+
+1. **Recency:** How long ago? (Yesterday? Last year?)
+2. **Frequency:** Is this typical? (First time? Monthly ritual?)
+3. **Monetary:** Generous or modest? (More than usual? Less?)
+4. **Trend:** What's the direction? (Increasing? Decreasing?)
+5. **Context:** What else matters? (Season? Life event?)
+
+\vspace{1em}
+
+**Real Example:** Two donors, both gave €100 this year
+
+- **Donor A:** €10 × 10 times → Consistent supporter 
+- **Donor B:** €100 × 1 time → One-time gift ?
+
+**Same total, different stories!** Features capture these nuances.
+
+---
+
+# Part 1: Multi-Window Aggregation
+
+## Why Multiple Time Windows?
+
+**The Problem:** Behavior changes at different speeds
+```{r, eval=FALSE}
+# Three windows, three perspectives
+library(lubridate)
+reference_date <- as.Date("2024-01-01")
+
+# Recent behavior (3 months)
+window_3m <- gifts %>% 
+  filter(date >= reference_date - months(3),
+         date < reference_date)
+
+# Medium-term pattern (12 months)  
+window_12m <- gifts %>% 
+  filter(date >= reference_date - months(12),
+         date < reference_date)
+
+# Long-term history (24 months)
+window_24m <- gifts %>% 
+  filter(date >= reference_date - months(24),
+         date < reference_date)
+```
+
+**Why this matters:** Recent spike? Or sustained increase? Windows reveal the truth.
+
+---
+
+## Window Selection: The Goldilocks Problem
+
+**Too Short (1 month):**
+
+- Captures noise, not signal
+- Sensitive to one-off events
+- Example: "Donor gave last week because of emergency appeal"
+
+**Too Long (5 years):**
+
+- Ancient history dominates
+- Misses recent changes  
+- Example: "Used to give a lot, but stopped 2 years ago"
+
+**Just Right (3-12 months):**
+
+- Balances recency and stability
+- Captures true behavior patterns
+- Aligns with business planning cycles
+
+\vspace{1em}
+
+\begin{center}
+\textcolor{datablue}{\textbf{Rule of Thumb:}} Match your window to your prediction horizon\\
+Predicting next month? Use 3-6 month features\\
+Predicting next year? Use 12-24 month features
+\end{center}
+
+---
+
+## Building the Multi-Window Dataset
+```{r, eval=FALSE}
+# Aggregate each window separately
+agg_3m <- window_3m %>% 
+  group_by(donor_id) %>% 
+  summarise(
+    donations_3m = sum(amount),    # Total given
+    count_3m = n(),                # How many times
+    avg_3m = mean(amount)          # Average gift
+  )
+
+agg_12m <- window_12m %>% 
+  group_by(donor_id) %>% 
+  summarise(
+    donations_12m = sum(amount),
+    count_12m = n(),
+    avg_12m = mean(amount)
+  )
+
+# Combine into basetable
+basetable <- basetable %>% 
+  left_join(agg_3m, by = "donor_id") %>% 
+  left_join(agg_12m, by = "donor_id")
+```
+
+**Note:** `left_join` keeps all donors, even those with zero activity!
+
+---
+
+## Quick Example: Window Comparison
+```{r, echo=FALSE, eval=FALSE}
+# Example output (for slide visualization)
+example_output <- tibble(
+  donor_id = c(101, 102, 103),
+  donations_3m = c(150, 0, 300),
+  donations_12m = c(500, 400, 350),
+  count_3m = c(3, 0, 5),
+  count_12m = c(10, 8, 6)
+)
+```
+
+| Donor | 3m Total | 12m Total | Interpretation |
+|-------|----------|-----------|----------------|
+| 101   | €150     | €500      | Slowing down (30% of annual in recent quarter) |
+| 102   | €0       | €400      | Went quiet recently! \textbf{(!)} |
+| 103   | €300     | €350      | Accelerating! (86% of annual in last 3m) |
+
+**The magic:** Comparing windows reveals **momentum**
+
+---
+
+# Part 2: RFM - The Holy Trinity
+
+## Recency, Frequency, Monetary
+
+**RFM:** The three pillars of behavioral prediction
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8]
+% Three pillars
+\fill[datablue!30] (0,0) rectangle (2,4);
+\fill[datagreen!30] (3,0) rectangle (5,4);
+\fill[datared!30] (6,0) rectangle (8,4);
+
+\node at (1,2) [align=center] {\textbf{Recency}\\\vspace{0.5em}How\\recently?};
+\node at (4,2) [align=center] {\textbf{Frequency}\\\vspace{0.5em}How\\often?};
+\node at (7,2) [align=center] {\textbf{Monetary}\\\vspace{0.5em}How\\much?};
+
+% Base
+\fill[black!20] (-0.5,-0.3) rectangle (8.5,0);
+\node at (4,-0.6) {\textbf{Behavioral Foundation}};
+\end{tikzpicture}
+\end{center}
+
+**Why RFM works:** These three capture fundamentally different aspects of engagement
+
+---
+
+## Recency: The Clock is Ticking
+
+**Concept:** Time since last donation predicts next donation
+```{r, eval=FALSE}
+# Calculate days since last gift
+recency <- gifts %>% 
+  filter(date < reference_date) %>% 
+  group_by(donor_id) %>% 
+  summarise(last_gift_date = max(date)) %>% 
+  mutate(
+    days_since = as.numeric(reference_date - last_gift_date),
+    
+    # Create meaningful categories
+    recency_segment = case_when(
+      days_since <= 30  ~ "Active",     # Gave last month
+      days_since <= 90  ~ "Warm",       # Gave this quarter
+      days_since <= 365 ~ "Cooling",    # Gave this year
+      TRUE ~ "Cold"                     # Over a year ago
+    )
+  )
+```
+
+**Business insight:** "Active" donors are 5× more likely to give again than "Cold" donors
+
+---
+
+## Frequency: Habits Matter
+
+**Concept:** Past frequency predicts future frequency
+```{r, eval=FALSE}
+# How often do they give?
+frequency <- gifts %>% 
+  filter(date >= reference_date - months(12),
+         date < reference_date) %>% 
+  group_by(donor_id) %>% 
+  summarise(
+    gift_count = n(),
+    unique_months = n_distinct(floor_date(date, "month")),
+    
+    # Calculate regularity
+    regularity = unique_months / 12  # Score 0-1
+  ) %>% 
+  mutate(
+    frequency_segment = case_when(
+      gift_count >= 12 ~ "Monthly",      # Every month
+      gift_count >= 4  ~ "Regular",      # Quarterly
+      gift_count >= 2  ~ "Occasional",   # Semi-annual
+      TRUE ~ "Rare"                      # Once a year
+    )
+  )
+```
+
+**Surprise finding:** "Regular" donors (4-11 gifts/year) have highest retention!
+
+---
+
+## Monetary: Show Me the Money
+```{r, eval=FALSE}
+# How much do they give?
+monetary <- gifts %>% 
+  filter(date >= reference_date - months(12),
+         date < reference_date) %>% 
+  group_by(donor_id) %>% 
+  summarise(
+    total_value = sum(amount),
+    avg_gift = mean(amount),
+    max_gift = max(amount),
+    
+    # Variability matters too!
+    cv = sd(amount) / mean(amount)  # Coefficient of variation
+  ) %>% 
+  mutate(
+    value_tier = case_when(
+      total_value >= 1000 ~ "Major",      # €1000+
+      total_value >= 500  ~ "Premium",    # €500-1000
+      total_value >= 100  ~ "Standard",   # €100-500
+      TRUE ~ "Entry"                      # <€100
+    )
+  )
+```
+
+**Key metric:** `cv` tells us consistency → low CV = predictable giving
+
+---
+
+## Combining RFM: Segmentation
+```{r, eval=FALSE}
+# Join all three components
+rfm <- basetable %>% 
+  left_join(recency %>% select(donor_id, days_since), 
+            by = "donor_id") %>% 
+  left_join(frequency %>% select(donor_id, gift_count), 
+            by = "donor_id") %>% 
+  left_join(monetary %>% select(donor_id, total_value), 
+            by = "donor_id") %>% 
+  mutate(
+    # Score each dimension 1-5 (5 = best)
+    R_score = ntile(-days_since, 5),   # Negative: recent = high score
+    F_score = ntile(gift_count, 5),
+    M_score = ntile(total_value, 5),
+    
+    # Combined RFM code (e.g., "555" = best)
+    RFM_segment = paste0(R_score, F_score, M_score)
+  )
+```
+
+**Champion segment:** RFM = "555" → Recent, Frequent, High-Value donors!
+
+---
+
+## RFM in Action: Real Segments
+
+| Segment | R | F | M | Label | Strategy |
+|---------|---|---|---|-------|----------|
+| 555 | 5 | 5 | 5 | Champions | Cultivate & thank |
+| 511 | 5 | 1 | 1 | New Enthusiasts | Nurture relationship |
+| 155 | 1 | 5 | 5 | At Risk | Win-back campaign \textbf{(!)} |
+| 111 | 1 | 1 | 1 | Lost | Don't waste resources |
+
+**Marketing insight:** Segment 155 (At Risk) → immediate intervention!
+
+**Cost savings:** Don't mail Segment 111 → save 40% of mailing costs
+
+---
+
+# Part 3: The Power of Trends
+
+## Static vs. Dynamic Features
+
+**Problem with snapshots:** They miss the movie
+
+\begin{center}
+\begin{tikzpicture}[scale=0.7]
+% Timeline
+\draw[->,thick] (0,0) -- (10,0) node[right] {Time};
+
+% Donor A (stable)
+\foreach \x in {1,2,3,4,5,6,7,8} {
+  \fill[datablue] (\x,2) circle (0.1);
+}
+\node at (4.5,2.7) {Donor A: €50 each time};
+
+% Donor B (increasing)
+\fill[datagreen] (1,0.5) circle (0.1);
+\fill[datagreen] (2,0.7) circle (0.1);
+\fill[datagreen] (3,0.9) circle (0.1);
+\fill[datagreen] (4,1.2) circle (0.1);
+\fill[datagreen] (5,1.5) circle (0.1);
+\fill[datagreen] (6,1.8) circle (0.1);
+\node at (4,0) [below] {Donor B: Growing!};
+\end{tikzpicture}
+\end{center}
+
+**Both gave €300 total → but very different futures!**
+
+**Solution:** Calculate **change rates** and **trends**
+
+---
+
+## Building Trend Features: The Recipe
+```{r, eval=FALSE}
+# Step 1: Define comparison periods
+recent_3m <- gifts %>% 
+  filter(date >= reference_date - months(3),
+         date < reference_date)
+
+previous_3m <- gifts %>% 
+  filter(date >= reference_date - months(6),
+         date < reference_date - months(3))
+
+# Step 2: Aggregate each period
+recent_agg <- recent_3m %>% 
+  group_by(donor_id) %>% 
+  summarise(recent_total = sum(amount))
+
+previous_agg <- previous_3m %>% 
+  group_by(donor_id) %>% 
+  summarise(previous_total = sum(amount))
+
+# Step 3: Calculate change
+trends <- recent_agg %>% 
+  full_join(previous_agg, by = "donor_id") %>% 
+  mutate(
+    recent_total = replace_na(recent_total, 0),
+    previous_total = replace_na(previous_total, 0),
+    
+    absolute_change = recent_total - previous_total,
+    percent_change = (recent_total - previous_total) / 
+      (previous_total + 1)  # +1 prevents division by zero
+  )
+```
+
+---
+
+## Interpreting Trend Signals
+```{r, echo=FALSE, eval=FALSE}
+# Example trends
+trend_examples <- tibble(
+  donor = c("Alice", "Bob", "Carol"),
+  previous = c(100, 200, 0),
+  recent = c(200, 150, 50),
+  change_pct = c(100, -25, Inf)
+)
+```
+
+| Donor | Previous | Recent | Change | Signal |
+|-------|----------|--------|--------|--------|
+| Alice | €100 | €200 | +100% | $\nearrow$ Accelerating |
+| Bob   | €200 | €150 | -25%  | $\searrow$ Declining |
+| Carol | €0   | €50  | New!  | $\star$ Emerging |
+
+**Actionable insights:**
+
+- **Alice:** Ready for upgrade ask (€300?)
+- **Bob:** Investigate decline (contact them!)
+- **Carol:** Welcome series (nurture new behavior)
+
+---
+
+## Categorizing Trends
+```{r, eval=FALSE}
+# Create interpretable trend categories
+trends <- trends %>% 
+  mutate(
+    trend_category = case_when(
+      previous_total == 0 & recent_total > 0 ~ "New Active",
+      percent_change > 0.25 ~ "Strong Growth",
+      percent_change > 0 ~ "Modest Growth",
+      percent_change > -0.25 ~ "Slight Decline",
+      percent_change > -0.5 ~ "Moderate Decline",
+      TRUE ~ "Sharp Decline"
+    ),
+    
+    # Binary flag for action
+    needs_attention = percent_change < -0.25
+  )
+```
+
+**Why categories?** Easier for business users to understand and act on
+
+**Pro tip:** Create `needs_attention` flags → automatic alerts to fundraising team
+
+---
+
+# Part 4: Seasonality Matters
+
+## The Calendar Effect
+
+**Real phenomenon:** Donations spike in December (end-of-year tax planning)
+
+\begin{center}
+\begin{tikzpicture}[scale=0.7]
+\draw[->] (0,0) -- (13,0) node[right] {Month};
+\draw[->] (0,0) -- (0,4) node[above] {Donations};
+
+% Monthly pattern
+\draw[thick,datablue] 
+  (1,1) -- (2,0.9) -- (3,1.1) -- (4,1) -- (5,0.8) -- (6,0.9) --
+  (7,0.85) -- (8,0.8) -- (9,1.2) -- (10,1.4) -- (11,1.8) -- (12,3.5);
+
+% Highlight December
+\fill[datared,opacity=0.3] (11.5,0) rectangle (12.5,4);
+\node at (12,3.8) {\textbf{Dec}};
+
+\foreach \x in {1,2,...,12} {
+  \draw (\x,0.05) -- (\x,-0.05);
+}
+\end{tikzpicture}
+\end{center}
+
+**Problem:** December total isn't comparable to July total!
+
+**Solution:** Calculate **seasonal indices**
+
+---
+
+## Calculating Seasonal Indices
+```{r, eval=FALSE}
+# Extract historical seasonal patterns (exclude recent year)
+seasonal_history <- gifts %>% 
+  filter(date < reference_date - years(1),
+         date >= reference_date - years(3)) %>% 
+  mutate(month = month(date)) %>% 
+  group_by(donor_id, month) %>% 
+  summarise(avg_monthly = mean(amount), .groups = "drop")
+
+# Calculate index: ratio to annual average
+seasonal_indices <- seasonal_history %>% 
+  group_by(donor_id) %>% 
+  mutate(
+    annual_avg = mean(avg_monthly),
+    seasonal_index = avg_monthly / annual_avg
+  )
+
+# Extract current month's index
+current_month <- month(reference_date)
+donor_seasonality <- seasonal_indices %>% 
+  filter(month == current_month) %>% 
+  select(donor_id, seasonal_index)
+```
+
+**Interpretation:** Index = 1.5 means "this month is typically 50% above average"
+
+---
+
+## Adjusting for Seasonality
+```{r, eval=FALSE}
+# Add seasonal adjustment to features
+basetable <- basetable %>% 
+  left_join(donor_seasonality, by = "donor_id") %>% 
+  mutate(
+    # If missing seasonality data, assume neutral (1.0)
+    seasonal_index = replace_na(seasonal_index, 1.0),
+    
+    # Adjust recent donations for fair comparison
+    donations_3m_adjusted = donations_3m / seasonal_index,
+    
+    # Compare adjusted values to annual average
+    performance_vs_seasonal = donations_3m_adjusted / 
+      (donations_12m / 4)  # Quarterly average
+  )
+```
+
+**Business value:** "Bob gave €300 in July (low season, index=0.8) → adjusted = €375 → Actually performing well!"
+
+---
+
+# Part 5: Feature Interactions
+
+## When 1 + 1 = 3
+
+**Concept:** Features are more powerful combined than alone
+
+**Example:** Recency × Frequency interaction
+```{r, eval=FALSE}
+# Create interaction terms
+basetable <- basetable %>% 
+  mutate(
+    # Recency-Frequency: Recent × Frequent = highly engaged
+    RF_interaction = (1 / (days_since + 1)) * gift_count,
+    
+    # Frequency-Monetary: High frequency + High value = premium
+    FM_interaction = gift_count * avg_gift,
+    
+    # Trend-Level: Growing + Large = invest more attention
+    trend_strength = abs(percent_change) * total_value
+  )
+```
+
+---
+
+## Interaction Example: RF Score
+
+| Donor | Days Since | Count | RF Score | Interpretation |
+|-------|------------|-------|----------|----------------|
+| A | 10 | 12 | 1.09 | Recent & frequent = **Best!** $\star$ |
+| B | 10 | 2  | 0.18 | Recent but infrequent |
+| C | 365 | 12 | 0.03 | Frequent but not recent \textbf{(!)} |
+| D | 365 | 2  | 0.005 | Neither recent nor frequent |
+
+**Key insight:** Donor C looks good on frequency alone, but RF interaction reveals the problem!
+
+**Model benefit:** Interaction terms help models learn these nuances automatically
+
+---
+
+## Ratio Features: Relative Measures
+```{r, eval=FALSE}
+# Create ratio-based features
+basetable <- basetable %>% 
+  mutate(
+    # Evolution: is recent behavior above or below average?
+    ratio_3m_to_12m = donations_3m / (donations_12m + 0.01),
+    
+    # Concentration: does one big gift dominate?
+    max_to_total_ratio = max_gift / (total_value + 0.01),
+    
+    # Consistency: how variable are gift sizes?
+    consistency_score = 1 - (cv_donation / 2),  # Scaled 0-1
+    
+    # Lifetime value rate
+    lifetime_intensity = total_value / 
+      as.numeric(reference_date - member_since) * 365
+  )
+```
+
+**Why ratios?** They're **scale-invariant** → work for small and large donors
+
+---
+
+# Part 6: Handling Missing Values
+
+## The Two Types of Missing
+
+**Type 1: "No Data"** → Donor joined after the window started
+
+**Type 2: "No Activity"** → Donor didn't give during the window
+```{r, eval=FALSE}
+# Smart imputation strategy
+basetable <- basetable %>% 
+  mutate(
+    # Flag the reason for missingness
+    is_new_donor = as.numeric(reference_date - member_since) < 90,
+    
+    # Different imputation by reason
+    donations_12m = case_when(
+      is_new_donor & is.na(donations_12m) ~ NA_real_,  # Keep NA
+      is.na(donations_12m) ~ 0,                        # Zero activity
+      TRUE ~ donations_12m
+    ),
+    
+    # For ratios, handle zero denominators
+    ratio_3m_to_12m = case_when(
+      donations_12m == 0 ~ NA_real_,  # Can't calculate
+      TRUE ~ donations_3m / donations_12m
+    )
+  )
+```
+
+**Why this matters:** Model interprets NA vs. 0 differently!
+
+---
+
+## Missing Value Indicators
+```{r, eval=FALSE}
+# Create "missingness flags" as features
+basetable <- basetable %>% 
+  mutate(
+    # Flag no recent activity
+    flag_inactive_3m = as.integer(donations_3m == 0),
+    flag_inactive_12m = as.integer(donations_12m == 0),
+    
+    # Flag new donor status
+    flag_new_donor = as.integer(is_new_donor),
+    
+    # Flag data quality issues
+    flag_incomplete_history = as.integer(
+      as.numeric(reference_date - member_since) < 365 & 
+      !is_new_donor
+    )
+  )
+```
+
+**Why flags?** They're features themselves! "No activity" is predictive.
+
+---
+
+# Part 7: Feature Binning
+
+## From Continuous to Categories
+
+**Why bin?** Sometimes categories capture non-linear relationships better
+```{r, eval=FALSE}
+# Create bins using quantiles (equal population)
+basetable <- basetable %>% 
+  mutate(
+    # Donation frequency bins
+    freq_bin = cut(
+      gift_count,
+      breaks = quantile(gift_count, probs = seq(0, 1, 0.25),
+                       na.rm = TRUE),
+      labels = c("Q1-Low", "Q2", "Q3", "Q4-High"),
+      include.lowest = TRUE
+    ),
+    
+    # Recency bins (business-defined)
+    recency_bin = cut(
+      days_since,
+      breaks = c(0, 30, 90, 180, 365, Inf),
+      labels = c("0-30d", "31-90d", "3-6m", "6-12m", "12m+"),
+      right = FALSE
+    )
+  )
+```
+
+---
+
+## Binning Strategies Compared
+
+**Quantile bins:** Equal population in each bin
+
+- Pro: Handles outliers well
+- Con: Bin boundaries change over time
+
+**Fixed bins:** Domain-knowledge boundaries
+
+- Pro: Stable, interpretable
+- Con: May have very unequal populations
+
+**Example decision:** Use fixed bins for **recency** (business naturally thinks in months), quantiles for **monetary value** (wide range)
+
+---
+
+# Part 8: Putting It All Together
+
+## The Complete Feature Set
+```{r, eval=FALSE}
+# Final feature engineering pipeline
+create_features <- function(gifts, basetable, reference_date) {
+  
+  # 1. RFM features
+  rfm_features <- calculate_rfm(gifts, reference_date)
+  
+  # 2. Trend features  
+  trend_features <- calculate_trends(gifts, reference_date)
+  
+  # 3. Seasonal adjustments
+  seasonal_features <- calculate_seasonality(gifts, reference_date)
+  
+  # 4. Interaction terms
+  basetable <- basetable %>% 
+    left_join(rfm_features, by = "donor_id") %>% 
+    left_join(trend_features, by = "donor_id") %>% 
+    left_join(seasonal_features, by = "donor_id") %>% 
+    mutate(
+      # Interactions
+      RF_score = (1 / (days_since + 1)) * gift_count,
+      # ... more interactions ...
+      
+      # Ratios
+      ratio_3m_to_12m = donations_3m / (donations_12m + 0.01),
+      # ... more ratios ...
+    )
+  
+  return(basetable)
+}
+```
+
+---
+
+## Feature Checklist
+
+Before moving to modeling, verify:
+
+- [ ] All features use **only past data** (before reference date)
+- [ ] Missing values handled **appropriately** (not arbitrarily)
+- [ ] Outliers **capped or winsorized** (if needed)
+- [ ] Categorical variables **encoded** (if using tree models)
+- [ ] Feature names are **clear and documented**
+- [ ] Temporal **stability checked** (do features exist at all time points?)
+
+**Red flag:** Feature has 50% missing values → investigate before using!
+
+**Green light:** Feature has clear business meaning and predictive logic
+
+---
+
+# Part 9: Feature Selection
+
+## Not All Features Are Created Equal
+
+**Problem:** 100+ features → some are redundant or noisy
+```{r, eval=FALSE}
+# Method 1: Correlation filtering
+library(caret)
+
+# Remove highly correlated features
+feature_matrix <- basetable %>% 
+  select(where(is.numeric)) %>% 
+  select(-donor_id)
+
+cor_matrix <- cor(feature_matrix, use = "complete.obs")
+high_cor <- findCorrelation(cor_matrix, cutoff = 0.90)
+
+features_to_drop <- names(feature_matrix)[high_cor]
+```
+
+**Why?** If two features are 95% correlated, we only need one!
+
+**Example:** `donations_12m` and `avg_gift * count_12m` → redundant
+
+---
+
+## Importance-Based Selection
+```{r, eval=FALSE}
+# Method 2: Random Forest importance
+library(randomForest)
+
+# Fit initial model
+rf_model <- randomForest(
+  target ~ .,
+  data = basetable %>% select(-donor_id),
+  importance = TRUE,
+  ntree = 100
+)
+
+# Extract importance scores
+importance_df <- importance(rf_model) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("feature") %>% 
+  arrange(desc(MeanDecreaseGini)) %>% 
+  head(20)  # Keep top 20
+
+print(importance_df)
+```
+
+**Result:** Focus on features that actually drive predictions!
+
+---
+
+## Example: Top 10 Features
+
+| Rank | Feature | Importance | Interpretation |
+|------|---------|------------|----------------|
+| 1 | days_since | 245 | Recency dominates! |
+| 2 | donations_12m | 189 | Total value matters |
+| 3 | RF_interaction | 156 | Interaction helps |
+| 4 | trend_category | 134 | Momentum signal |
+| 5 | gift_count | 98 | Frequency counts |
+| 6 | ratio_3m_to_12m | 87 | Recent behavior |
+| 7 | seasonal_index | 72 | Context matters |
+| 8 | max_gift | 65 | Capacity indicator |
+| 9 | cv_donation | 54 | Consistency signal |
+| 10 | lifetime_days | 48 | Tenure relevant |
+
+**Surprise:** Demographics (age, gender) ranked 25+!
+
+---
+
+# Part 10: Validation Strategy
+
+## Walk-Forward Cross-Validation
+
+**Problem:** Random CV violates timeline!
+
+**Solution:** Walk forward through time
+
+\begin{center}
+\begin{tikzpicture}[scale=0.6]
+\foreach \i in {1,2,3} {
+  \pgfmathsetmacro{\trainstart}{0}
+  \pgfmathsetmacro{\trainend}{2*\i}
+  \pgfmathsetmacro{\teststart}{2*\i}
+  \pgfmathsetmacro{\testend}{2*\i+1}
+  
+  \fill[datagreen!30] (\trainstart,{-1.5*\i}) rectangle (\trainend,{-1.5*\i+0.8});
+  \fill[datacyan!50] (\teststart,{-1.5*\i}) rectangle (\testend,{-1.5*\i+0.8});
+  
+  \node at ({(\trainstart+\trainend)/2},{-1.5*\i+0.4}) {Train};
+  \node at ({(\teststart+\testend)/2},{-1.5*\i+0.4}) {Test};
+  \node at (-1,{-1.5*\i+0.4}) {Fold \i};
+}
+
+\draw[->] (0,-5) -- (8,-5) node[right] {Time};
+\end{tikzpicture}
+\end{center}
+
+**Key:** Test set always **after** training set → realistic evaluation
+
+---
+
+## Implementing Walk-Forward CV
+```{r, eval=FALSE}
+# Create temporal splits
+walk_forward_splits <- function(data, n_splits = 3) {
+  n_obs <- nrow(data)
+  fold_size <- floor(n_obs / (n_splits + 1))
+  
+  splits <- list()
+  
+  for(i in 1:n_splits) {
+    train_idx <- 1:(fold_size * i)
+    test_idx <- (fold_size * i + 1):(fold_size * (i + 1))
+    
+    splits[[i]] <- list(
+      train = data[train_idx, ],
+      test = data[test_idx, ]
+    )
+  }
+  
+  return(splits)
+}
+
+# Usage
+splits <- walk_forward_splits(basetable, n_splits = 3)
+```
+
+---
+
+## Evaluating Performance
+```{r, eval=FALSE}
+# Train and evaluate on each fold
+library(pROC)
+
+cv_results <- map_df(1:length(splits), function(i) {
+  # Train model
+  model <- glm(
+    target ~ days_since + donations_12m + RF_score,
+    data = splits[[i]]$train,
+    family = "binomial"
+  )
+  
+  # Predict on test set
+  predictions <- predict(model, splits[[i]]$test, type = "response")
+  
+  # Calculate AUC
+  auc_value <- auc(roc(splits[[i]]$test$target, predictions))
+  
+  tibble(
+    fold = i,
+    auc = as.numeric(auc_value),
+    n_train = nrow(splits[[i]]$train),
+    n_test = nrow(splits[[i]]$test)
+  )
+})
+
+print(cv_results)
+# Average AUC across folds = true performance estimate
+```
+
+---
+
+# Part 11: Feature Documentation
+
+## Future-You Will Thank You
+
+**Problem:** 6 months later, "What does `var_x47` mean?"
+
+**Solution:** Document everything!
+```{r, eval=FALSE}
+# Create feature catalog
+feature_catalog <- tibble(
+  feature_name = c(
+    "donations_12m",
+    "RF_interaction",
+    "ratio_3m_to_12m"
+  ),
+  description = c(
+    "Total donation value in 12 months before reference date",
+    "Interaction: recency × frequency for engagement score",
+    "Proportion of annual donations made in recent quarter"
+  ),
+  calculation = c(
+    "sum(amount) WHERE date IN [ref-12m, ref)",
+    "(1 / (days_since + 1)) * gift_count",
+    "donations_3m / donations_12m"
+  ),
+  missing_handling = c(
+    "Replace with 0 if no activity",
+    "Requires both components; NA if either missing",
+    "Set NA if denominator is 0"
+  ),
+  added_date = c(
+    "2024-01-15",
+    "2024-02-01",
+    "2024-02-01"
+  )
+)
+```
+
+---
+
+## Feature Catalog Example
+
+| Feature | Type | Window | Business Meaning |
+|---------|------|--------|------------------|
+| days_since | Numeric | Point-in-time | Days since last donation (recency) |
+| donations_12m | Numeric | 12 months | Total annual contribution |
+| RF_score | Numeric | Derived | Combined engagement metric |
+| trend_category | Categorical | 3m vs 3m | Direction of behavior change |
+
+**Pro tip:** Export as CSV, share with business stakeholders
+
+**Bonus:** Helps detect errors (e.g., "Wait, this calculation doesn't match reality!")
+
+---
+
+# Part 12: Production Considerations
+
+## From Notebook to Pipeline
+
+**Development:** Code runs once on historical data
+
+**Production:** Code runs repeatedly on new data
+```{r, eval=FALSE}
+# Parameterized feature engineering
+engineer_features <- function(reference_date, 
+                               gifts_data,
+                               basetable_data) {
+  
+  # Use parameters, not hardcoded dates!
+  window_3m_start <- reference_date - months(3)
+  window_12m_start <- reference_date - months(12)
+  
+  # Filter data
+  recent_gifts <- gifts_data %>% 
+    filter(date >= window_3m_start, date < reference_date)
+  
+  # Calculate features
+  features <- calculate_all_features(
+    recent_gifts, 
+    window_start = window_12m_start,
+    window_end = reference_date
+  )
+  
+  # Join to basetable
+  result <- basetable_data %>% 
+    left_join(features, by = "donor_id")
+  
+  return(result)
+}
+```
+
+**Key:** Everything is a **function** with **parameters**
+
+---
+
+## Testing Your Pipeline
+```{r, eval=FALSE}
+# Unit tests catch bugs early
+library(testthat)
+
+test_that("Features respect timeline", {
+  # Create test data
+  test_gifts <- tibble(
+    donor_id = 1,
+    date = as.Date(c("2023-06-01", "2024-01-15")),
+    amount = c(100, 50)
+  )
+  
+  ref_date <- as.Date("2024-01-01")
+  
+  # Run feature engineering
+  features <- engineer_features(ref_date, test_gifts, basetable)
+  
+  # Assert: Only June gift should count
+  expect_equal(features$donations_12m[features$donor_id == 1], 100)
+  expect_equal(features$gift_count[features$donor_id == 1], 1)
+})
+```
+
+**Saves hours:** Catches timeline leakage immediately!
+
+---
+
+## Monitoring in Production
+
+**Track feature drift:**
+```{r, eval=FALSE}
+# Compare distributions over time
+monitor_features <- function(new_data, baseline_data) {
+  
+  features_to_monitor <- c("donations_12m", "days_since", "RF_score")
+  
+  drift_report <- map_df(features_to_monitor, function(feat) {
+    # KS test for distribution change
+    ks_result <- ks.test(
+      baseline_data[[feat]],
+      new_data[[feat]]
+    )
+    
+    tibble(
+      feature = feat,
+      ks_statistic = ks_result$statistic,
+      p_value = ks_result$p.value,
+      drift_detected = ks_result$p.value < 0.05,
+      baseline_mean = mean(baseline_data[[feat]], na.rm = TRUE),
+      current_mean = mean(new_data[[feat]], na.rm = TRUE)
+    )
+  })
+  
+  return(drift_report)
+}
+```
+
+**Action:** Alert if p-value < 0.05 → investigate!
+
+---
+
+# Summary: Feature Engineering Principles
+
+## The Ten Commandments
+
+1. **Timeline Compliance:** Never use future data
+2. **Multiple Windows:** Short-term and long-term perspectives
+3. **RFM Always:** Recency, Frequency, Monetary are foundational
+4. **Capture Trends:** Change matters more than level
+5. **Context Matters:** Seasonality and life stage
+6. **Interactions:** 1 + 1 can equal 3
+7. **Handle Missing:** Distinguish "no data" from "no activity"
+8. **Document Everything:** Future-you will thank present-you
+9. **Validate Temporally:** Walk forward, don't shuffle
+10. **Monitor Production:** Features drift, models decay
+
+---
+
+## From Features to Predictions
+
+**Next Steps:**
+
+1. **Feature Selection:** Keep top 20-30 features
+2. **Model Training:** Logistic regression → Random Forest → Gradient Boosting
+3. **Hyperparameter Tuning:** Grid search with CV
+4. **Model Evaluation:** AUC, calibration, business metrics
+5. **Deployment:** API for scoring new donors
+6. **Monitoring:** Track performance decay
+
+\vspace{1em}
+
+**Remember:** 
+
+\begin{center}
+\textcolor{datablue}{\Large\textbf{Better features > Fancier models}}
+\end{center}
+
+Spend 80% of time on feature engineering, 20% on model selection!
+
+---
+
+## Real Impact Story
+
+**Organization:** International humanitarian NGO
+
+**Challenge:** Retain monthly donors (50% churned within 1 year)
+
+**Solution:** Built features tracking:
+
+- RFM scores
+- Donation trends (3m vs 12m)
+- Seasonal patterns
+- Email engagement × donation frequency
+
+**Results:**
+
+- **AUC:** 0.58 → 0.74 (massive improvement!)
+- **Business impact:** Identified 8% of donors representing 40% of churn risk
+- **Intervention:** Personalized outreach → 15% churn reduction
+- **ROI:** €450K saved in first year
+
+**Key insight:** Trend features (growth/decline) were most predictive!
+
+---
+
+## Resources for Deep Dive
+
+**Books:**
+
+- *Feature Engineering for Machine Learning* by Zheng & Casari
+- *Feature Engineering and Selection* by Kuhn & Johnson
+
+**Online:**
+
+- Kaggle: "Feature Engineering" courses
+- Towards Data Science: Time series feature engineering
+
+**R Packages:**
+
+- `recipes`: Feature engineering pipeline
+- `timetk`: Time series features
+- `caret`: Feature selection
+
+**Key Principle:** Domain knowledge + creativity + validation = great features
+
+---
+
+## Practical Exercise (For Next Session)
+
+**Dataset:** Provided donor transaction data
+
+**Task:** Create these features:
+
+1. RFM scores (R, F, M separate)
+2. Trend: 3-month change rate
+3. Ratio: Recent/historical comparison
+4. Interaction: RF combined score
+5. Flag: New donor indicator
+
+**Deliverable:** Documented feature catalog
+
+**Evaluation:** Do features predict donation in next month?
+
+**Hint:** Start simple, validate early, iterate!
+
+---
+
+## Thank You!
+
+**Key Takeaways:**
+
+ Features are **stories** about donor behavior
+
+ **Timeline compliance** is non-negotiable
+
+ **RFM** + **Trends** + **Context** = powerful predictions
+
+ **Document** and **validate** everything
+
+ **Production** requires robust pipelines
+
+

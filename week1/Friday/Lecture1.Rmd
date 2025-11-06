@@ -1,0 +1,4939 @@
+---
+title: "Introduction to Predictive Analytics in R"
+subtitle: "Basetable Structure and Logistic Regression"
+author: "Prof. Asc.Endri Raco, Ph.D."
+institute: |
+  | Department of Mathematical Engineering
+  | Polytechnic University of Tirana
+date: "November 2025"
+output:
+  beamer_presentation:
+    theme: "Madrid"
+    colortheme: "default"
+    fonttheme: "professionalfonts"
+    slide_level: 2
+    toc: false
+    keep_tex: false
+header-includes:
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
+  - \usepackage{graphicx}
+  - \usepackage{booktabs}
+  - \usepackage{tikz}
+  - \usepackage{xcolor}
+  - \definecolor{datablue}{RGB}{0,102,204}
+  - \definecolor{datagreen}{RGB}{0,153,76}
+  - \definecolor{datared}{RGB}{204,0,0}
+  - \definecolor{dataorange}{RGB}{255,140,0}
+  - \definecolor{datapurple}{RGB}{128,0,128}
+  - \setbeamercolor{structure}{fg=datablue}
+  - \setbeamertemplate{navigation symbols}{}
+  - \setbeamertemplate{footline}[frame number]
+  - \setbeamertemplate{frametitle}{\vspace{0.5em}\insertframetitle}
+  - \newcommand{\pbar}{\overline{p}}
+  - \usepackage{pifont}
+  - \newcommand{\cmark}{\ding{51}}
+  - \newcommand{\xmark}{\ding{55}}
+---
+
+# Introduction
+
+## Course Overview
+
+\begin{center}
+\Large \textbf{Welcome to Predictive Analytics in R}
+\end{center}
+
+\vspace{1em}
+
+**What You Will Learn:**
+
+- Building analytical basetables
+- Logistic regression fundamentals
+- Making predictions in R
+- Model evaluation and interpretation
+- Real-world applications in fundraising
+
+\vspace{1em}
+
+**Prerequisites:** Basic R programming and data manipulation
+
+---
+
+## What is Predictive Analytics?
+
+**Definition:** Using historical data to predict future outcomes
+
+\vspace{1em}
+
+**Key Components:**
+
+1. **Historical Data**: Past observations with known outcomes
+2. **Features**: Variables that might influence the outcome
+3. **Target**: The outcome we want to predict
+4. **Model**: Mathematical relationship between features and target
+
+\vspace{1em}
+
+**Goal:** Learn patterns from the past to make better decisions about the future
+
+---
+
+## Motivating Example: Fundraising Campaign
+
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\textbf{Traditional Approach:}
+
+\vspace{0.5em}
+
+- Contact \textbf{ALL} donors
+- High mailing costs
+- Low response rate
+- Inefficient resource use
+- Donor fatigue
+
+\vspace{0.5em}
+
+\textcolor{datared}{Result: Wasted resources}
+
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\textbf{Predictive Approach:}
+
+\vspace{0.5em}
+
+- Contact donors \textbf{most likely} to donate
+- Lower costs
+- Higher response rate
+- Better ROI
+- Better donor experience
+
+\vspace{0.5em}
+
+\textcolor{datagreen}{Result: Smart targeting}
+
+\end{column}
+\end{columns}
+
+---
+
+## Visualization: Traditional vs. Predictive
+
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\centering
+\textbf{Address All Donors}
+
+\vspace{0.5em}
+
+\begin{tikzpicture}[scale=0.4]
+\foreach \x in {0,1.5,3,4.5} {
+  \foreach \y in {0,1.5,3} {
+    \draw (\x,\y) circle (0.3);
+    \draw[fill=yellow!60] (\x-0.2,\y-0.5) rectangle (\x+0.2,\y-0.8);
+  }
+}
+\end{tikzpicture}
+
+\textcolor{datared}{12 mailings}
+
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\centering
+\textbf{Target Likely Donors}
+
+\vspace{0.5em}
+
+\begin{tikzpicture}[scale=0.4]
+\foreach \x in {0,1.5,3,4.5} {
+  \foreach \y in {0,1.5,3} {
+    \draw (\x,\y) circle (0.3);
+  }
+}
+\draw[fill=yellow!60] (0-0.2,3-0.5) rectangle (0+0.2,3-0.8);
+\draw[fill=yellow!60] (4.5-0.2,3-0.5) rectangle (4.5+0.2,3-0.8);
+\draw[fill=yellow!60] (1.5-0.2,1.5-0.5) rectangle (1.5+0.2,1.5-0.8);
+\draw[fill=yellow!60] (3-0.2,0-0.5) rectangle (3+0.2,0-0.8);
+\end{tikzpicture}
+
+\textcolor{datagreen}{4 mailings, same response}
+
+\end{column}
+\end{columns}
+
+---
+
+# The Analytical Basetable
+
+## What is a Basetable?
+
+\begin{center}
+\textbf{The Foundation of Predictive Modeling}
+\end{center}
+
+\vspace{1em}
+
+**Definition:** A structured dataset where:
+
+- Each \textbf{row} = one observation (e.g., one donor)
+- Each \textbf{column} = one variable (feature or target)
+- One column = the \textbf{target} variable (what we predict)
+- Other columns = \textbf{candidate predictors} (features)
+
+\vspace{1em}
+
+\begin{block}{Key Principle}
+All information must be available \textbf{before} the prediction is made!
+\end{block}
+
+---
+
+## Basetable Structure
+
+\begin{center}
+\begin{tabular}{|c|c|c|c||c|}
+\hline
+\multicolumn{4}{|c||}{\textbf{Candidate Predictors}} & \textbf{Target} \\
+\hline
+Age & Gender & Previous gifts & $\cdots$ & Donate \\
+\hline
+45 & F & 3 & $\cdots$ & 1 \\
+62 & M & 0 & $\cdots$ & 0 \\
+38 & F & 5 & $\cdots$ & 1 \\
+$\vdots$ & $\vdots$ & $\vdots$ & $\ddots$ & $\vdots$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\vspace{1em}
+
+**Target Variable:**
+- Binary: 0 (did not donate) or 1 (donated)
+- This is called a \textbf{classification problem}
+
+---
+
+## Loading Data in R (Part 1)
+
+\small
+```{r eval=FALSE}
+# Load necessary libraries
+library(tidyverse)
+
+# Read the data
+basetable <- read_csv("basetable.csv")
+
+# Examine the structure
+glimpse(basetable)
+```
+
+\vspace{1em}
+
+**Output preview:**
+```
+Rows: 10,000
+Columns: 8
+$ age                   <dbl> 45, 62, 38, ...
+$ gender                <chr> "F", "M", "F", ...
+$ previous_gifts        <dbl> 3, 0, 5, ...
+$ Target                <dbl> 1, 0, 1, ...
+```
+
+---
+
+## Loading Data in R (Part 2)
+
+\small
+```{r eval=FALSE}
+# Get population size
+population_size <- nrow(basetable)
+
+# Count targets (donations)
+targets <- sum(basetable$Target)
+
+# Calculate response rate
+response_rate <- targets / population_size * 100
+```
+
+---
+
+## Loading Data in R (Part 3)
+
+\small
+```{r eval=FALSE}
+# Display results
+cat("Population:", population_size, "\n")
+cat("Donors:", targets, "\n")
+cat("Response rate:", 
+    round(response_rate, 2), "%\n")
+```
+
+\vspace{1em}
+
+**Example Output:**
+```
+Population: 10000 
+Donors: 523 
+Response rate: 5.23 %
+```
+
+---
+
+## Understanding Your Data (Part 1)
+
+**Key Questions:**
+
+1. How many observations do we have?
+2. What is the response rate?
+3. What features are available?
+4. Are there missing values?
+5. What are the data types?
+
+---
+
+## Understanding Your Data (Part 2)
+
+\small
+```{r eval=FALSE}
+# Summary statistics
+summary(basetable)
+
+# Check for missing values
+colSums(is.na(basetable))
+```
+
+---
+
+## Understanding Your Data (Part 3)
+
+\small
+```{r eval=FALSE}
+# Response rate (alternative calculation)
+mean(basetable$Target)
+
+# View first few rows
+head(basetable)
+
+# Check data types
+str(basetable)
+```
+
+---
+
+## The Timeline Concept
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8]
+% Timeline arrow
+\draw[->, ultra thick] (0,0) -- (12,0);
+
+% Previous campaign
+\draw[fill=yellow!60] (2,0.3) rectangle (2.5,0.7);
+\node[above] at (2.25,0.7) {\small Previous campaign};
+\draw[-] (2.25,0) -- (2.25,-0.3);
+\node[below] at (2.25,-0.3) {\small Candidate};
+\node[below] at (2.25,-0.7) {\small predictors};
+
+% Target observed
+\draw[-] (4.5,0) -- (4.5,-0.3);
+\node[below] at (4.5,-0.3) {\small \textcolor{datagreen}{\textbf{Target!}}};
+\node[below] at (4.5,-0.7) {\small (known)};
+
+% Current campaign
+\draw[fill=yellow!60] (8,0.3) rectangle (8.5,0.7);
+\node[above] at (8.25,0.7) {\small Current campaign};
+\draw[-] (8.25,0) -- (8.25,-0.3);
+\node[below] at (8.25,-0.3) {\small Candidate};
+\node[below] at (8.25,-0.7) {\small predictors};
+
+% Target unknown
+\draw[-] (10.5,0) -- (10.5,-0.3);
+\node[below] at (10.5,-0.3) {\small \textcolor{datared}{\textbf{Target?}}};
+\node[below] at (10.5,-0.7) {\small (unknown)};
+
+% Build model arrow
+\draw[->, thick, datablue] (4.5,-2) -- (8,-2);
+\node[below] at (6.25,-2) {\small Build predictive model};
+\end{tikzpicture}
+\end{center}
+
+---
+
+## Critical Timing Rule
+
+\begin{block}{The Golden Rule of Predictive Modeling}
+\textbf{Never use future information to predict the past!}
+\end{block}
+
+\vspace{1em}
+
+**Example - Fundraising:**
+
+- \textcolor{datagreen}{\checkmark} Use: Age, past donations, time since last gift
+- \textcolor{datared}{\texttimes} Don't use: Future donation amounts, next year's data
+
+\vspace{1em}
+
+**Why?** When making real predictions, you won't have that information!
+
+---
+
+# Logistic Regression
+
+## Introduction to Logistic Regression
+
+\begin{center}
+\Large \textbf{The Workhorse of Binary Classification}
+\end{center}
+
+\vspace{1em}
+
+**What is Logistic Regression?**
+
+- Predicts \textbf{probability} of binary outcome (0 or 1)
+- Models relationship between predictors and outcome
+- Output: probability between 0 and 1
+
+\vspace{1em}
+
+**Why Logistic (not Linear) Regression?**
+
+- Linear regression can predict values outside [0,1]
+- Logistic regression guarantees probabilities
+- Uses special transformation (logit function)
+
+---
+
+## Intuition: Univariate Relationship
+
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\textbf{Age vs. Donation}
+
+\vspace{0.5em}
+
+\begin{tikzpicture}[scale=0.8]
+\draw[->] (0,0) -- (5,0) node[right] {Age};
+\draw[->] (0,0) -- (0,3) node[above] {Target};
+\node[left] at (0,2.5) {1};
+\node[left] at (0,0) {0};
+
+% Draw line
+\draw[thick, datablue] (0.5,0.5) -- (4.5,2.5);
+
+% Points
+\foreach \x in {1,1.5,2,2.5,3} {
+  \filldraw (\x,0.2) circle (2pt);
+}
+\foreach \x in {3.5,4,4.5} {
+  \filldraw (\x,2.3) circle (2pt);
+}
+\end{tikzpicture}
+
+\vspace{0.5em}
+
+Older people more likely to donate
+
+Coefficient: \textcolor{datagreen}{positive}
+
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\textbf{Recency vs. Donation}
+
+\vspace{0.5em}
+
+\begin{tikzpicture}[scale=0.8]
+\draw[->] (0,0) -- (5,0) node[right] {Recency};
+\draw[->] (0,0) -- (0,3) node[above] {Target};
+\node[left] at (0,2.5) {1};
+\node[left] at (0,0) {0};
+
+% Draw line
+\draw[thick, datared] (0.5,2.5) -- (4.5,0.5);
+
+% Points
+\foreach \x in {3.5,4,4.5} {
+  \filldraw (\x,0.2) circle (2pt);
+}
+\foreach \x in {1,1.5,2,2.5,3} {
+  \filldraw (\x,2.3) circle (2pt);
+}
+\end{tikzpicture}
+
+\vspace{0.5em}
+
+Recent donors more likely to donate again
+
+Coefficient: \textcolor{datared}{negative}
+
+\end{column}
+\end{columns}
+
+---
+
+## The Logit Transformation
+
+**Problem:** Linear combination $a \cdot x + b$ can be any real number
+
+**Solution:** Apply logit function to map to [0,1]
+
+\vspace{1em}
+
+$$P(\text{Donate} = 1) = \frac{1}{1 + e^{-(a \cdot x + b)}}$$
+
+\vspace{1em}
+
+**Properties:**
+
+- Input: any real number
+- Output: probability between 0 and 1
+- S-shaped (sigmoid) curve
+- Smooth, differentiable
+
+---
+
+## Visualizing the Logistic Function
+
+\begin{center}
+\begin{tikzpicture}[scale=1.2]
+% Axes
+\draw[->] (-3,0) -- (3,0) node[right] {$a \cdot \text{age} + b$};
+\draw[->] (0,0) -- (0,3) node[above] {$P(\text{Donate})$};
+
+% Labels
+\node[left] at (0,2.5) {1};
+\node[left] at (0,0) {0};
+
+% Sigmoid curve
+\draw[thick, datablue, domain=-3:3, samples=100] 
+  plot (\x, {2.5/(1+exp(-2*\x))});
+
+% Annotation
+\node[right, datablue] at (1.5,2) {$\frac{1}{1+e^{-(a \cdot age + b)}}$};
+
+% Points on curve
+\foreach \x in {-2,-1,0,1,2} {
+  \filldraw[datablue] (\x, {2.5/(1+exp(-2*\x))}) circle (1.5pt);
+}
+\end{tikzpicture}
+\end{center}
+
+---
+
+## Fitting Logistic Regression (Part 1)
+
+\small
+```{r eval=FALSE}
+# Univariate logistic regression
+# Predicting donation based on age
+
+# Fit the model
+logreg <- glm(Target ~ age, 
+              data = basetable,
+              family = binomial(link = "logit"))
+```
+
+\vspace{1em}
+
+**Key Components:**
+
+- `glm()`: Generalized Linear Model function
+- `family = binomial`: For binary outcomes
+- `link = "logit"`: Logistic transformation
+
+---
+
+## Fitting Logistic Regression (Part 2)
+
+\small
+```{r eval=FALSE}
+# View the model summary
+summary(logreg)
+```
+
+\vspace{0.5em}
+
+**Output (abbreviated):**
+\tiny
+```
+Coefficients:
+            Estimate Std. Error z value Pr(>|z|)    
+(Intercept) -4.32991    0.45123  -9.595  < 2e-16 ***
+age          0.02449    0.00821   2.984  0.00284 ** 
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*'
+```
+
+---
+
+## Fitting Logistic Regression (Part 3)
+
+\small
+```{r eval=FALSE}
+# Extract coefficients
+coef(logreg)
+```
+
+\vspace{0.5em}
+
+**Output:**
+```
+(Intercept)         age 
+  -4.329913    0.024492
+```
+
+\vspace{1em}
+
+**Interpretation:** 
+
+- Intercept (b) = -4.33
+- Age coefficient (a) = 0.024 (positive!)
+
+---
+
+## Understanding the Coefficients
+
+\small
+```{r eval=FALSE}
+# Extract coefficients
+coefs <- coef(logreg)
+intercept <- coefs[1]  # b
+age_coef <- coefs[2]   # a
+```
+
+---
+
+## Understanding the Coefficients (Part 2)
+
+\small
+```{r eval=FALSE}
+# Display with interpretation
+cat("Intercept (b):", round(intercept, 3), "\n")
+cat("Age coefficient (a):", 
+    round(age_coef, 4), "\n")
+```
+
+\vspace{1em}
+
+**Interpretation:**
+
+- **Intercept** ($b = -4.33$): Baseline log-odds when age = 0
+- **Age coefficient** ($a = 0.024$): 
+  - Positive → older people more likely to donate
+  - Each additional year increases log-odds by 0.024
+
+---
+
+## Making Predictions: Manual Calculation (Part 1)
+
+**Example:** Female donor, age 72, 120 days since last gift
+
+\vspace{0.5em}
+
+**Step 1:** Calculate linear combination
+
+$$z = 0.545 \times 1 + 0.021 \times 72 - 0.001 \times 120 - 3.39$$
+
+$$z = 0.545 + 1.512 - 0.120 - 3.39 = -1.453$$
+
+---
+
+## Making Predictions: Manual Calculation (Part 2)
+
+**Step 2:** Apply logistic function
+
+$$P(\text{Donate}) = \frac{1}{1 + e^{-(-1.453)}}$$
+
+$$= \frac{1}{1 + e^{1.453}} = 0.19$$
+
+\vspace{1em}
+
+\textbf{Result:} 19\% probability of donation
+
+---
+
+## Making Predictions in R (Part 1)
+
+\small
+```{r eval=FALSE}
+# Create new data for prediction
+new_donor <- data.frame(
+  gender_F = 1,
+  age = 72,
+  time_since_last_gift = 120
+)
+```
+
+---
+
+## Making Predictions in R (Part 2)
+
+\small
+```{r eval=FALSE}
+# Make prediction 
+# type = "response" gives probability
+prediction <- predict(logreg, 
+                     newdata = new_donor,
+                     type = "response")
+
+cat("Predicted probability:", 
+    round(prediction, 3))
+```
+
+\vspace{0.5em}
+
+**Output:**
+```
+Predicted probability: 0.190
+```
+
+---
+
+## Making Predictions in R (Part 3)
+
+\small
+```{r eval=FALSE}
+# Alternative: get log-odds first
+log_odds <- predict(logreg, 
+                    newdata = new_donor)
+
+# Then convert to probability
+prob <- 1 / (1 + exp(-log_odds))
+cat("Probability:", round(prob, 3))
+```
+
+---
+
+## Multivariate Logistic Regression (Part 1)
+
+**Univariate:** 
+
+$$P(Y=1) = \frac{1}{1+e^{-(a \cdot x + b)}}$$
+
+\vspace{1em}
+
+**Multivariate:** 
+
+$$P(Y=1) = \frac{1}{1+e^{-(a_1x_1 + a_2x_2 + \cdots + a_nx_n + b)}}$$
+
+---
+
+## Multivariate Logistic Regression (Part 2)
+
+\small
+```{r eval=FALSE}
+# Multiple predictors
+logreg_multi <- glm(
+  Target ~ age + max_gift + income_low,
+  data = basetable,
+  family = binomial(link = "logit")
+)
+```
+
+---
+
+## Multivariate Logistic Regression (Part 3)
+
+\small
+```{r eval=FALSE}
+# View results
+summary(logreg_multi)
+
+# Extract coefficients
+coef(logreg_multi)
+```
+
+\vspace{0.5em}
+
+**Output:**
+\tiny
+```
+ (Intercept)          age     max_gift   income_low 
+   -8.806435     0.024331     0.039061    -0.767938
+```
+
+---
+
+## Interpreting Multiple Coefficients
+
+\small
+```{r eval=FALSE}
+# Extract and display coefficients
+coefs <- coef(logreg_multi)
+print(round(coefs, 4))
+```
+
+\vspace{1em}
+
+| Variable | Coefficient | Interpretation |
+|----------|-------------|----------------|
+| age | +0.0243 | \textcolor{datagreen}{Older → more likely} |
+| max\_gift | +0.0391 | \textcolor{datagreen}{Larger past gifts → more likely} |
+| income\_low | -0.7679 | \textcolor{datared}{Low income → less likely} |
+
+---
+
+## Key Insight on Multiple Predictors
+
+\begin{block}{Holding Other Variables Constant}
+Each coefficient represents the effect of that variable \textbf{while keeping all other variables fixed}
+\end{block}
+
+\vspace{1em}
+
+**Example:**
+
+- Age coefficient (+0.024) means: for two donors with the \textit{same} max\_gift and income, the older donor has higher probability
+- This is different from univariate regression!
+
+---
+
+## Batch Predictions (Part 1)
+
+\small
+```{r eval=FALSE}
+# Prepare current campaign data
+current_data <- read_csv("current_campaign.csv")
+
+# Select predictor variables 
+# (must match training data!)
+predictors <- c("age", "max_gift", 
+                "income_low")
+
+new_data <- current_data[, predictors]
+```
+
+---
+
+## Batch Predictions (Part 2)
+
+\small
+```{r eval=FALSE}
+# Make predictions for all donors
+predictions <- predict(logreg_multi,
+                      newdata = new_data,
+                      type = "response")
+
+# Add predictions to dataset
+current_data$predicted_prob <- predictions
+```
+
+---
+
+## Batch Predictions (Part 3)
+
+\small
+```{r eval=FALSE}
+# View top predicted donors
+current_data %>%
+  arrange(desc(predicted_prob)) %>%
+  head(10)
+```
+
+\vspace{0.5em}
+
+**Output preview:**
+\tiny
+```
+   age max_gift income_low predicted_prob
+1   68      250          0          0.842
+2   72      180          0          0.789
+3   55      300          0          0.761
+...
+```
+
+---
+
+## Selecting Donors to Target (Part 1)
+
+\small
+```{r eval=FALSE}
+# Set threshold (e.g., top 30%)
+threshold <- quantile(predictions, 
+                     probs = 0.70)
+
+cat("Threshold probability:", 
+    round(threshold, 3), "\n")
+```
+
+\vspace{0.5em}
+
+**Output:**
+```
+Threshold probability: 0.156
+```
+
+---
+
+## Selecting Donors to Target (Part 2)
+
+\small
+```{r eval=FALSE}
+# Identify high-probability donors
+current_data <- current_data %>%
+  mutate(should_contact = 
+           predicted_prob > threshold)
+
+# How many donors to contact?
+n_contact <- sum(current_data$should_contact)
+cat("Contact:", n_contact, "donors\n")
+```
+
+---
+
+## Selecting Donors to Target (Part 3)
+
+\small
+```{r eval=FALSE}
+# Expected number of responses
+expected <- sum(
+  current_data$predicted_prob[
+    current_data$should_contact
+  ]
+)
+
+cat("Expected responses:", 
+    round(expected), "\n")
+
+# Expected response rate
+exp_rate <- expected / n_contact * 100
+cat("Expected rate:", 
+    round(exp_rate, 1), "%\n")
+```
+
+---
+
+## Visualization: Distribution of Probabilities (Part 1)
+
+\small
+```{r eval=FALSE}
+library(ggplot2)
+
+# Create histogram
+ggplot(current_data, 
+       aes(x = predicted_prob)) +
+  geom_histogram(bins = 30, 
+                 fill = "steelblue", 
+                 color = "white")
+```
+
+---
+
+## Visualization: Distribution of Probabilities (Part 2)
+
+\small
+```{r eval=FALSE}
+# Add threshold line and labels
+ggplot(current_data, 
+       aes(x = predicted_prob)) +
+  geom_histogram(bins = 30, 
+                 fill = "steelblue", 
+                 color = "white") +
+  geom_vline(xintercept = threshold, 
+             color = "red", 
+             linetype = "dashed", size = 1)
+```
+
+---
+
+## Visualization: Distribution of Probabilities (Part 3)
+
+\small
+```{r eval=FALSE}
+# Final plot with all elements
+ggplot(current_data, 
+       aes(x = predicted_prob)) +
+  geom_histogram(bins = 30, 
+                 fill = "steelblue", 
+                 color = "white") +
+  geom_vline(xintercept = threshold, 
+             color = "red", 
+             linetype = "dashed", size = 1) +
+  labs(title = "Predicted Probabilities",
+       x = "Probability of Donation",
+       y = "Number of Donors") +
+  theme_minimal()
+```
+
+---
+
+## Model Formula Notation in R
+
+**General Form:**
+
+\small
+```{r eval=FALSE}
+glm(response ~ predictor1 + predictor2 + ...,
+    data = dataset,
+    family = binomial(link = "logit"))
+```
+
+\vspace{1em}
+
+**Special Operators:**
+
+- `+` : Include variable
+- `-` : Exclude variable  
+- `:` : Interaction term
+- `*` : Main effects and interaction
+- `.` : All variables except response
+
+---
+
+## Model Formula Examples
+
+\small
+```{r eval=FALSE}
+# Use all variables
+glm(Target ~ ., 
+    data = basetable, 
+    family = binomial)
+
+# Interaction between age and income
+glm(Target ~ age * income, 
+    data = basetable,
+    family = binomial)
+
+# Polynomial term
+glm(Target ~ age + I(age^2),
+    data = basetable,
+    family = binomial)
+```
+
+---
+
+## Practical Workflow: Step-by-Step (Part 1)
+
+\small
+```{r eval=FALSE}
+# 1. Load and explore data
+basetable <- read_csv("donor_data.csv")
+glimpse(basetable)
+summary(basetable)
+```
+
+---
+
+## Practical Workflow: Step-by-Step (Part 2)
+
+\small
+```{r eval=FALSE}
+# 2. Fit logistic regression
+model <- glm(
+  donated ~ age + income + previous_gifts,
+  data = basetable,
+  family = binomial
+)
+
+# 3. Check model summary
+summary(model)
+```
+
+---
+
+## Practical Workflow: Step-by-Step (Part 3)
+
+\small
+```{r eval=FALSE}
+# 4. Make predictions on new data
+new_donors <- read_csv("new_donors.csv")
+
+predictions <- predict(model, 
+                      newdata = new_donors,
+                      type = "response")
+```
+
+---
+
+## Practical Workflow: Step-by-Step (Part 4)
+
+\small
+```{r eval=FALSE}
+# 5. Select top 30% to contact
+cutoff <- quantile(predictions, 0.70)
+
+new_donors$contact <- predictions > cutoff
+
+# 6. Export results
+write_csv(new_donors, "targeting_list.csv")
+```
+
+---
+
+## Key Takeaways
+
+\begin{enumerate}
+\item \textbf{Basetable} is the foundation - structured data with features and target
+
+\item \textbf{Logistic regression} predicts probabilities using:
+   $$P(Y=1) = \frac{1}{1+e^{-(a_1x_1 + \cdots + a_nx_n + b)}}$$
+
+\item \textbf{Coefficients} show direction and strength of relationships
+
+\item Use \texttt{glm()} with \texttt{family = binomial} in R
+
+\item \texttt{predict()} with \texttt{type = "response"} gives probabilities
+
+\item Target high-probability individuals for better ROI
+\end{enumerate}
+
+---
+
+## Best Practices
+
+\begin{block}{Data Preparation}
+- Clean missing values
+- Check for outliers
+- Verify timing (no future leakage!)
+- Scale variables if needed
+\end{block}
+
+\begin{block}{Modeling}
+- Start simple (fewer predictors)
+- Check coefficient signs (do they make sense?)
+- Examine model diagnostics
+- Validate on held-out data
+\end{block}
+
+---
+
+## Common Pitfalls to Avoid (Part 1)
+
+\begin{enumerate}
+\item \textcolor{datared}{Using future information} \\
+   \small Only use data available at prediction time
+
+\vspace{0.5em}
+
+\item \textcolor{datared}{Ignoring imbalanced data} \\
+   \small If 95\% are 0's, adjust or use specialized techniques
+
+\vspace{0.5em}
+
+\item \textcolor{datared}{Overfitting} \\
+   \small Too many predictors relative to sample size
+\end{enumerate}
+
+---
+
+## Common Pitfalls to Avoid (Part 2)
+
+\begin{enumerate}
+\setcounter{enumi}{3}
+\item \textcolor{datared}{Not validating} \\
+   \small Always test on new data, not training data
+
+\vspace{0.5em}
+
+\item \textcolor{datared}{Treating probabilities as certainties} \\
+   \small A 0.8 probability means 20\% chance of being wrong!
+
+\vspace{0.5em}
+
+\item \textcolor{datared}{Ignoring model assumptions} \\
+   \small Check for multicollinearity, influential points
+\end{enumerate}
+
+---
+
+## Next Steps
+
+**In Future Lectures:**
+
+1. Model evaluation metrics (accuracy, precision, recall, AUC)
+2. Feature engineering and selection
+3. Handling missing data
+4. Cross-validation techniques
+5. Advanced algorithms (Random Forests, Gradient Boosting)
+6. Model interpretation and explainability
+
+\vspace{1em}
+
+**Practice Exercise:**
+
+Build a logistic regression model to predict customer churn using the provided dataset
+
+---
+
+## Summary: The Predictive Analytics Workflow
+
+\begin{center}
+\begin{tikzpicture}[scale=0.9,
+    box/.style={rectangle, draw, fill=blue!20, text width=2.5cm, 
+                align=center, rounded corners, minimum height=1cm}]
+
+\node[box] (data) at (0,0) {Collect Data};
+\node[box] (base) at (3,0) {Build Basetable};
+\node[box] (model) at (6,0) {Train Model};
+\node[box] (predict) at (9,0) {Make Predictions};
+\node[box] (decide) at (6,-2) {Make Decisions};
+\node[box] (eval) at (3,-2) {Evaluate};
+
+\draw[->, thick] (data) -- (base);
+\draw[->, thick] (base) -- (model);
+\draw[->, thick] (model) -- (predict);
+\draw[->, thick] (predict) -- (decide);
+\draw[->, thick] (decide) -- (eval);
+\draw[->, thick] (eval) -- (base);
+
+\end{tikzpicture}
+\end{center}
+
+---
+
+## Thank You!
+
+\begin{center}
+\LARGE \textbf{Questions?}
+\end{center}
+
+\vspace{2em}
+
+\begin{center}
+\large
+Prof. Asc. Endri Raco, Ph.D. \\
+\texttt{e.raco@fimif.edu.al}
+
+\vspace{1em}
+
+Polytechnic University of Tirana \\
+Department of Mathematical Engineering
+
+\vspace{2em}
+
+\textit{Next:} 10 minutes break and classwork 1
+\end{center}
+
+# Variable Selection
+
+## Introduction to Variable Selection
+
+\begin{center}
+\Large \textbf{Choosing the Right Predictors}
+\end{center}
+
+\vspace{1em}
+
+**The Challenge:**
+
+You have many potential predictors:
+- age, gender, income, location
+- past donation amounts (min, max, mean, median)
+- donation counts, recency, frequency
+- demographic variables
+
+\vspace{1em}
+
+**The Question:** Which ones should you include in your model?
+
+---
+
+## Example: Many Candidate Predictors
+
+**Donor Database Variables:**
+
+- `age`
+- `max_gift`, `min_gift`, `mean_gift`, `median_gift`
+- `income_low`, `income_medium`, `income_high`
+- `country_USA`, `country_India`, `country_UK`
+- `number_gift_min50`, `number_gift_min100`, `number_gift_min150`
+- `gender_F`, `gender_M`
+- `recency`, `frequency`, `monetary`
+
+**Total:** 15+ candidate predictors!
+
+---
+
+## Why Not Include All Variables?
+
+\textcolor{datared}{\textbf{Problem 1: Overfitting}}
+
+- Model learns noise in training data
+- Poor performance on new data
+- Memorization instead of generalization
+
+\vspace{0.5em}
+
+\textcolor{datared}{\textbf{Problem 2: Hard to Maintain}}
+
+- Collecting data for 15+ variables is expensive
+- Missing data becomes more likely
+- Model updates are complex
+
+---
+
+## Why Not Include All Variables? (continued)
+
+\textcolor{datared}{\textbf{Problem 3: Hard to Interpret}}
+
+- Which variables really matter?
+- Multicollinearity confuses interpretation
+- Business stakeholders get confused
+
+\vspace{0.5em}
+
+\textcolor{datared}{\textbf{Problem 4: Computational Cost}}
+
+- Slower predictions
+- More storage required
+- Higher maintenance burden
+
+---
+
+## The Goal of Variable Selection
+
+\begin{block}{Objective}
+Find the \textbf{smallest set} of predictors that gives the \textbf{best performance}
+\end{block}
+
+\vspace{1em}
+
+**Balance:**
+
+- \textcolor{datagreen}{Model Performance} (AUC, accuracy)
+- \textcolor{datagreen}{Model Simplicity} (fewer variables)
+- \textcolor{datagreen}{Model Interpretability} (understandable)
+
+---
+
+# Model Evaluation: AUC
+
+## Introducing AUC
+
+\begin{center}
+\Large \textbf{Area Under the ROC Curve}
+\end{center}
+
+\vspace{1em}
+
+**AUC** = Single number that summarizes model quality
+
+**Range:** 0 to 1
+
+- **0.5** = Random guessing (coin flip)
+- **1.0** = Perfect predictions
+- **> 0.7** = Generally acceptable
+- **> 0.8** = Good model
+- **> 0.9** = Excellent model
+
+---
+
+## Visualizing AUC
+
+\begin{center}
+\begin{tikzpicture}[scale=1.2]
+% Number line
+\draw[<->, thick] (0,0) -- (10,0);
+
+% Markers
+\foreach \x in {0,2.5,5,7.5,10} {
+  \draw (\x,0.1) -- (\x,-0.1);
+}
+
+% Labels
+\node[below] at (0,-0.2) {0};
+\node[below] at (5,-0.2) {0.5};
+\node[below] at (10,-0.2) {1};
+
+% Annotations
+\node[above] at (5,0.3) {Random};
+\node[above] at (5,0.6) {model};
+
+\node[above] at (10,0.3) {Perfect};
+\node[above] at (10,0.6) {model};
+
+% Question mark region
+\draw[thick, dataorange] (2.5,-0.5) -- (2.5,0.5);
+\node[above, dataorange] at (2.5,0.7) {?};
+\node[below, dataorange] at (2.5,-0.7) {Bad model};
+
+% Label
+\node[above] at (5,1.2) {\Large AUC};
+
+\end{tikzpicture}
+\end{center}
+
+---
+
+## Calculating AUC in R (Part 1)
+
+\small
+```{r eval=FALSE}
+# Load required library
+library(pROC)
+
+# Fit a simple model
+model <- glm(donated ~ age + balance,
+            data = basetable,
+            family = binomial)
+```
+
+---
+
+## Calculating AUC in R (Part 2)
+
+\small
+```{r eval=FALSE}
+# Get predicted probabilities
+predictions <- predict(model,
+                      type = "response")
+
+# Calculate AUC
+roc_obj <- roc(basetable$donated, predictions)
+auc_value <- auc(roc_obj)
+
+cat("AUC:", round(auc_value, 3))
+```
+
+\vspace{0.5em}
+
+**Output:**
+```
+AUC: 0.687
+```
+
+---
+
+## Creating an AUC Function
+
+\small
+```{r eval=FALSE}
+# Custom function to calculate AUC
+calculate_auc <- function(variables, 
+                         target, 
+                         data) {
+  
+  # Build formula
+  formula <- as.formula(
+    paste(target, "~", 
+          paste(variables, collapse = " + "))
+  )
+  
+  # Continue on next slide...
+}
+```
+
+---
+
+## Creating an AUC Function (Part 2)
+
+\small
+```{r eval=FALSE}
+calculate_auc <- function(variables, 
+                         target, 
+                         data) {
+  formula <- as.formula(
+    paste(target, "~", 
+          paste(variables, collapse = " + "))
+  )
+  
+  # Fit model
+  model <- glm(formula, 
+              data = data,
+              family = binomial)
+  
+  # Continue on next slide...
+}
+```
+
+---
+
+## Creating an AUC Function (Part 3)
+
+\small
+```{r eval=FALSE}
+calculate_auc <- function(variables, 
+                         target, 
+                         data) {
+  formula <- as.formula(
+    paste(target, "~", 
+          paste(variables, collapse = " + "))
+  )
+  
+  model <- glm(formula, data = data,
+              family = binomial)
+  
+  # Get predictions and calculate AUC
+  preds <- predict(model, type = "response")
+  auc_val <- auc(roc(data[[target]], preds))
+  
+  return(as.numeric(auc_val))
+}
+```
+
+---
+
+## Testing the AUC Function
+
+\small
+```{r eval=FALSE}
+# Test with age and balance
+auc1 <- calculate_auc(
+  variables = c("age", "balance"),
+  target = "donated",
+  data = basetable
+)
+
+cat("AUC:", round(auc1, 3))
+```
+
+\vspace{0.5em}
+
+**Output:**
+```
+AUC: 0.687
+```
+
+---
+
+# Forward Stepwise Selection
+
+## What is Forward Stepwise Selection?
+
+\begin{center}
+\textbf{Greedy Algorithm for Variable Selection}
+\end{center}
+
+\vspace{1em}
+
+**Idea:** Start with nothing, add variables one at a time
+
+**Process:**
+1. Start with empty model (no predictors)
+2. Try adding each candidate variable
+3. Keep the one that improves AUC the most
+4. Repeat until stopping criterion
+
+---
+
+## Forward Stepwise: Visual Intuition
+
+\begin{center}
+\begin{tikzpicture}[scale=0.9,
+    box/.style={rectangle, draw, fill=blue!10, 
+                minimum width=2.5cm, minimum height=0.8cm}]
+
+\node[box] (empty) at (0,0) {$\emptyset$};
+\node[box] (v1) at (0,-1.5) {$v_1$};
+\node[box] (v1v2) at (0,-3) {$v_1, v_2$};
+\node[box] (v1v2v3) at (0,-4.5) {$v_1, v_2, v_3$};
+\node at (0,-5.5) {$\vdots$};
+
+\draw[->, thick] (empty) -- (v1);
+\draw[->, thick] (v1) -- (v1v2);
+\draw[->, thick] (v1v2) -- (v1v2v3);
+
+\node[right] at (2,-0.75) {\small Find best single variable};
+\node[right] at (2,-2.25) {\small Add best 2nd variable};
+\node[right] at (2,-3.75) {\small Add best 3rd variable};
+
+\end{tikzpicture}
+\end{center}
+
+---
+
+## The Forward Stepwise Procedure
+
+**Algorithm Steps:**
+
+\vspace{0.5em}
+
+\textbf{Iteration 1:}
+- Try each variable alone
+- Pick the one with highest AUC
+
+\vspace{0.5em}
+
+\textbf{Iteration 2:}
+- Try adding each remaining variable
+- Pick the combination with highest AUC
+
+\vspace{0.5em}
+
+\textbf{Iteration k:}
+- Try adding each remaining variable to current set
+- Pick the best combination
+
+---
+
+## Example: Iteration 1
+
+**Candidate Variables:** age, balance, previous\_gifts
+
+\vspace{1em}
+
+\small
+```{r eval=FALSE}
+# Try each variable individually
+auc_age <- calculate_auc("age", "donated", data)
+auc_balance <- calculate_auc("balance", 
+                             "donated", data)
+auc_previous <- calculate_auc("previous_gifts", 
+                               "donated", data)
+
+cat("Age AUC:", round(auc_age, 3), "\n")
+cat("Balance AUC:", round(auc_balance, 3), "\n")
+cat("Previous AUC:", round(auc_previous, 3), "\n")
+```
+
+---
+
+## Example: Iteration 1 Results
+
+**Results:**
+```
+Age AUC: 0.623
+Balance AUC: 0.701
+Previous AUC: 0.665
+```
+
+\vspace{1em}
+
+\textcolor{datagreen}{\textbf{Winner: balance}} (AUC = 0.701)
+
+\vspace{1em}
+
+**Current Model:** donated ~ balance
+
+---
+
+## Example: Iteration 2
+
+**Current:** balance
+
+**Remaining:** age, previous\_gifts
+
+\vspace{1em}
+
+\small
+```{r eval=FALSE}
+# Try adding each remaining variable
+auc_bal_age <- calculate_auc(
+  c("balance", "age"), "donated", data
+)
+
+auc_bal_prev <- calculate_auc(
+  c("balance", "previous_gifts"), 
+  "donated", data
+)
+```
+
+---
+
+## Example: Iteration 2 Results
+
+**Results:**
+```
+balance + age: 0.715
+balance + previous_gifts: 0.748
+```
+
+\vspace{1em}
+
+\textcolor{datagreen}{\textbf{Winner: balance + previous\_gifts}} (AUC = 0.748)
+
+\vspace{1em}
+
+**Current Model:** donated ~ balance + previous\_gifts
+
+---
+
+## Implementing: Find Next Best Variable (Part 1)
+
+\small
+```{r eval=FALSE}
+find_next_best <- function(current_vars,
+                           candidate_vars,
+                           target,
+                           data) {
+  
+  best_auc <- -1
+  best_var <- NULL
+  
+  # Try each candidate variable
+  for (var in candidate_vars) {
+    # Continue on next slide...
+  }
+}
+```
+
+---
+
+## Implementing: Find Next Best Variable (Part 2)
+
+\small
+```{r eval=FALSE}
+find_next_best <- function(current_vars,
+                           candidate_vars,
+                           target, data) {
+  best_auc <- -1
+  best_var <- NULL
+  
+  for (var in candidate_vars) {
+    # Test this variable
+    test_vars <- c(current_vars, var)
+    test_auc <- calculate_auc(test_vars, 
+                              target, data)
+    
+    # Continue on next slide...
+  }
+}
+```
+
+---
+
+## Implementing: Find Next Best Variable (Part 3)
+
+\small
+```{r eval=FALSE}
+find_next_best <- function(current_vars,
+                           candidate_vars,
+                           target, data) {
+  best_auc <- -1
+  best_var <- NULL
+  
+  for (var in candidate_vars) {
+    test_vars <- c(current_vars, var)
+    test_auc <- calculate_auc(test_vars, 
+                              target, data)
+    
+    # Is this the best so far?
+    if (test_auc > best_auc) {
+      best_auc <- test_auc
+      best_var <- var
+    }
+  }
+  
+  return(best_var)
+}
+```
+
+---
+
+## Testing Find Next Best
+
+\small
+```{r eval=FALSE}
+# Current variables
+current <- c("balance")
+
+# Candidate variables
+candidates <- c("age", "previous_gifts", 
+                "income_low")
+
+# Find next best
+next_var <- find_next_best(
+  current_vars = current,
+  candidate_vars = candidates,
+  target = "donated",
+  data = basetable
+)
+
+cat("Next best variable:", next_var)
+```
+
+---
+
+## Complete Forward Selection Loop (Part 1)
+
+\small
+```{r eval=FALSE}
+# Setup
+candidate_vars <- c("age", "balance", 
+                    "previous_gifts", "income_low",
+                    "max_gift", "recency")
+
+current_vars <- c()
+target <- "donated"
+max_vars <- 5
+```
+
+---
+
+## Complete Forward Selection Loop (Part 2)
+
+\small
+```{r eval=FALSE}
+# Main loop
+n_iterations <- min(max_vars, 
+                   length(candidate_vars))
+
+for (i in 1:n_iterations) {
+  
+  # Find next best variable
+  next_var <- find_next_best(
+    current_vars = current_vars,
+    candidate_vars = candidate_vars,
+    target = target,
+    data = basetable
+  )
+  
+  # Continue on next slide...
+}
+```
+
+---
+
+## Complete Forward Selection Loop (Part 3)
+
+\small
+```{r eval=FALSE}
+for (i in 1:n_iterations) {
+  
+  next_var <- find_next_best(
+    current_vars = current_vars,
+    candidate_vars = candidate_vars,
+    target = target,
+    data = basetable
+  )
+  
+  # Add to current variables
+  current_vars <- c(current_vars, next_var)
+  
+  # Remove from candidates
+  candidate_vars <- setdiff(candidate_vars, 
+                           next_var)
+  
+  # Print progress
+  cat("Step", i, ":", next_var, "\n")
+}
+```
+
+---
+
+## Forward Selection Results
+
+**Output:**
+```
+Step 1 : balance 
+Step 2 : previous_gifts 
+Step 3 : recency 
+Step 4 : age 
+Step 5 : max_gift 
+```
+
+\vspace{1em}
+
+**Final Selected Variables:**
+```{r eval=FALSE}
+print(current_vars)
+```
+```
+[1] "balance" "previous_gifts" "recency" 
+[4] "age" "max_gift"
+```
+
+---
+
+# Deciding on Number of Variables
+
+## The Overfitting Problem
+
+\begin{center}
+\textbf{More variables $\neq$ Better model}
+\end{center}
+
+\vspace{1em}
+
+**Training Data:**
+- AUC always increases (or stays same)
+- Model learns specific patterns
+
+\vspace{1em}
+
+**New Data:**
+- AUC may decrease with too many variables
+- Model learned noise, not signal
+
+---
+
+## Visualizing Overfitting
+
+\begin{center}
+\begin{tikzpicture}[scale=1.1]
+\draw[->] (0,0) -- (8,0) node[right] {Number of variables};
+\draw[->] (0,0) -- (0,5) node[above] {AUC};
+
+% Training curve (always increasing)
+\draw[thick, datared, domain=0:7, samples=50] 
+  plot (\x, {0.5 + 1.8*(1-exp(-0.7*\x))});
+
+% Test curve (increases then decreases)
+\draw[thick, datablue, domain=0:7, samples=50] 
+  plot (\x, {0.5 + 1.5*(1-exp(-0.7*\x)) - 0.08*\x*\x});
+
+% Labels
+\node[datared, right] at (7,3.8) {Training};
+\node[datablue, right] at (7,2.5) {Test};
+
+% Optimal point
+\draw[dashed] (3,0) -- (3,3.5);
+\node[below] at (3,-0.2) {\small Optimal};
+
+\end{tikzpicture}
+\end{center}
+
+---
+
+## The Solution: Train/Test Split
+
+\begin{block}{Key Idea}
+Evaluate model performance on \textbf{unseen data}
+\end{block}
+
+\vspace{1em}
+
+**Procedure:**
+1. Split data into training (60%) and test (40%)
+2. Build models using training data only
+3. Evaluate models on test data
+4. Choose model with best test performance
+
+---
+
+## Train/Test Split Diagram
+
+\begin{center}
+\begin{tikzpicture}[scale=0.9]
+% Full dataset box
+\draw[thick] (0,2) rectangle (8,3);
+\node at (4,2.5) {\Large Basetable};
+
+% Arrows down
+\draw[->, thick] (3,2) -- (3,1.5);
+\draw[->, thick] (5,2) -- (5,1.5);
+
+% Training box
+\draw[thick, fill=red!20] (0,0) rectangle (5,1.5);
+\node at (2.5,0.75) {\Large Training (60\%)};
+
+% Test box
+\draw[thick, fill=blue!20] (5.5,0) rectangle (8,1.5);
+\node[align=center] at (6.75,0.75) {\Large Test \\ (40\%)};
+
+% Purpose labels
+\node[below, red!70!black] at (2.5,-0.5) {Build model};
+\node[below, blue!70!black] at (6.75,-0.5) {Evaluate model};
+
+\end{tikzpicture}
+\end{center}
+
+---
+
+## Creating Train/Test Split in R (Part 1)
+
+\small
+```{r eval=FALSE}
+# Load library
+library(caret)
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Create partition (60% training)
+train_index <- createDataPartition(
+  basetable$donated,
+  p = 0.6,
+  list = FALSE
+)
+```
+
+---
+
+## Creating Train/Test Split in R (Part 2)
+
+\small
+```{r eval=FALSE}
+# Split the data
+train_data <- basetable[train_index, ]
+test_data <- basetable[-train_index, ]
+
+# Check sizes
+cat("Training size:", nrow(train_data), "\n")
+cat("Test size:", nrow(test_data), "\n")
+```
+
+\vspace{0.5em}
+
+**Output:**
+```
+Training size: 6000 
+Test size: 4000 
+```
+
+---
+
+## Checking Target Distribution
+
+\small
+```{r eval=FALSE}
+# Check if split is balanced
+train_rate <- mean(train_data$donated)
+test_rate <- mean(test_data$donated)
+
+cat("Training donation rate:", 
+    round(train_rate * 100, 2), "%\n")
+cat("Test donation rate:", 
+    round(test_rate * 100, 2), "%\n")
+```
+
+\vspace{0.5em}
+
+**Output:**
+```
+Training donation rate: 12.3 %
+Test donation rate: 12.5 %
+```
+
+\vspace{0.5em}
+
+\textcolor{datagreen}{Good! Rates are similar}
+
+---
+
+## Evaluating Multiple Models (Part 1)
+
+\small
+```{r eval=FALSE}
+# Run forward selection on TRAINING data
+candidate_vars <- c("age", "balance", 
+                    "previous_gifts", "income_low",
+                    "max_gift", "recency")
+
+current_vars <- c()
+train_aucs <- c()
+test_aucs <- c()
+```
+
+---
+
+## Evaluating Multiple Models (Part 2)
+
+\small
+```{r eval=FALSE}
+# For each step in forward selection
+for (i in 1:length(candidate_vars)) {
+  
+  # Find next best on TRAINING data
+  next_var <- find_next_best(
+    current_vars = current_vars,
+    candidate_vars = candidate_vars,
+    target = "donated",
+    data = train_data  # Use training!
+  )
+  
+  current_vars <- c(current_vars, next_var)
+  candidate_vars <- setdiff(candidate_vars, 
+                           next_var)
+  
+  # Continue on next slide...
+}
+```
+
+---
+
+## Evaluating Multiple Models (Part 3)
+
+\small
+```{r eval=FALSE}
+for (i in 1:length(candidate_vars)) {
+  # ... previous code ...
+  
+  current_vars <- c(current_vars, next_var)
+  candidate_vars <- setdiff(candidate_vars, 
+                           next_var)
+  
+  # Calculate AUC on TRAINING data
+  train_auc <- calculate_auc(current_vars, 
+                            "donated", 
+                            train_data)
+  
+  # Calculate AUC on TEST data
+  test_auc <- calculate_auc(current_vars, 
+                           "donated", 
+                           test_data)
+  
+  train_aucs <- c(train_aucs, train_auc)
+  test_aucs <- c(test_aucs, test_auc)
+}
+```
+
+---
+
+## Visualizing Train vs Test AUC (Part 1)
+
+\small
+```{r eval=FALSE}
+# Create dataframe for plotting
+results <- data.frame(
+  num_vars = 1:length(train_aucs),
+  train_auc = train_aucs,
+  test_auc = test_aucs
+)
+
+# View results
+print(results)
+```
+
+---
+
+## Visualizing Train vs Test AUC (Part 2)
+
+\small
+```{r eval=FALSE}
+library(ggplot2)
+
+# Create plot
+ggplot(results, aes(x = num_vars)) +
+  geom_line(aes(y = train_auc, 
+                color = "Training"),
+            size = 1.2) +
+  geom_line(aes(y = test_auc, 
+                color = "Test"),
+            size = 1.2) +
+  geom_point(aes(y = train_auc, 
+                 color = "Training"), 
+             size = 3) +
+  geom_point(aes(y = test_auc, 
+                 color = "Test"), 
+             size = 3)
+```
+
+---
+
+## Visualizing Train vs Test AUC (Part 3)
+
+\small
+```{r eval=FALSE}
+# Add labels and theme
+ggplot(results, aes(x = num_vars)) +
+  # ... geom_line and geom_point ...
+  scale_color_manual(
+    values = c("Training" = "red", 
+               "Test" = "blue")
+  ) +
+  labs(
+    title = "Model Performance vs Complexity",
+    x = "Number of Variables",
+    y = "AUC",
+    color = "Dataset"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+---
+
+## Interpreting the Results
+
+**Example Output:**
+
+\small
+```
+  num_vars train_auc test_auc
+1        1     0.701    0.695
+2        2     0.748    0.732
+3        3     0.772    0.751
+4        4     0.783    0.748
+5        5     0.795    0.742
+6        6     0.802    0.738
+```
+
+\vspace{1em}
+
+\textcolor{datagreen}{\textbf{Optimal:}} 3 variables (highest test AUC)
+
+---
+
+## Deciding on Final Model
+
+**Criteria for Selection:**
+
+\begin{enumerate}
+\item \textbf{Highest test AUC}
+   \small Ensures generalization
+
+\vspace{0.3em}
+
+\item \textbf{Simplicity}
+   \small Fewer variables = easier to maintain
+
+\vspace{0.3em}
+
+\item \textbf{Stability}
+   \small Small gap between train and test AUC
+
+\vspace{0.3em}
+
+\item \textbf{Practical constraints}
+   \small Data availability, cost
+
+\end{enumerate}
+
+---
+
+## Finding the Optimal Number (Part 1)
+
+\small
+```{r eval=FALSE}
+# Find index with highest test AUC
+optimal_idx <- which.max(test_aucs)
+
+cat("Optimal number of variables:", 
+    optimal_idx, "\n")
+cat("Test AUC:", 
+    round(test_aucs[optimal_idx], 3), "\n")
+```
+
+---
+
+## Finding the Optimal Number (Part 2)
+
+\small
+```{r eval=FALSE}
+# Get the optimal variable set
+# (Re-run forward selection to track vars)
+current_vars <- c()
+candidate_vars_reset <- c("age", "balance", 
+                          "previous_gifts", 
+                          "income_low",
+                          "max_gift", "recency")
+
+for (i in 1:optimal_idx) {
+  next_var <- find_next_best(
+    current_vars, candidate_vars_reset,
+    "donated", train_data
+  )
+  current_vars <- c(current_vars, next_var)
+  candidate_vars_reset <- 
+    setdiff(candidate_vars_reset, next_var)
+}
+
+cat("Selected variables:\n")
+print(current_vars)
+```
+
+---
+
+## Building the Final Model
+
+\small
+```{r eval=FALSE}
+# Build final model with optimal variables
+final_model <- glm(
+  donated ~ balance + previous_gifts + recency,
+  data = train_data,
+  family = binomial
+)
+
+# Evaluate on test set
+test_preds <- predict(final_model,
+                     newdata = test_data,
+                     type = "response")
+
+final_auc <- auc(roc(test_data$donated, 
+                    test_preds))
+
+cat("Final model AUC:", round(final_auc, 3))
+```
+
+---
+
+## Summary: Variable Selection Process
+
+\begin{enumerate}
+\item \textbf{Split data} into training and test sets
+
+\item \textbf{Run forward selection} on training data
+
+\item \textbf{Evaluate each model} on test data
+
+\item \textbf{Plot} training vs test AUC
+
+\item \textbf{Choose} model with best test AUC
+
+\item \textbf{Build final model} with selected variables
+\end{enumerate}
+
+---
+
+## Key Takeaways
+
+\begin{block}{Variable Selection}
+- Start simple, add complexity carefully
+- Use forward stepwise for systematic selection
+- Always validate on holdout data
+\end{block}
+
+\begin{block}{Overfitting}
+- More variables can hurt performance
+- Train/test split reveals true performance
+- Choose model at peak of test AUC curve
+\end{block}
+
+---
+
+## Best Practices
+
+\textcolor{datagreen}{\textbf{DO:}}
+
+- Split data before any modeling
+- Evaluate on untouched test data
+- Consider practical constraints
+- Document your selection process
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{DON'T:}}
+
+- Use test data for variable selection
+- Overfit to training data
+- Ignore the train/test gap
+- Choose models based only on training AUC
+
+---
+
+## Alternative Selection Methods
+
+**Forward Stepwise** (what we learned)
+- Start empty, add best variables
+
+**Backward Stepwise**
+- Start with all, remove worst variables
+
+**Lasso Regularization**
+- Automatic variable selection via penalties
+
+**Information Criteria (AIC, BIC)**
+- Balance fit and complexity
+
+We'll explore these in advanced courses!
+
+---
+
+## Common Pitfalls
+
+\textcolor{datared}{\textbf{Mistake 1:}} Using all variables without selection
+
+- Results in overfitting
+- Hard to interpret and maintain
+
+\vspace{0.5em}
+
+\textcolor{datared}{\textbf{Mistake 2:}} Selecting variables without train/test split
+
+- Cannot detect overfitting
+- Overconfident in model performance
+
+\vspace{0.5em}
+
+\textcolor{datared}{\textbf{Mistake 3:}} Choosing model with highest training AUC
+
+- Ignores generalization
+- Poor real-world performance
+
+---
+
+## Practical Tips
+
+\begin{enumerate}
+\item \textbf{Start simple}
+   \small Begin with 2-3 most important variables
+
+\item \textbf{Add gradually}
+   \small Monitor test performance after each addition
+
+\item \textbf{Stop early}
+   \small When test AUC stops improving
+
+\item \textbf{Consider business}
+   \small Easy-to-collect variables preferred
+
+\item \textbf{Document everything}
+   \small Explain why each variable was selected
+\end{enumerate}
+
+---
+
+## Next Steps
+
+\textbf{In Next Lecture:}
+
+- Cross-validation (better than single train/test)
+- Advanced evaluation metrics
+- Feature engineering
+- Handling categorical variables
+- Regularization techniques
+
+\vspace{1em}
+
+\textbf{Practice:}
+
+- Apply forward selection to bank marketing data
+- Compare different numbers of variables
+- Visualize train vs test performance
+
+---
+
+## Thank You!
+
+\begin{center}
+\Large \textbf{Questions?}
+\end{center}
+
+\vspace{2em}
+
+**Review:**
+
+- Variable selection reduces overfitting
+- Forward stepwise is systematic and interpretable
+- Always validate on test data
+- Choose models that generalize well
+
+\vspace{2em}
+
+\textit{Next: 10 minutes break and Classwork 2 - Variable Selection Exercise}
+# Chapter 3: Model Evaluation with Business Metrics
+
+## Beyond AUC: Business-Focused Evaluation
+
+\begin{center}
+\Large \textbf{Cumulative Gains and Lift Curves}
+\end{center}
+
+\vspace{1em}
+
+**The Challenge:**
+
+- AUC is great for data scientists
+- But business stakeholders ask: "How much money will we make?"
+- Need evaluation metrics that speak the language of business
+
+\vspace{1em}
+
+**Today's Goal:** Learn to evaluate models using business-friendly metrics
+
+---
+
+## Why AUC Isn't Enough
+
+\textcolor{datared}{\textbf{Problem with AUC:}}
+
+\vspace{0.5em}
+
+- **Complex**: What does 0.75 actually mean?
+- **Abstract**: Doesn't translate to dollars
+- **Single number**: Hides important details
+
+\vspace{1em}
+
+\textcolor{datagreen}{\textbf{What Business Needs:}}
+
+\vspace{0.5em}
+
+- How many customers should we contact?
+- What's our expected profit?
+- How much better is this than random?
+
+---
+
+## Meet the Cumulative Gains Curve
+
+\begin{center}
+\Large \textbf{A Picture Worth a Thousand Predictions}
+\end{center}
+
+\vspace{1em}
+
+**Key Question:** If I contact the top X\% of customers, what \% of all potential donors will I reach?
+
+\vspace{1em}
+
+**Why It's Useful:**
+
+- Visual and intuitive
+- Directly answers business questions
+- Easy to explain to non-technical stakeholders
+- Shows model performance at different thresholds
+
+---
+
+## Cumulative Gains: The Concept
+
+\begin{center}
+\begin{tikzpicture}[scale=1]
+% Axes
+\draw[->] (0,0) -- (10,0) node[right] {\% of Sample};
+\draw[->] (0,0) -- (0,6) node[above] {\% of Targets};
+
+% Baseline (diagonal)
+\draw[dashed, thick] (0,0) -- (10,5);
+
+% Model curve (good performance)
+\draw[thick, datared, domain=0:10, samples=50] 
+  plot (\x, {5*(1-exp(-1.5*\x/10))});
+
+% Example point
+\draw[datablue, dashed] (3,0) -- (3,3.5);
+\draw[datablue, dashed] (0,3.5) -- (3,3.5);
+
+% Labels
+\node[below] at (3,-0.2) {\small 30\%};
+\node[left] at (-0.3,3.5) {\small 70\%};
+
+% Annotation
+\node[datablue, align=center] at (6.5,2) 
+  {\small Contact top 30\% \\ \small Reach 70\% of targets};
+
+\end{tikzpicture}
+\end{center}
+
+---
+
+## Understanding the Axes
+
+**X-Axis: Percentage of Sample Contacted**
+
+- 0\% = Contact nobody
+- 50\% = Contact half the population
+- 100\% = Contact everyone
+
+\vspace{1em}
+
+**Y-Axis: Percentage of Targets Reached**
+
+- 0\% = Found no donors
+- 50\% = Found half of all potential donors
+- 100\% = Found all potential donors
+
+---
+
+## How It's Constructed (Part 1)
+
+\textbf{Step 1: Sort by Predicted Probability}
+
+\small
+```{r eval=FALSE}
+# You have predictions from your model
+predictions <- predict(model, 
+                      newdata = test_data,
+                      type = "response")
+
+# Add to dataframe
+test_data$pred_prob <- predictions
+test_data$actual <- test_data$donated
+```
+
+---
+
+## How It's Constructed (Part 2)
+
+\textbf{Step 2: Sort from Highest to Lowest Probability}
+
+\small
+```{r eval=FALSE}
+# Sort by predicted probability (descending)
+sorted_data <- test_data %>%
+  arrange(desc(pred_prob))
+
+# Now the "most likely donors" are at the top
+head(sorted_data[, c("pred_prob", "actual")])
+```
+
+\normalsize
+
+**Why?** We want to contact the most promising prospects first!
+
+---
+
+## How It's Constructed (Part 3)
+
+\textbf{Step 3: Calculate Cumulative Metrics}
+
+\small
+```{r eval=FALSE}
+# Calculate cumulative values
+sorted_data <- sorted_data %>%
+  mutate(
+    # What % of sample have we contacted?
+    perc_sample = row_number() / n(),
+    
+    # How many targets found so far?
+    cum_targets = cumsum(actual),
+    
+    # What % of all targets is that?
+    perc_targets = cum_targets / sum(actual)
+  )
+```
+
+\normalsize
+
+Now we have all the points for our curve!
+
+---
+
+## Example Calculation
+
+\small
+\begin{tabular}{cccc}
+\hline
+\textbf{Rank} & \textbf{Predicted} & \textbf{Actual} & \textbf{Cum. \%} \\
+\hline
+1 & 0.95 & 1 & 10\% \\
+2 & 0.92 & 1 & 20\% \\
+3 & 0.88 & 1 & 30\% \\
+4 & 0.85 & 0 & 30\% \\
+5 & 0.82 & 1 & 40\% \\
+... & ... & ... & ... \\
+10 & 0.50 & 0 & 50\% \\
+\hline
+\end{tabular}
+
+\vspace{0.5em}
+
+\normalsize
+
+**Interpretation:** By contacting top 5 people (50\% of sample), we reached 40\% of all donors.
+
+---
+
+## Creating Gains Curve in R (Part 1)
+
+\small
+```{r eval=FALSE}
+# Load required library
+library(tidyverse)
+
+# Function to calculate gains curve data
+calculate_gains <- function(actual, predicted) {
+  
+  # Create dataframe
+  df <- data.frame(
+    actual = actual,
+    predicted = predicted
+  ) %>%
+    arrange(desc(predicted))
+  
+  # Continue on next slide...
+}
+```
+
+---
+
+## Creating Gains Curve in R (Part 2)
+
+\small
+```{r eval=FALSE}
+calculate_gains <- function(actual, predicted) {
+  
+  df <- data.frame(
+    actual = actual,
+    predicted = predicted
+  ) %>%
+    arrange(desc(predicted))
+  
+  # Calculate cumulative metrics
+  df <- df %>%
+    mutate(
+      perc_sample = row_number() / n(),
+      cum_targets = cumsum(actual),
+      perc_targets = cum_targets / sum(actual)
+    )
+  
+  return(df)
+}
+```
+
+---
+
+## Creating Gains Curve in R (Part 3)
+
+\small
+```{r eval=FALSE}
+# Use the function
+gains_data <- calculate_gains(
+  actual = test_data$donated,
+  predicted = test_preds
+)
+
+# Plot the curve
+ggplot(gains_data, aes(x = perc_sample, 
+                       y = perc_targets)) +
+  geom_line(color = "red", size = 1.2) +
+  geom_abline(slope = 1, intercept = 0,
+              linetype = "dashed") +
+  labs(title = "Cumulative Gains Curve",
+       x = "Percentage of Sample",
+       y = "Percentage of Targets") +
+  theme_minimal()
+```
+
+---
+
+## Interpreting the Gains Curve
+
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+
+\textbf{Perfect Model:}
+
+\vspace{0.5em}
+
+- Steep initial rise
+- Reaches 100\% quickly
+- All targets at the top
+
+\vspace{1em}
+
+\textbf{Random Model:}
+
+\vspace{0.5em}
+
+- Diagonal line
+- Proportional gains
+- No targeting ability
+
+\end{column}
+
+\begin{column}{0.48\textwidth}
+
+\textbf{Your Model:}
+
+\vspace{0.5em}
+
+- Between the two
+- Closer to perfect = better
+- Steeper = more valuable
+
+\vspace{1em}
+
+\textbf{Key Insight:}
+
+The area between your curve and the diagonal shows the model's value!
+
+\end{column}
+\end{columns}
+
+---
+
+## Reading the Gains Curve: Example
+
+\begin{center}
+\textit{At 30\% of sample, we reach 70\% of targets}
+\end{center}
+
+\vspace{1em}
+
+**Business Translation:**
+
+- \textcolor{datagreen}{Contact:} 30,000 out of 100,000 customers
+- \textcolor{datagreen}{Reach:} 70 out of 100 potential donors
+- \textcolor{datagreen}{Benefit:} 70\% results with 30\% effort
+- \textcolor{datagreen}{Savings:} Avoid contacting 70,000 people
+
+---
+
+## Comparing Multiple Models
+
+\small
+```{r eval=FALSE}
+# Calculate gains for both models
+gains_model1 <- calculate_gains(actual, pred1)
+gains_model2 <- calculate_gains(actual, pred2)
+
+# Add model identifier
+gains_model1$model <- "Model 1"
+gains_model2$model <- "Model 2"
+
+# Combine
+gains_combined <- rbind(gains_model1, 
+                       gains_model2)
+```
+
+---
+
+## Plotting Model Comparison
+
+\small
+```{r eval=FALSE}
+ggplot(gains_combined, 
+       aes(x = perc_sample, 
+           y = perc_targets,
+           color = model)) +
+  geom_line(size = 1.2) +
+  geom_abline(slope = 1, intercept = 0,
+              linetype = "dashed",
+              color = "black") +
+  scale_color_manual(
+    values = c("Model 1" = "blue", 
+               "Model 2" = "red")
+  ) +
+  labs(title = "Model Comparison",
+       x = "% of Sample",
+       y = "% of Targets") +
+  theme_minimal()
+```
+
+---
+
+## Which Model is Better?
+
+\begin{center}
+\textbf{The model with the curve furthest from the diagonal}
+\end{center}
+
+\vspace{1em}
+
+\begin{itemize}
+\item Model 1 (blue) is higher → Better targeting
+\item Model 2 (red) is lower → Weaker targeting
+\item Both beat random (dashed line) → Both useful
+\end{itemize}
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{Rule:}} Higher curve = Better model
+
+---
+
+# The Lift Curve
+
+## Introducing Lift
+
+\begin{center}
+\Large \textbf{How Much Better Than Random?}
+\end{center}
+
+\vspace{1em}
+
+**Lift** = Factor of improvement over random selection
+
+\vspace{1em}
+
+**Formula:**
+$$\text{Lift} = \frac{\text{Percentage of targets in selection}}{\text{Overall percentage of targets}}$$
+
+\vspace{1em}
+
+**Example:** If 25\% of selected customers donate, but only 5\% donate overall:
+
+$$\text{Lift} = \frac{25\%}{5\%} = 5$$
+
+---
+
+## Lift Values Interpretation
+
+\begin{center}
+\begin{tikzpicture}[scale=1]
+% Number line
+\draw[<->, thick] (0,0) -- (10,0);
+
+% Markers
+\draw (0,0.1) -- (0,-0.1) node[below] {0};
+\draw (2.5,0.1) -- (2.5,-0.1) node[below] {1};
+\draw (5,0.1) -- (5,-0.1) node[below] {2};
+\draw (7.5,0.1) -- (7.5,-0.1) node[below] {4};
+\draw (10,0.1) -- (10,-0.1) node[below] {10+};
+
+% Annotations
+\node[above, align=center] at (1.25,0.5) 
+  {\small Worse than \\ \small random};
+\node[above, align=center] at (2.5,1) 
+  {\small Random};
+\node[above, align=center] at (5,0.5) 
+  {\small 2x better};
+\node[above, align=center] at (7.5,0.5) 
+  {\small 4x better};
+\node[above, align=center] at (10,0.5) 
+  {\small Excellent!};
+
+\end{tikzpicture}
+\end{center}
+
+---
+
+## Lift Curve Construction
+
+**Similar to gains curve, but:**
+
+- **Y-axis**: Lift (not cumulative percentage)
+- **Shape**: Decreasing (starts high, drops)
+- **Interpretation**: How much better at each point
+
+\vspace{1em}
+
+**Key Features:**
+
+- Maximum lift at the beginning
+- Gradually decreases
+- Converges to 1 at 100\%
+
+---
+
+## Why Lift Decreases
+
+\begin{center}
+\textbf{As you contact more people, average quality drops}
+\end{center}
+
+\vspace{1em}
+
+**At 10\% of sample:**
+- Only contacting the BEST prospects
+- Very high concentration of donors
+- Lift might be 5x or more
+
+\vspace{1em}
+
+**At 50\% of sample:**
+- Contacting good and mediocre prospects
+- Lower concentration
+- Lift might be 2x
+
+---
+
+## Calculating Lift in R (Part 1)
+
+\small
+```{r eval=FALSE}
+calculate_lift <- function(actual, predicted) {
+  
+  # Overall target rate (baseline)
+  baseline_rate <- mean(actual)
+  
+  # Sort by prediction
+  df <- data.frame(
+    actual = actual,
+    predicted = predicted
+  ) %>%
+    arrange(desc(predicted))
+  
+  # Continue on next slide...
+}
+```
+
+---
+
+## Calculating Lift in R (Part 2)
+
+\small
+```{r eval=FALSE}
+calculate_lift <- function(actual, predicted) {
+  
+  baseline_rate <- mean(actual)
+  
+  df <- data.frame(
+    actual = actual,
+    predicted = predicted
+  ) %>%
+    arrange(desc(predicted))
+  
+  # Calculate lift at each point
+  df <- df %>%
+    mutate(
+      perc_sample = row_number() / n(),
+      cum_targets = cumsum(actual),
+      cum_sample = row_number(),
+      
+      # Lift = (targets found) / (expected if random)
+      lift = (cum_targets / cum_sample) / 
+              baseline_rate
+    )
+  
+  return(df)
+}
+```
+
+---
+
+## Plotting Lift Curve
+
+\small
+```{r eval=FALSE}
+# Calculate lift
+lift_data <- calculate_lift(
+  actual = test_data$donated,
+  predicted = test_preds
+)
+
+# Plot
+ggplot(lift_data, 
+       aes(x = perc_sample, y = lift)) +
+  geom_line(color = "darkgreen", 
+            size = 1.2) +
+  geom_hline(yintercept = 1, 
+             linetype = "dashed",
+             color = "black") +
+  labs(title = "Lift Curve",
+       x = "Percentage of Sample",
+       y = "Lift") +
+  theme_minimal()
+```
+
+---
+
+## Reading the Lift Curve
+
+\begin{center}
+\begin{tikzpicture}[scale=1]
+% Axes
+\draw[->] (0,0) -- (10,0) node[right] {\% Sample};
+\draw[->] (0,0) -- (0,6) node[above] {Lift};
+
+% Baseline
+\draw[dashed] (0,1.5) -- (10,1.5);
+\node[left] at (0,1.5) {1};
+
+% Lift curve (decreasing)
+\draw[thick, datagreen, domain=0:10, samples=50] 
+  plot (\x, {1.5 + 3*exp(-0.8*\x)});
+
+% Example point
+\draw[datablue, dashed] (2,0) -- (2,3.8);
+\draw[datablue, dashed] (0,3.8) -- (2,3.8);
+
+% Labels
+\node[below] at (2,-0.2) {\small 20\%};
+\node[left] at (-0.3,3.8) {\small 2.5};
+
+% Annotation
+\node[datablue, align=center] at (6,4) 
+  {\small Top 20\% are \\ \small 2.5x more likely \\ \small to donate};
+
+\end{tikzpicture}
+\end{center}
+
+---
+
+## Lift Curve: Practical Example
+
+**Scenario:** Donation campaign
+
+- Overall donation rate: 5\%
+- Budget allows contacting 20\% of database
+
+\vspace{1em}
+
+**Without Model (Random):**
+- Contact 20,000 people
+- Expect: 20,000 × 5\% = 1,000 donors
+
+\vspace{1em}
+
+**With Model (Lift = 3):**
+- Contact 20,000 people (top 20\%)
+- Expect: 1,000 × 3 = 3,000 donors
+
+---
+
+## Comparing Models with Lift
+
+\small
+```{r eval=FALSE}
+# Calculate for both models
+lift_model1 <- calculate_lift(actual, pred1)
+lift_model2 <- calculate_lift(actual, pred2)
+
+# Add identifiers
+lift_model1$model <- "Model 1"
+lift_model2$model <- "Model 2"
+
+# Combine
+lift_combined <- rbind(lift_model1, 
+                      lift_model2)
+
+# Plot
+ggplot(lift_combined, 
+       aes(x = perc_sample, y = lift, 
+           color = model)) +
+  geom_line(size = 1.2) +
+  geom_hline(yintercept = 1, 
+             linetype = "dashed") +
+  theme_minimal()
+```
+
+---
+
+# Business Decision Making
+
+## From Curves to Profits
+
+\begin{center}
+\Large \textbf{Translating Models into Dollars}
+\end{center}
+
+\vspace{1em}
+
+**Key Questions:**
+
+1. How many people should we contact?
+2. What's the expected profit?
+3. Is the campaign worth running?
+
+\vspace{1em}
+
+**Answer:** Use the lift curve to estimate ROI!
+
+---
+
+## The Profit Calculation
+
+**Components:**
+
+- **Revenue per donor**: \$50
+- **Cost per contact**: \$2
+- **Population size**: 100,000
+- **Baseline donation rate**: 5\%
+
+\vspace{1em}
+
+**Formula:**
+
+\small
+$$\text{Profit} = (\text{Revenue} \times \text{Donors}) - (\text{Cost} \times \text{Contacts})$$
+
+---
+
+## Implementing Profit Function (Part 1)
+
+\small
+```{r eval=FALSE}
+# Define campaign parameters
+calc_profit <- function(perc_contacted,
+                       lift,
+                       pop_size = 100000,
+                       baseline_rate = 0.05,
+                       revenue_per_donor = 50,
+                       cost_per_contact = 2) {
+  
+  # How many people contacted?
+  n_contacted <- pop_size * perc_contacted
+  
+  # Continue on next slide...
+}
+```
+
+---
+
+## Implementing Profit Function (Part 2)
+
+\small
+```{r eval=FALSE}
+calc_profit <- function(perc_contacted, lift,
+                       pop_size = 100000,
+                       baseline_rate = 0.05,
+                       revenue_per_donor = 50,
+                       cost_per_contact = 2) {
+  
+  n_contacted <- pop_size * perc_contacted
+  
+  # Expected donation rate with model
+  expected_rate <- baseline_rate * lift
+  
+  # Expected number of donors
+  n_donors <- n_contacted * expected_rate
+  
+  # Continue on next slide...
+}
+```
+
+---
+
+## Implementing Profit Function (Part 3)
+
+\small
+```{r eval=FALSE}
+calc_profit <- function(perc_contacted, lift,
+                       pop_size = 100000,
+                       baseline_rate = 0.05,
+                       revenue_per_donor = 50,
+                       cost_per_contact = 2) {
+  
+  n_contacted <- pop_size * perc_contacted
+  expected_rate <- baseline_rate * lift
+  n_donors <- n_contacted * expected_rate
+  
+  # Calculate profit
+  revenue <- n_donors * revenue_per_donor
+  cost <- n_contacted * cost_per_contact
+  profit <- revenue - cost
+  
+  return(profit)
+}
+```
+
+---
+
+## Example: Profit Calculation
+
+\small
+```{r eval=FALSE}
+# Scenario 1: Contact top 20% with lift of 2.5
+profit_1 <- calc_profit(
+  perc_contacted = 0.20,
+  lift = 2.5
+)
+
+cat("Profit (20%, lift 2.5):", 
+    scales::dollar(profit_1), "\n")
+
+# Scenario 2: Contact everyone (no targeting)
+profit_2 <- calc_profit(
+  perc_contacted = 1.0,
+  lift = 1.0
+)
+
+cat("Profit (100%, no model):", 
+    scales::dollar(profit_2), "\n")
+```
+
+---
+
+## Example Output
+```
+Profit (20%, lift 2.5): $85,000
+Profit (100%, no model): $50,000
+```
+
+\vspace{1em}
+
+\textcolor{datagreen}{\textbf{Insight:}}
+
+- Targeted approach: \$85,000 profit
+- Contact everyone: \$50,000 profit
+- **Benefit of targeting: \$35,000 more profit**
+- **With 80\% fewer contacts!**
+
+---
+
+## Finding Optimal Contact Percentage (Part 1)
+
+\small
+```{r eval=FALSE}
+# Calculate profit at different percentages
+contact_levels <- seq(0.05, 1.0, by = 0.05)
+
+profit_by_level <- data.frame(
+  perc_contacted = contact_levels,
+  lift = NA,
+  profit = NA
+)
+
+# For each contact level...
+for (i in 1:nrow(profit_by_level)) {
+  perc <- profit_by_level$perc_contacted[i]
+  
+  # Continue on next slide...
+}
+```
+
+---
+
+## Finding Optimal Contact Percentage (Part 2)
+
+\small
+```{r eval=FALSE}
+for (i in 1:nrow(profit_by_level)) {
+  perc <- profit_by_level$perc_contacted[i]
+  
+  # Get lift at this percentage from lift curve
+  lift_at_perc <- lift_data %>%
+    filter(perc_sample <= perc) %>%
+    slice_tail(n = 1) %>%
+    pull(lift)
+  
+  # Calculate profit
+  profit_at_perc <- calc_profit(
+    perc_contacted = perc,
+    lift = lift_at_perc
+  )
+  
+  # Store results
+  profit_by_level$lift[i] <- lift_at_perc
+  profit_by_level$profit[i] <- profit_at_perc
+}
+```
+
+---
+
+## Visualizing Profit Curve
+
+\small
+```{r eval=FALSE}
+# Find optimal point
+optimal <- profit_by_level %>%
+  filter(profit == max(profit))
+
+# Plot
+ggplot(profit_by_level, 
+       aes(x = perc_contacted, y = profit)) +
+  geom_line(color = "darkgreen", 
+            size = 1.2) +
+  geom_point(data = optimal, 
+             color = "red", size = 4) +
+  geom_hline(yintercept = 0, 
+             linetype = "dashed") +
+  labs(title = "Profit by Contact Percentage",
+       x = "% of Database Contacted",
+       y = "Expected Profit ($)") +
+  scale_y_continuous(labels = scales::dollar) +
+  theme_minimal()
+```
+
+---
+
+## Interpreting the Profit Curve
+
+**Key Features:**
+
+\begin{itemize}
+\item \textcolor{datagreen}{Peak}: Optimal contact percentage
+\item \textcolor{datared}{Before peak}: Too few contacts (missed opportunities)
+\item \textcolor{dataorange}{After peak}: Too many contacts (wasted money)
+\item \textcolor{datablue}{Negative region}: Campaign loses money
+\end{itemize}
+
+\vspace{1em}
+
+**Business Recommendation:** Contact the percentage at the peak!
+
+---
+
+## Campaign Selection from Gains Curve
+
+\small
+```{r eval=FALSE}
+# Business goal: Reach 80% of potential donors
+target_coverage <- 0.80
+
+# Find required contact percentage
+required_contact <- gains_data %>%
+  filter(perc_targets >= target_coverage) %>%
+  slice_head(n = 1) %>%
+  pull(perc_sample)
+
+cat("To reach", target_coverage * 100, 
+    "% of donors,\n")
+cat("Contact", round(required_contact * 100, 1), 
+    "% of database\n")
+```
+
+\vspace{0.5em}
+
+**Output:**
+```
+To reach 80% of donors,
+Contact 35.2% of database
+```
+
+---
+
+## Business Impact Summary
+
+\begin{center}
+\textbf{Comparing Strategies}
+\end{center}
+
+\small
+\begin{tabular}{lccc}
+\hline
+\textbf{Strategy} & \textbf{Contact \%} & \textbf{Donors} & \textbf{Profit} \\
+\hline
+Random & 100\% & 5,000 & \$50,000 \\
+Model (20\%) & 20\% & 2,500 & \$85,000 \\
+Model (35\%) & 35\% & 3,800 & \$120,000 \\
+Model (Optimal) & 30\% & 3,500 & \$130,000 \\
+\hline
+\end{tabular}
+
+\vspace{1em}
+
+\normalsize
+\textcolor{datagreen}{\textbf{Result:}} Same money, 2.6x more profit!
+
+---
+
+## Creating Executive Summary
+
+\small
+```{r eval=FALSE}
+# Generate business report
+create_report <- function(lift_data, 
+                         profit_data) {
+  
+  optimal_perc <- profit_data %>%
+    filter(profit == max(profit)) %>%
+    pull(perc_contacted)
+  
+  max_profit <- max(profit_data$profit)
+  
+  cat("=== CAMPAIGN RECOMMENDATION ===\n\n")
+  cat("Optimal Strategy:\n")
+  cat("- Contact", round(optimal_perc*100, 1), 
+      "% of database\n")
+  cat("- Expected profit:", 
+      scales::dollar(max_profit), "\n\n")
+  
+  # Continue on next slide...
+}
+```
+
+---
+
+## Creating Executive Summary (Part 2)
+
+\small
+```{r eval=FALSE}
+create_report <- function(lift_data, 
+                         profit_data) {
+  # ... previous code ...
+  
+  # Compare to random
+  random_profit <- calc_profit(1.0, 1.0)
+  improvement <- max_profit - random_profit
+  
+  cat("Compared to random selection:\n")
+  cat("- Additional profit:", 
+      scales::dollar(improvement), "\n")
+  cat("- Efficiency gain:", 
+      round((1 - optimal_perc) * 100, 1), 
+      "% fewer contacts\n")
+}
+
+# Generate the report
+create_report(lift_data, profit_by_level)
+```
+
+---
+
+## Key Takeaways: Gains and Lift
+
+\begin{enumerate}
+\item \textbf{Cumulative Gains}: Shows \% of targets reached
+   \small Answers: "Should I contact top 30\%?"
+
+\vspace{0.5em}
+
+\item \textbf{Lift}: Shows how much better than random
+   \small Answers: "Is this model worth using?"
+
+\vspace{0.5em}
+
+\item \textbf{Profit Analysis}: Translates to dollars
+   \small Answers: "What's the expected ROI?"
+
+\vspace{0.5em}
+
+\item \textbf{Optimization}: Find best contact percentage
+   \small Answers: "What's my optimal strategy?"
+\end{enumerate}
+
+---
+
+## When to Use Which Metric
+
+\begin{tabular}{ll}
+\hline
+\textbf{Metric} & \textbf{Best For} \\
+\hline
+AUC & Model development \\
+& Comparing algorithms \\
+\hline
+Cumulative Gains & Determining contact strategy \\
+& Estimating coverage \\
+\hline
+Lift & Explaining to stakeholders \\
+& Justifying model use \\
+\hline
+Profit Analysis & Budget decisions \\
+& ROI calculations \\
+\hline
+\end{tabular}
+
+---
+
+## Practical Tips
+
+\begin{block}{For Data Scientists}
+- Always create gains and lift curves
+- Calculate profit for realistic scenarios
+- Document assumptions clearly
+\end{block}
+
+\begin{block}{For Business Presentations}
+- Lead with lift curve (easiest to understand)
+- Show profit analysis second
+- Keep gains curve for detailed questions
+- Use real dollar amounts
+\end{block}
+
+---
+
+## Common Mistakes to Avoid
+
+\textcolor{datared}{\textbf{Mistake 1:}} Using lift at 100\% of sample
+
+- Lift always equals 1 at 100\%
+- Look at initial lift instead
+
+\vspace{0.5em}
+
+\textcolor{datared}{\textbf{Mistake 2:}} Ignoring campaign costs
+
+- Profit must account for costs
+- Different costs change optimal strategy
+
+\vspace{0.5em}
+
+\textcolor{datared}{\textbf{Mistake 3:}} Not validating on test data
+
+- Always use holdout set
+- Training data gives overly optimistic curves
+
+---
+
+## Advanced: Decile Analysis
+
+\small
+```{r eval=FALSE}
+# Divide predictions into 10 groups (deciles)
+decile_analysis <- lift_data %>%
+  mutate(
+    decile = ntile(desc(predicted), 10)
+  ) %>%
+  group_by(decile) %>%
+  summarise(
+    n = n(),
+    n_targets = sum(actual),
+    rate = mean(actual),
+    lift = rate / mean(lift_data$actual)
+  ) %>%
+  arrange(decile)
+
+print(decile_analysis)
+```
+
+---
+
+## Summary: Complete Workflow
+
+\begin{enumerate}
+\item Build and validate model
+\item Generate predictions on test set
+\item Calculate cumulative gains curve
+\item Calculate lift curve
+\item Estimate profit at different contact levels
+\item Find optimal contact percentage
+\item Create executive summary
+\item Present to stakeholders
+\end{enumerate}
+
+---
+
+## Next Steps
+
+**In Next Lecture:**
+
+- Advanced model comparison techniques
+- Cost-sensitive learning
+- Threshold optimization
+- Deployment considerations
+
+\vspace{1em}
+
+**Practice:**
+
+- Create gains and lift curves for your models
+- Calculate expected profits
+- Present findings to a partner
+
+---
+
+## Thank You!
+
+\begin{center}
+\Large \textbf{Questions?}
+\end{center}
+
+\vspace{2em}
+
+**Review:**
+
+- Gains curve: \% of targets reached
+- Lift curve: Factor better than random
+- Profit analysis: Expected ROI
+- Optimization: Find best strategy
+
+\vspace{2em}
+
+\textit{Next: Classwork 3 - Model Evaluation Exercise}
+# Introduction
+
+## Predictor Insight Graphs
+
+\begin{center}
+\Large \textbf{Understanding What Drives Your Model}
+\end{center}
+
+\vspace{1em}
+
+**The Final Step in Model Validation:**
+
+After building a model and evaluating its performance, we need to understand:
+
+- Are the variables behaving as expected?
+- Do the relationships make business sense?
+- Can we explain the model to stakeholders?
+
+---
+
+## The Model Workflow So Far
+
+\begin{enumerate}
+\item \textcolor{datagreen}{Build model} \cmark
+\item \textcolor{datagreen}{Evaluate using AUC} \cmark
+\item \textcolor{datagreen}{Evaluate using gains/lift curves} \cmark
+\item \textcolor{datared}{Verify variables are interpretable} $\leftarrow$ We are here
+\end{enumerate}
+
+\vspace{1em}
+
+**Why This Matters:**
+
+- Models with counterintuitive patterns may have data quality issues
+- Stakeholders need to trust the model
+- Regulatory requirements may demand explainability
+
+---
+
+## What Are Predictor Insight Graphs?
+
+\begin{center}
+\textbf{Visual tools that show the relationship between\\
+each predictor variable and the target}
+\end{center}
+
+\vspace{1em}
+
+**They Answer:**
+
+- How does age affect donation probability?
+- Is income positively or negatively related to the target?
+- Are there unexpected patterns in the data?
+
+\vspace{1em}
+
+**Components:**
+
+- **Bar chart**: Sample size in each category
+- **Line plot**: Target incidence rate
+- **Combined view**: Both on same graph
+
+---
+
+## Example: Income and Donation Rate
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8]
+% Axes
+\draw[->] (0,0) -- (10,0) node[right] {Income};
+\draw[->] (0,0) -- (0,6) node[above] {Count};
+\draw[->] (10,0) -- (10,6) node[above] {Rate};
+
+% Bars
+\fill[lightgray] (1,0) rectangle (2.5,2);
+\fill[lightgray] (3.5,0) rectangle (5,6);
+\fill[lightgray] (6.5,0) rectangle (8,1.5);
+
+% Line
+\draw[thick, datagreen] (1.75,2.5) -- (4.25,3) -- (7.25,4);
+
+% Labels
+\node[below] at (1.75,0) {Low};
+\node[below] at (4.25,0) {Average};
+\node[below] at (7.25,0) {High};
+
+% Annotations
+\node[left] at (0,2.5) {\small Size};
+\node[right] at (10,3.5) {\small Incidence};
+
+\end{tikzpicture}
+\end{center}
+
+**Interpretation:** Average income group has most people, but donation rate increases with income.
+
+---
+
+## Why Use Predictor Insight Graphs?
+
+\begin{block}{Model Validation}
+Verify that relationships make sense
+\end{block}
+
+\begin{block}{Business Communication}
+Explain model behavior to non-technical stakeholders
+\end{block}
+
+\begin{block}{Data Quality Check}
+Identify unexpected patterns that may indicate errors
+\end{block}
+
+\begin{block}{Feature Engineering}
+Discover non-linear patterns suggesting transformations
+\end{block}
+
+---
+
+# Section 1: Categorical Variables
+
+## Predictor Insight Graphs for Categories
+
+**For categorical variables** (like gender, country, income bracket):
+
+- Each category gets a bar showing sample size
+- Line shows target incidence rate
+- No discretization needed!
+
+\vspace{1em}
+
+**Example Variables:**
+
+- Gender (M/F)
+- Income level (Low/Average/High)
+- Country
+- Education level
+
+---
+
+## Example: Gender Variable
+
+\small
+```{r eval=FALSE}
+# Sample data structure
+gender_summary <- data.frame(
+  Gender = c("F", "M"),
+  Size = c(30000, 45000),
+  Incidence = c(0.053, 0.046)
+)
+
+print(gender_summary)
+```
+
+\vspace{0.5em}
+```
+  Gender  Size Incidence
+1      F 30000     0.053
+2      M 45000     0.046
+```
+
+\vspace{1em}
+
+\normalsize
+
+**Interpretation:**
+
+- More males in dataset (45,000 vs 30,000)
+- But females have slightly higher donation rate (5.3\% vs 4.6\%)
+
+---
+
+## Example: Income Categories
+
+\small
+```{r eval=FALSE}
+income_summary <- data.frame(
+  Income = c("Low", "Average", "High"),
+  Size = c(20850, 62950, 16200),
+  Incidence = c(0.0431, 0.0492, 0.0615)
+)
+
+print(income_summary)
+```
+
+\vspace{0.5em}
+```
+   Income  Size Incidence
+1     Low 20850    0.0431
+2 Average 62950    0.0492
+3    High 16200    0.0615
+```
+
+\vspace{1em}
+
+\normalsize
+
+**Key Insights:**
+
+- Most people in ``Average'' income (62,950)
+- Donation rate increases with income
+- Clear positive relationship
+
+---
+
+# Section 2: Continuous Variables
+
+## Challenge: Continuous Variables
+
+**Problem:** Variables like age or income can have hundreds of unique values
+
+\vspace{1em}
+
+**Example:**
+
+- Age ranges from 18 to 95
+- Cannot create 77 separate bars!
+- Graph would be unreadable
+
+\vspace{1em}
+
+**Solution:** \textcolor{datared}{\textbf{Discretization}}
+
+Convert continuous variable into categories (bins)
+
+---
+
+## What is Discretization?
+
+\begin{center}
+\textbf{Converting continuous values into discrete bins}
+\end{center}
+
+\vspace{1em}
+
+**Before Discretization:**
+
+Age: 23, 24, 25, 26, 27, 28, 29, 30, 31, 32...
+
+\vspace{1em}
+
+**After Discretization (5 bins):**
+
+- Bin 1: [18, 30]
+- Bin 2: (30, 40]
+- Bin 3: (40, 50]
+- Bin 4: (50, 60]
+- Bin 5: (60, 110]
+
+---
+
+## Two Discretization Methods
+
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+
+\textbf{Equal-Width Bins}
+
+Using \texttt{cut()}
+
+\vspace{0.5em}
+
+- Divide range into equal intervals
+- May have unequal sample sizes
+- Good for interpretation
+
+\vspace{1em}
+
+Example: Age
+- [18-30]
+- [31-43]
+- [44-56]
+- [57-69]
+- [70+]
+
+\end{column}
+
+\begin{column}{0.48\textwidth}
+
+\textbf{Equal-Frequency Bins}
+
+Using \texttt{cut()} with quantiles
+
+\vspace{0.5em}
+
+- Each bin has similar number of observations
+- Better for analysis
+- Bins may have different widths
+
+\vspace{1em}
+
+Example: Age
+- [18-35]
+- [36-42]
+- [43-51]
+- [52-63]
+- [64+]
+
+\end{column}
+\end{columns}
+
+---
+
+## Discretization in R: Basic Example
+
+\small
+```{r eval=FALSE}
+# Load library
+library(tidyverse)
+
+# Create sample data
+set.seed(123)
+ba
+
+## Discretization in R: Basic Example
+
+\small
+```{r eval=FALSE}
+# Load library
+library(tidyverse)
+
+# Create sample data
+set.seed(123)
+basetable <- data.frame(
+  age = sample(18:95, 1000, replace = TRUE),
+  donated = rbinom(1000, 1, 0.05)
+)
+
+# Method 1: Equal-frequency bins (quantile-based)
+basetable$age_disc <- cut(
+  basetable$age,
+  breaks = quantile(basetable$age, 
+                   probs = seq(0, 1, 0.2)),
+  include.lowest = TRUE
+)
+
+# Check the bins
+table(basetable$age_disc)
+```
+
+---
+
+## Discretization Output
+```
+    [18,33]  (33,47]  (47,62]  (62,78]  (78,95] 
+        201      199      200      200      200
+```
+
+\vspace{1em}
+
+**Observations:**
+
+- Each bin has approximately 200 observations
+- Equal-frequency binning achieved
+- Age ranges differ per bin
+
+---
+
+## Which Variables Need Discretization?
+
+\textbf{Decision Rule:}
+
+If a variable has more than 5-10 unique values, discretize it
+
+\vspace{1em}
+
+\small
+```{r eval=FALSE}
+# Function to check if discretization needed
+should_discretize <- function(variable, threshold = 5) {
+  n_unique <- length(unique(variable))
+  return(n_unique > threshold)
+}
+
+# Test it
+should_discretize(basetable$age, threshold = 5)
+# TRUE - many unique values
+
+should_discretize(basetable$gender, threshold = 5)
+# FALSE - only 2 categories
+```
+
+---
+
+## Automating Discretization Check
+
+\small
+```{r eval=FALSE}
+# List of model variables
+model_vars <- c("age", "income", "gender", 
+                "mean_gift", "max_gift")
+
+# Check which need discretization
+for (var in model_vars) {
+  needs_disc <- should_discretize(basetable[[var]], 
+                                 threshold = 5)
+  
+  cat(var, "needs discretization:", needs_disc, "\n")
+}
+```
+
+\vspace{0.5em}
+```
+age needs discretization: TRUE 
+income needs discretization: FALSE 
+gender needs discretization: FALSE 
+mean_gift needs discretization: TRUE 
+max_gift needs discretization: TRUE
+```
+
+---
+
+## Discretizing Multiple Variables
+
+\small
+```{r eval=FALSE}
+# Variables to discretize
+continuous_vars <- c("age", "mean_gift", "max_gift")
+
+# Number of bins
+n_bins <- 5
+
+# Discretize all at once
+for (var in continuous_vars) {
+  # Create new variable name
+  new_var <- paste0(var, "_disc")
+  
+  # Discretize using quantiles
+  basetable[[new_var]] <- cut(
+    basetable[[var]],
+    breaks = quantile(basetable[[var]], 
+                     probs = seq(0, 1, 1/n_bins),
+                     na.rm = TRUE),
+    include.lowest = TRUE
+  )
+}
+
+# Check results
+names(basetable)
+```
+
+---
+
+## Custom Breaks: Clean Boundaries
+
+\small
+```{r eval=FALSE}
+# Problem: Quantile breaks create messy labels
+table(basetable$age_disc)
+# [18,33.4] (33.4,47.8] (47.8,62.2] ...
+
+# Solution: Define clean breaks manually
+age_breaks <- c(18, 30, 40, 50, 60, 110)
+
+basetable$age_disc_clean <- cut(
+  basetable$age,
+  breaks = age_breaks,
+  include.lowest = TRUE,
+  right = TRUE
+)
+
+table(basetable$age_disc_clean)
+```
+
+\vspace{0.5em}
+```
+[18,30] (30,40] (40,50] (50,60] (60,110] 
+    247     312     198     143      100
+```
+
+---
+
+## Choosing Number of Bins
+
+\textbf{Trade-offs:}
+
+\begin{tabular}{lll}
+\hline
+\textbf{Bins} & \textbf{Advantages} & \textbf{Disadvantages} \\
+\hline
+3 & Simple, clear & May miss patterns \\
+5 & Good balance & Standard choice \\
+10 & Detailed patterns & May be too granular \\
+\hline
+\end{tabular}
+
+\vspace{1em}
+
+**General Guidelines:**
+
+- **Small datasets** (< 1,000): Use 3-4 bins
+- **Medium datasets** (1,000-10,000): Use 5 bins
+- **Large datasets** (> 10,000): Can use 7-10 bins
+
+---
+
+# Section 3: Creating PIG Tables
+
+## The Predictor Insight Graph Table
+
+\textbf{Core data structure for creating graphs}
+
+\vspace{1em}
+
+**Three Columns:**
+
+1. **Variable value** (or bin)
+2. **Size**: Number of observations in each category
+3. **Incidence**: Target rate in each category
+
+\vspace{1em}
+
+\small
+```{r eval=FALSE}
+# Example structure
+pig_table <- data.frame(
+  category = c("Low", "Medium", "High"),
+  Size = c(1000, 2500, 500),
+  Incidence = c(0.03, 0.05, 0.08)
+)
+```
+
+---
+
+## Creating a PIG Table: Step-by-Step
+
+\small
+```{r eval=FALSE}
+# Function to create predictor insight graph table
+create_pig_table <- function(data, target, variable) {
+  
+  # Group by the variable
+  pig_table <- data %>%
+    group_by(!!sym(variable)) %>%
+    summarise(
+      Size = n(),
+      Incidence = mean(!!sym(target), na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Rename first column for consistency
+  names(pig_table)[1] <- "Category"
+  
+  return(pig_table)
+}
+```
+
+\normalsize
+
+**Key Functions:**
+
+- `group_by()`: Group data by variable
+- `n()`: Count observations
+- `mean()`: Calculate target rate
+
+---
+
+## Example: Creating PIG Table for Income
+
+\small
+```{r eval=FALSE}
+# Create PIG table
+income_pig <- create_pig_table(
+  data = basetable,
+  target = "donated",
+  variable = "income"
+)
+
+print(income_pig)
+```
+
+\vspace{0.5em}
+```
+  Category  Size Incidence
+1      Low 20850   0.04310
+2  Average 62950   0.04920
+3     High 16200   0.06150
+```
+
+\vspace{1em}
+
+\normalsize
+
+**Interpretation Ready:**
+
+- Formatted for plotting
+- Clear column names
+- Calculated statistics
+
+---
+
+## Creating Multiple PIG Tables
+
+\small
+```{r eval=FALSE}
+# List of variables to analyze
+variables <- c("income", "gender", 
+               "age_disc", "mean_gift_disc")
+
+# Create empty list to store tables
+pig_tables <- list()
+
+# Loop through variables
+for (var in variables) {
+  pig_tables[[var]] <- create_pig_table(
+    data = basetable,
+    target = "donated",
+    variable = var
+  )
+}
+
+# Access specific table
+print(pig_tables[["income"]])
+```
+
+---
+
+## Examining the Results
+
+\small
+```{r eval=FALSE}
+# Look at all tables
+for (var_name in names(pig_tables)) {
+  cat("\n=== PIG Table for", var_name, "===\n")
+  print(pig_tables[[var_name]])
+}
+```
+
+\vspace{0.5em}
+```
+=== PIG Table for income ===
+  Category  Size Incidence
+1      Low 20850   0.04310
+2  Average 62950   0.04920
+3     High 16200   0.06150
+
+=== PIG Table for gender ===
+  Category  Size Incidence
+1        F 30000   0.05300
+2        M 45000   0.04600
+```
+
+---
+
+## Handling Missing Values
+
+\small
+```{r eval=FALSE}
+# Check for missing values in variables
+check_missing <- function(data, variables) {
+  for (var in variables) {
+    n_missing <- sum(is.na(data[[var]]))
+    pct_missing <- round(n_missing / nrow(data) * 100, 2)
+    
+    if (n_missing > 0) {
+      cat(var, ":", n_missing, "missing (", 
+          pct_missing, "%)\n")
+    }
+  }
+}
+
+# Use it
+check_missing(basetable, model_vars)
+```
+
+\vspace{1em}
+
+**Best Practice:** Handle missing values before creating PIG tables
+
+---
+
+# Section 4: Plotting PIG Graphs
+
+## Components of a PIG Plot
+
+\begin{center}
+\textbf{Dual-axis visualization}
+\end{center}
+
+\vspace{1em}
+
+**Left Y-Axis:** Sample Size (bars)
+
+**Right Y-Axis:** Target Incidence (line)
+
+**X-Axis:** Variable categories
+
+\vspace{1em}
+
+**Why This Works:**
+
+- See both distribution AND relationship
+- Bars show data quality (sample sizes)
+- Line shows predictive pattern
+
+---
+
+## Basic PIG Plot: Incidence Only
+
+\small
+```{r eval=FALSE}
+library(ggplot2)
+
+# Simple line plot of incidence
+ggplot(income_pig, 
+       aes(x = Category, y = Incidence, group = 1)) +
+  geom_line(color = "darkgreen", size = 1.5) +
+  geom_point(color = "darkgreen", size = 3) +
+  labs(title = "Donation Rate by Income",
+       x = "Income Level",
+       y = "Donation Incidence") +
+  theme_minimal() +
+  ylim(0, max(income_pig$Incidence) * 1.1)
+```
+
+\normalsize
+
+**Purpose:** Start simple, verify the pattern
+
+---
+
+## Complete PIG Plot Function
+
+\small
+```{r eval=FALSE}
+plot_pig <- function(pig_table, var_name) {
+  
+  # Calculate scaling factor
+  scale_factor <- max(pig_table$Size) / 
+                  max(pig_table$Incidence)
+  
+  # Create plot
+  p <- ggplot(pig_table, aes(x = Category)) +
+    geom_col(aes(y = Size), 
+             fill = "lightgray", 
+             alpha = 0.7,
+             width = 0.6) +
+    geom_line(aes(y = Incidence * scale_factor, 
+                  group = 1),
+              color = "darkgreen", 
+              size = 1.5) +
+    geom_point(aes(y = Incidence * scale_factor),
+               color = "darkgreen", 
+               size = 3)
+  
+  # Continued on next slide...
+}
+```
+
+---
+
+## Complete PIG Plot Function (cont.)
+
+\small
+```{r eval=FALSE}
+plot_pig <- function(pig_table, var_name) {
+  # ... previous code ...
+  
+  p <- p +
+    scale_y_continuous(
+      name = "Size",
+      labels = scales::comma,
+      sec.axis = sec_axis(
+        ~./scale_factor, 
+        name = "Incidence",
+        labels = scales::percent
+      )
+    ) +
+    labs(title = paste("Predictor Insight Graph:",
+                      var_name),
+         x = var_name) +
+    theme_minimal(base_size = 12) +
+    theme(axis.title.y.right = 
+            element_text(color = "darkgreen"),
+          axis.text.y.right = 
+            element_text(color = "darkgreen"))
+  
+  return(p)
+}
+```
+
+---
+
+## Using the PIG Plot Function
+
+\small
+```{r eval=FALSE}
+# Create plot for income
+income_plot <- plot_pig(
+  pig_table = income_pig,
+  var_name = "Income Level"
+)
+
+print(income_plot)
+
+# Save the plot
+ggsave("income_pig.pdf", 
+       income_plot,
+       width = 8, 
+       height = 6)
+```
+
+---
+
+## Plotting Multiple Variables
+
+\small
+```{r eval=FALSE}
+# Create plots for all variables
+library(gridExtra)
+
+plot_list <- list()
+
+for (var_name in names(pig_tables)) {
+  plot_list[[var_name]] <- plot_pig(
+    pig_table = pig_tables[[var_name]],
+    var_name = var_name
+  )
+}
+
+# Arrange in grid
+grid.arrange(
+  plot_list[[1]], plot_list[[2]],
+  plot_list[[3]], plot_list[[4]],
+  ncol = 2
+)
+```
+
+---
+
+## Interpreting PIG Graphs
+
+\textbf{Questions to Ask:}
+
+\begin{enumerate}
+\item \textbf{Direction:} Does incidence increase or decrease?
+\item \textbf{Magnitude:} How big is the difference?
+\item \textbf{Pattern:} Linear, curved, or irregular?
+\item \textbf{Sample sizes:} Are some groups too small?
+\item \textbf{Business sense:} Does this make intuitive sense?
+\end{enumerate}
+
+---
+
+## Good vs Problematic Patterns
+
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+
+\textbf{Good Patterns:}
+
+\vspace{0.5em}
+
++ Smooth monotonic trend
+
++ Clear relationship
+
++ Adequate sample sizes
+
++ Matches expectations
+
+\vspace{0.5em}
+
+Example: Income leads to higher donation rate
+
+\end{column}
+
+\begin{column}{0.48\textwidth}
+
+\textbf{Problematic Patterns:}
+
+\vspace{0.5em}
+
+- Erratic ups and downs
+
+- No clear relationship
+
+- Tiny sample in some bins
+
+- Contradicts domain knowledge
+
+\vspace{0.5em}
+
+Example: Age shows random fluctuations
+
+\end{column}
+\end{columns}
+
+---
+
+## Example: Good Pattern
+
+\begin{center}
+\textbf{Days Since First Donation}
+\end{center}
+
+\small
+```
+Bin              Size  Incidence
+[0, 1500]       16500    0.021
+(1500, 2000]    10500    0.033
+(2000, 2500]    30500    0.048
+(2500, 2700]    28000    0.061
+(2700, 3000]    14500    0.066
+```
+
+\normalsize
+
+**Interpretation:**
+
+- Clear increasing trend
+- More recent donors more likely to donate again
+- Makes business sense
+- Reasonable sample sizes
+
+---
+
+## Example: Problematic Pattern
+
+\begin{center}
+\textbf{Hypothetical: Number of Website Visits}
+\end{center}
+
+\small
+```
+Bin          Size  Incidence
+[0, 5]      25000    0.05
+(5, 10]      8000    0.03
+(10, 20]     1500    0.12
+(20, 50]      300    0.02
+(50+]          50    0.40
+```
+
+\normalsize
+
+**Problems:**
+
+- Erratic pattern (no clear trend)
+- Very small samples in last bins
+- Extreme values may be data errors
+- Suggests variable needs investigation
+
+---
+
+## Handling Problematic Patterns
+
+\textbf{Action Steps:}
+
+\begin{enumerate}
+\item \textbf{Investigate data quality}
+   - Check for outliers or errors
+   - Verify data collection process
+
+\item \textbf{Try different binning}
+   - Fewer bins may smooth pattern
+   - Custom breaks for problem areas
+
+\item \textbf{Consider transformations}
+   - Log transform for skewed distributions
+   - Cap extreme values
+
+\item \textbf{Remove or combine categories}
+   - Merge bins with small samples
+   - Consider excluding the variable
+\end{enumerate}
+
+---
+
+## Exporting PIG Results
+
+\small
+```{r eval=FALSE}
+# Save all PIG tables to Excel
+library(writexl)
+
+write_xlsx(pig_tables, "pig_tables.xlsx")
+
+# Or save individual tables
+for (var_name in names(pig_tables)) {
+  filename <- paste0("pig_", var_name, ".csv")
+  write.csv(pig_tables[[var_name]], 
+            filename, 
+            row.names = FALSE)
+}
+
+# Save all plots
+for (var_name in names(plot_list)) {
+  filename <- paste0("pig_", var_name, ".pdf")
+  ggsave(filename, 
+         plot_list[[var_name]],
+         width = 8, 
+         height = 6)
+}
+```
+
+---
+
+## Best Practices Summary
+
+\begin{block}{Data Preparation}
+- Discretize continuous variables (5 bins default)
+- Handle missing values before creating tables
+- Check for outliers and data quality
+\end{block}
+
+\begin{block}{Visualization}
+- Always show both size and incidence
+- Use consistent color scheme
+- Label axes clearly
+- Include variable name in title
+\end{block}
+
+\begin{block}{Interpretation}
+- Look for monotonic trends
+- Verify adequate sample sizes
+- Check business logic
+- Document unexpected patterns
+\end{block}
+
+---
+
+## Integration with Model Building
+
+\textbf{When to Use PIG:}
+
+\begin{enumerate}
+\item \textbf{Before modeling}: Understand variable relationships
+\item \textbf{During feature selection}: Identify informative variables
+\item \textbf{After modeling}: Validate model makes sense
+\item \textbf{For communication}: Explain model to stakeholders
+\end{enumerate}
+
+\vspace{1em}
+
+**PIG graphs complement, not replace:**
+
+- Model performance metrics (AUC)
+- Business metrics (lift, profit)
+- Statistical tests
+
+---
+
+## Real-World Example: Bank Marketing
+
+\small
+```{r eval=FALSE}
+# Variables in bank marketing model
+bank_variables <- c("age_disc", "balance_disc", 
+                   "duration_disc", "campaign",
+                   "education", "marital")
+
+# Create all PIG tables
+bank_pig_tables <- lapply(bank_variables, function(var) {
+  create_pig_table(
+    data = bank_data,
+    target = "subscribed",
+    variable = var
+  )
+})
+
+names(bank_pig_tables) <- bank_variables
+
+# Create all plots
+bank_plots <- lapply(bank_variables, function(var) {
+  plot_pig(bank_pig_tables[[var]], var)
+})
+```
+
+---
+
+## Communicating Results to Stakeholders
+
+\textbf{Key Messages from PIG Graphs:}
+
+\begin{itemize}
+\item ``Higher income customers are 40\% more likely to donate''
+\item ``Recent donors (< 6 months) show 3x higher response rate''
+\item ``Age has a positive but modest effect''
+\item ``Gender shows minimal difference''
+\end{itemize}
+
+\vspace{1em}
+
+**Use PIG graphs in presentations:**
+
+- Clear, visual, easy to understand
+- Shows both pattern and data distribution
+- Builds trust in model
+
+---
+
+## Summary: What We Learned
+
+\begin{enumerate}
+\item \textbf{Purpose}: Validate variable relationships make sense
+\item \textbf{Discretization}: Convert continuous to categorical
+\item \textbf{PIG Tables}: Size and incidence by category
+\item \textbf{Visualization}: Dual-axis plots
+\item \textbf{Interpretation}: Look for clear patterns
+\item \textbf{Communication}: Present to stakeholders
+\end{enumerate}
+
+---
+
+## Key Takeaways
+
+\begin{block}{Technical}
+- Discretize continuous variables into 3-7 bins
+- Create tables with Size and Incidence
+- Use dual-axis plots for visualization
+\end{block}
+
+\begin{block}{Analytical}
+- Look for monotonic relationships
+- Check sample sizes are adequate
+- Verify patterns match domain knowledge
+\end{block}
+
+\begin{block}{Communication}
+- PIG graphs are stakeholder-friendly
+- They build trust in models
+- Essential for model documentation
+\end{block}
+
+---
+
+## Course Summary
+
+\begin{center}
+\Large \textbf{What You've Learned}
+\end{center}
+
+\vspace{1em}
+
+\begin{enumerate}
+\item Construct the basetable
+\item Build predictive models using logistic regression
+\item Perform forward variable selection
+\item Evaluate with AUC and ROC curves
+\item Assess business value with gains/lift curves
+\item Validate interpretability with PIG graphs
+\end{enumerate}
+
+---
+
+## Final Thoughts
+
+\begin{block}{Technical Excellence}
+Building accurate models requires rigorous methodology
+\end{block}
+
+\begin{block}{Business Value}
+Models must deliver measurable ROI
+\end{block}
+
+\begin{block}{Interpretability}
+Stakeholders must trust and understand the model
+\end{block}
+
+\vspace{1em}
+
+\begin{center}
+\textcolor{datagreen}{\textbf{All three are essential for success!}}
+\end{center}
+
+---
+
+## Thank You!
+
+\begin{center}
+\Large \textbf{Questions?}
+\end{center}
+
+\vspace{2em}
+
+**Prof. Asc. Endri Raco, PhD**
+
+Polytechnic University of Tirana
+
+endri.raco@upt.al
+
+\vspace{2em}
+
+\textit{Ready for Classwork 4!}
+
+
+## Discretization in R: Basic Example
+
+\small
+```{r eval=FALSE}
+# Load library
+library(tidyverse)
+
+# Create sample data
+set.seed(123)
+basetable <- data.frame(
+  age = sample(18:95, 1000, replace = TRUE),
+  donated = rbinom(1000, 1, 0.05)
+)
+
+# Method 1: Equal-frequency bins (quantile-based)
+basetable$age_disc <- cut(
+  basetable$age,
+  breaks = quantile(basetable$age, 
+                   probs = seq(0, 1, 0.2)),
+  include.lowest = TRUE
+)
+
+# Check the bins
+table(basetable$age_disc)
+```
+
+---
+
+## Discretization Output
+```
+    [18,33]  (33,47]  (47,62]  (62,78]  (78,95] 
+        201      199      200      200      200
+```
+
+\vspace{1em}
+
+**Observations:**
+
+- Each bin has approximately 200 observations
+- Equal-frequency binning achieved
+- Age ranges differ per bin
+
+---
+
+## Which Variables Need Discretization?
+
+\textbf{Decision Rule:}
+
+If a variable has more than 5-10 unique values, discretize it
+
+\vspace{1em}
+
+\small
+```{r eval=FALSE}
+# Function to check if discretization needed
+should_discretize <- function(variable, threshold = 5) {
+  n_unique <- length(unique(variable))
+  return(n_unique > threshold)
+}
+
+# Test it
+should_discretize(basetable$age, threshold = 5)
+# TRUE - many unique values
+
+should_discretize(basetable$gender, threshold = 5)
+# FALSE - only 2 categories
+```
+
+---
+
+## Automating Discretization Check
+
+\small
+```{r eval=FALSE}
+# List of model variables
+model_vars <- c("age", "income", "gender", 
+                "mean_gift", "max_gift")
+
+# Check which need discretization
+for (var in model_vars) {
+  needs_disc <- should_discretize(basetable[[var]], 
+                                 threshold = 5)
+  
+  cat(var, "needs discretization:", needs_disc, "\n")
+}
+```
+
+\vspace{0.5em}
+```
+age needs discretization: TRUE 
+income needs discretization: FALSE 
+gender needs discretization: FALSE 
+mean_gift needs discretization: TRUE 
+max_gift needs discretization: TRUE
+```
+
+---
+
+## Discretizing Multiple Variables
+
+\small
+```{r eval=FALSE}
+# Variables to discretize
+continuous_vars <- c("age", "mean_gift", "max_gift")
+
+# Number of bins
+n_bins <- 5
+
+# Discretize all at once
+for (var in continuous_vars) {
+  # Create new variable name
+  new_var <- paste0(var, "_disc")
+  
+  # Discretize using quantiles
+  basetable[[new_var]] <- cut(
+    basetable[[var]],
+    breaks = quantile(basetable[[var]], 
+                     probs = seq(0, 1, 1/n_bins),
+                     na.rm = TRUE),
+    include.lowest = TRUE
+  )
+}
+
+# Check results
+names(basetable)
+```
+
+---
+
+## Custom Breaks: Clean Boundaries
+
+\small
+```{r eval=FALSE}
+# Problem: Quantile breaks create messy labels
+table(basetable$age_disc)
+# [18,33.4] (33.4,47.8] (47.8,62.2] ...
+
+# Solution: Define clean breaks manually
+age_breaks <- c(18, 30, 40, 50, 60, 110)
+
+basetable$age_disc_clean <- cut(
+  basetable$age,
+  breaks = age_breaks,
+  include.lowest = TRUE,
+  right = TRUE
+)
+
+table(basetable$age_disc_clean)
+```
+
+\vspace{0.5em}
+```
+[18,30] (30,40] (40,50] (50,60] (60,110] 
+    247     312     198     143      100
+```
+
+---
+
+## Choosing Number of Bins
+
+\textbf{Trade-offs:}
+
+\begin{tabular}{lll}
+\hline
+\textbf{Bins} & \textbf{Advantages} & \textbf{Disadvantages} \\
+\hline
+3 & Simple, clear & May miss patterns \\
+5 & Good balance & Standard choice \\
+10 & Detailed patterns & May be too granular \\
+\hline
+\end{tabular}
+
+\vspace{1em}
+
+**General Guidelines:**
+
+- **Small datasets** (< 1,000): Use 3-4 bins
+- **Medium datasets** (1,000-10,000): Use 5 bins
+- **Large datasets** (> 10,000): Can use 7-10 bins
+
+---
+

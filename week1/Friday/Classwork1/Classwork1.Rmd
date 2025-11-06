@@ -1,0 +1,760 @@
+---
+title: "Classwork 1: Building Your First Predictive Model"
+subtitle: "Introduction to Predictive Analytics in R"
+author: "Prof. Asc.Endri Raco, Ph.D."
+institute: |
+  | Department of Mathematical Engineering
+  | Polytechnic University of Tirana
+date: "November 2025"
+output:
+  beamer_presentation:
+    theme: "Madrid"
+    colortheme: "default"
+    fonttheme: "professionalfonts"
+    slide_level: 2
+    toc: false
+header-includes:
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
+  - \usepackage{graphicx}
+  - \usepackage{xcolor}
+  - \usepackage{tikz}
+  - \definecolor{datablue}{RGB}{0,102,204}
+  - \definecolor{datagreen}{RGB}{0,153,76}
+  - \definecolor{datared}{RGB}{204,0,0}
+  - \definecolor{dataorange}{RGB}{255,140,0}
+  - \setbeamercolor{structure}{fg=datablue}
+  - \setbeamertemplate{navigation symbols}{}
+  - \setbeamertemplate{footline}[frame number]
+---
+
+# Classwork Overview
+
+## Today's Challenge: Bank Marketing Campaign
+
+\begin{center}
+\Large \textbf{Will the client subscribe to a term deposit?}
+\end{center}
+
+\vspace{1em}
+
+**Scenario:** You work for a bank's analytics team. The bank wants to run a phone marketing campaign for term deposits. Your task: build a model to identify clients most likely to subscribe.
+
+\vspace{1em}
+
+**Time:** 30 minutes
+
+**Work:** Individually or in pairs
+
+---
+
+## Learning Objectives
+
+By the end of this classwork, you will be able to:
+
+\begin{enumerate}
+\item Load and explore a real dataset
+\item Create an analytical basetable
+\item Fit a logistic regression model
+\item Make predictions
+\item Evaluate basic model performance
+\item Visualize results
+\end{enumerate}
+
+---
+
+## Dataset: Bank Marketing
+
+**Source:** UCI Machine Learning Repository (simplified version)
+
+**Target Variable:** `subscribed` (yes = 1, no = 0)
+
+**Features Available:**
+
+- `age`: Client's age
+- `job`: Type of job
+- `marital`: Marital status
+- `education`: Education level
+- `balance`: Average yearly balance (euros)
+- `previous`: Number of previous contacts
+- `campaign`: Number of contacts in this campaign
+
+---
+
+## Getting Started
+
+\begin{block}{Step 1: Setup Your Environment}
+Open RStudio and create a new R script
+\end{block}
+
+\small
+```{r eval=FALSE}
+# Load required libraries
+library(tidyverse)
+library(ggplot2)
+
+# Set working directory (adjust as needed)
+setwd("~/classwork1")
+
+# Load the data
+bank_data <- read_csv("bank_marketing.csv")
+```
+
+---
+
+# Part 1: Data Exploration (8 minutes)
+
+## Task 1.1: Initial Exploration
+
+\small
+```{r eval=FALSE}
+# View first few rows
+head(bank_data)
+
+# Check structure
+glimpse(bank_data)
+
+# Get dimensions
+cat("Rows:", nrow(bank_data), "\n")
+cat("Columns:", ncol(bank_data), "\n")
+```
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{Question 1:}} How many clients are in the dataset?
+
+---
+
+## Task 1.2: Target Variable Analysis
+
+\small
+```{r eval=FALSE}
+# Check target distribution
+table(bank_data$subscribed)
+
+# Calculate subscription rate
+subscription_rate <- mean(bank_data$subscribed)
+cat("Subscription rate:", 
+    round(subscription_rate * 100, 2), "%\n")
+```
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{Question 2:}} What percentage of clients subscribed? Is this balanced or imbalanced?
+
+---
+
+## Task 1.3: Missing Values Check
+
+\small
+```{r eval=FALSE}
+# Check for missing values
+colSums(is.na(bank_data))
+
+# Percentage of missing per column
+missing_pct <- colMeans(is.na(bank_data)) * 100
+print(round(missing_pct, 2))
+```
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{Question 3:}} Are there any missing values? If yes, which variables?
+
+---
+
+## Task 1.4: Summary Statistics
+
+\small
+```{r eval=FALSE}
+# Numeric variables summary
+summary(bank_data %>% 
+        select(age, balance, previous, campaign))
+
+# By subscription status
+bank_data %>%
+  group_by(subscribed) %>%
+  summarise(
+    mean_age = mean(age),
+    mean_balance = mean(balance),
+    mean_previous = mean(previous)
+  )
+```
+
+---
+
+## Task 1.5: Quick Visualization
+
+\small
+```{r eval=FALSE}
+# Age distribution by subscription
+ggplot(bank_data, 
+       aes(x = age, fill = factor(subscribed))) +
+  geom_histogram(bins = 30, alpha = 0.6, 
+                 position = "identity") +
+  scale_fill_manual(
+    values = c("0" = "red", "1" = "green"),
+    labels = c("No", "Yes")
+  ) +
+  labs(title = "Age Distribution",
+       x = "Age", y = "Count",
+       fill = "Subscribed") +
+  theme_minimal()
+```
+
+---
+
+# Part 2: Build Logistic Regression (10 minutes)
+
+## Task 2.1: Simple Model with Age
+
+\small
+```{r eval=FALSE}
+# Fit univariate logistic regression
+model_simple <- glm(
+  subscribed ~ age,
+  data = bank_data,
+  family = binomial
+)
+
+# View summary
+summary(model_simple)
+
+# Extract coefficients
+coef(model_simple)
+```
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{Question 4:}} Is age positively or negatively associated with subscription?
+
+---
+
+## Task 2.2: Multiple Predictors Model
+
+\small
+```{r eval=FALSE}
+# Fit multivariate model
+model_multi <- glm(
+  subscribed ~ age + balance + 
+               previous + campaign,
+  data = bank_data,
+  family = binomial
+)
+
+# View summary
+summary(model_multi)
+```
+
+---
+
+## Task 2.3: Coefficient Interpretation
+
+\small
+```{r eval=FALSE}
+# Extract and display coefficients nicely
+coefs <- coef(model_multi)
+coefs_df <- data.frame(
+  Variable = names(coefs),
+  Coefficient = round(coefs, 5),
+  Sign = ifelse(coefs > 0, "Positive", "Negative")
+)
+
+print(coefs_df)
+```
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{Question 5:}} Which variable has the strongest effect (largest absolute coefficient)?
+
+---
+
+# Part 3: Make Predictions (7 minutes)
+
+## Task 3.1: Single Prediction
+
+\small
+```{r eval=FALSE}
+# Create a new client profile
+new_client <- data.frame(
+  age = 35,
+  balance = 1500,
+  previous = 2,
+  campaign = 1
+)
+
+# Make prediction
+pred_prob <- predict(model_multi,
+                    newdata = new_client,
+                    type = "response")
+
+cat("Predicted probability:", 
+    round(pred_prob, 3), "\n")
+```
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{Question 6:}} What is the probability this client subscribes?
+
+---
+
+## Task 3.2: Batch Predictions
+
+\small
+```{r eval=FALSE}
+# Predict for all clients in dataset
+bank_data$predicted_prob <- predict(
+  model_multi,
+  newdata = bank_data,
+  type = "response"
+)
+
+# View distribution
+summary(bank_data$predicted_prob)
+
+# Top 10 most likely to subscribe
+bank_data %>%
+  arrange(desc(predicted_prob)) %>%
+  select(age, balance, previous, 
+         campaign, predicted_prob) %>%
+  head(10)
+```
+
+---
+
+## Task 3.3: Set Decision Threshold
+
+\small
+```{r eval=FALSE}
+# Use 0.5 as threshold
+bank_data$predicted_class <- ifelse(
+  bank_data$predicted_prob > 0.5,
+  1,  # Predict "will subscribe"
+  0   # Predict "will not subscribe"
+)
+
+# How many predicted to subscribe?
+table(bank_data$predicted_class)
+```
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{Question 7:}} How many clients are predicted to subscribe?
+
+---
+
+# Part 4: Evaluate Performance (5 minutes)
+
+## Task 4.1: Confusion Matrix
+
+\small
+```{r eval=FALSE}
+# Create confusion matrix
+conf_matrix <- table(
+  Actual = bank_data$subscribed,
+  Predicted = bank_data$predicted_class
+)
+
+print(conf_matrix)
+
+# Calculate accuracy
+accuracy <- sum(diag(conf_matrix)) / 
+            sum(conf_matrix)
+cat("Accuracy:", round(accuracy * 100, 2), "%\n")
+```
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{Question 8:}} What is the model accuracy?
+
+---
+
+## Task 4.2: Additional Metrics
+
+\small
+```{r eval=FALSE}
+# Extract values from confusion matrix
+TN <- conf_matrix[1,1]  # True Negative
+FP <- conf_matrix[1,2]  # False Positive
+FN <- conf_matrix[2,1]  # False Negative
+TP <- conf_matrix[2,2]  # True Positive
+
+# Calculate metrics
+precision <- TP / (TP + FP)
+recall <- TP / (TP + FN)
+
+cat("Precision:", round(precision, 3), "\n")
+cat("Recall:", round(recall, 3), "\n")
+```
+
+---
+
+## Task 4.3: Visualize Predictions
+
+\small
+```{r eval=FALSE}
+# Histogram of predicted probabilities
+ggplot(bank_data, 
+       aes(x = predicted_prob, 
+           fill = factor(subscribed))) +
+  geom_histogram(bins = 30, alpha = 0.6,
+                 position = "identity") +
+  geom_vline(xintercept = 0.5, 
+             color = "blue", 
+             linetype = "dashed", size = 1) +
+  scale_fill_manual(
+    values = c("0" = "red", "1" = "green"),
+    labels = c("No", "Yes")) +
+  labs(title = "Predicted Probabilities",
+       x = "Predicted Probability",
+       fill = "Actually Subscribed") +
+  theme_minimal()
+```
+
+---
+
+# Bonus Challenges
+
+## Challenge 1: Different Threshold
+
+\small
+```{r eval=FALSE}
+# Try threshold = 0.3
+bank_data$pred_class_30 <- ifelse(
+  bank_data$predicted_prob > 0.3, 1, 0
+)
+
+# New confusion matrix
+conf_matrix_30 <- table(
+  Actual = bank_data$subscribed,
+  Predicted = bank_data$pred_class_30
+)
+
+print(conf_matrix_30)
+```
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{Bonus Question:}} How does changing the threshold affect precision and recall?
+
+---
+
+## Challenge 2: Add More Variables
+
+\small
+```{r eval=FALSE}
+# Include categorical variables
+# First, check unique values
+unique(bank_data$job)
+unique(bank_data$education)
+
+# Fit model with categorical predictors
+model_full <- glm(
+  subscribed ~ age + balance + previous + 
+               campaign + job + education,
+  data = bank_data,
+  family = binomial
+)
+
+summary(model_full)
+```
+
+\vspace{1em}
+
+\textcolor{datared}{\textbf{Bonus Question:}} Does including job and education improve the model?
+
+---
+
+## Challenge 3: ROC Curve (Advanced)
+
+\small
+```{r eval=FALSE}
+# Install and load pROC package
+# install.packages("pROC")
+library(pROC)
+
+# Calculate ROC
+roc_obj <- roc(bank_data$subscribed, 
+               bank_data$predicted_prob)
+
+# Plot ROC curve
+plot(roc_obj, main = "ROC Curve",
+     col = "blue", lwd = 2)
+
+# Calculate AUC
+auc_value <- auc(roc_obj)
+cat("AUC:", round(auc_value, 3), "\n")
+```
+
+---
+
+# Summary & Deliverables
+
+## What You Accomplished
+
+\begin{enumerate}
+\item \textcolor{datagreen}{\checkmark} Loaded and explored real banking data
+\item \textcolor{datagreen}{\checkmark} Built univariate and multivariate logistic regression models
+\item \textcolor{datagreen}{\checkmark} Made predictions on new data
+\item \textcolor{datagreen}{\checkmark} Evaluated model performance
+\item \textcolor{datagreen}{\checkmark} Visualized results
+\end{enumerate}
+
+\vspace{1em}
+
+**Key Insight:** You can now build a basic predictive model from scratch!
+
+---
+
+## Submission Requirements
+
+\begin{block}{What to Submit (via Email/LMS)}
+1. Your completed R script (.R file)
+2. Brief report answering all 8 questions
+3. At least 2 visualizations (saved as PNG)
+4. Optional: Bonus challenge solutions
+\end{block}
+
+\vspace{1em}
+
+**Deadline:** Before next lecture
+
+**Format:** PDF or Word document
+
+**Email:** nele.verbiest@pythonpredictions.com
+
+---
+
+## Answer Key Template
+
+\textbf{Question 1:} Number of clients = \_\_\_\_\_
+
+\textbf{Question 2:} Subscription rate = \_\_\_\_\_\%  
+Is it balanced? \_\_\_\_\_
+
+\textbf{Question 3:} Missing values: \_\_\_\_\_
+
+\textbf{Question 4:} Age coefficient sign: \_\_\_\_\_
+
+\textbf{Question 5:} Strongest predictor: \_\_\_\_\_
+
+\textbf{Question 6:} Prediction for new client: \_\_\_\_\_
+
+\textbf{Question 7:} Predicted subscribers: \_\_\_\_\_
+
+\textbf{Question 8:} Model accuracy: \_\_\_\_\_\%
+
+---
+
+## Tips for Success
+
+\begin{block}{Debugging Tips}
+- Check data types with \texttt{str()}
+- Use \texttt{head()} to preview data
+- Read error messages carefully
+- Check variable names (case-sensitive!)
+\end{block}
+
+\begin{block}{Best Practices}
+- Comment your code
+- Use meaningful variable names
+- Test each step before moving forward
+- Ask for help if stuck > 5 minutes
+\end{block}
+
+---
+
+## Common Issues & Solutions
+
+\textcolor{datared}{\textbf{Issue 1:}} "Object not found"
+
+\textcolor{datagreen}{\textbf{Solution:}} Check spelling and make sure you ran previous code
+
+\vspace{0.5em}
+
+\textcolor{datared}{\textbf{Issue 2:}} Model won't converge
+
+\textcolor{datagreen}{\textbf{Solution:}} Check for missing values or perfect separation
+
+\vspace{0.5em}
+
+\textcolor{datared}{\textbf{Issue 3:}} Visualization doesn't show
+
+\textcolor{datagreen}{\textbf{Solution:}} Make sure ggplot2 is loaded
+
+---
+
+## Getting the Data
+
+**Option 1:** Download from course website
+
+- URL: www.pythonpredictions.com/data/bank\_marketing.csv
+
+**Option 2:** Use built-in sample data
+
+\small
+```{r eval=FALSE}
+# Generate sample data if needed
+set.seed(123)
+n <- 1000
+bank_data <- data.frame(
+  age = rnorm(n, 40, 12),
+  balance = rnorm(n, 1500, 3000),
+  previous = rpois(n, 0.5),
+  campaign = rpois(n, 2),
+  subscribed = rbinom(n, 1, 0.12)
+)
+```
+
+---
+
+## Help Resources
+
+**During Classwork:**
+
+- Raise your hand for TA assistance
+- Check with your neighbor
+- Refer to lecture slides
+
+\vspace{1em}
+
+**Online Resources:**
+
+- R Documentation: `?glm`
+- Stack Overflow
+- Course forum
+
+\vspace{1em}
+
+**Office Hours:**
+
+- Tuesday 2-4 PM, Room 305
+- Thursday 10-12 PM, Room 305
+
+---
+
+## Learning Outcomes Check
+
+After completing this classwork, you should be comfortable with:
+
+\begin{itemize}
+\item Using \texttt{glm()} for logistic regression
+\item Interpreting coefficients
+\item Using \texttt{predict()} function
+\item Creating confusion matrices
+\item Calculating basic metrics
+\item Making business recommendations from model results
+\end{itemize}
+
+---
+
+## Next Steps
+
+**In Next Lecture:**
+
+- Model evaluation in depth (ROC, AUC, lift charts)
+- Feature engineering techniques
+- Handling categorical variables
+- Cross-validation
+
+\vspace{1em}
+
+**Homework:**
+
+- Complete this classwork if not finished
+- Read Chapter 2 on Model Evaluation
+- Prepare questions
+
+---
+
+## Reflection Questions
+
+Think about these questions (no submission required):
+
+\vspace{1em}
+
+1. How would you explain your model to a non-technical bank manager?
+
+2. What are the business implications of false positives vs. false negatives?
+
+3. What additional data might improve the model?
+
+4. How would you deploy this model in production?
+
+---
+
+## Quick Reference: Key R Functions
+
+\small
+```{r eval=FALSE}
+# Data loading
+read_csv("file.csv")
+
+# Model fitting
+glm(y ~ x1 + x2, data = df, family = binomial)
+
+# Predictions
+predict(model, newdata = new_df, type = "response")
+
+# Evaluation
+table(actual, predicted)
+mean(actual == predicted)
+
+# Visualization
+ggplot(df, aes(x, y)) + geom_histogram()
+```
+
+---
+
+## Grading Rubric
+
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Component} & \textbf{Points} \\
+\hline
+Code runs without errors & 30 \\
+All 8 questions answered & 40 \\
+Visualizations included & 15 \\
+Code quality (comments, organization) & 10 \\
+Bonus challenges & +5 each \\
+\hline
+\textbf{Total} & \textbf{100} \\
+\hline
+\end{tabular}
+
+---
+
+## Ready to Start!
+
+\begin{center}
+\LARGE \textbf{Let's Begin!}
+
+\vspace{2em}
+
+\Large
+You have 30 minutes
+
+\vspace{1em}
+
+\normalsize
+\textit{Remember: Focus on understanding, not just completion}
+
+\vspace{2em}
+
+\textcolor{datagreen}{\textbf{Good luck!}}
+\end{center}
+
+---
+
+## Additional Support Slide
+
+\begin{center}
+\Large \textbf{Need Help?}
+\end{center}
+
+\vspace{2em}
+
+**Emergency:** email endri81@gmail.com
+
+\vspace{2em}
+
+\textit{Don't hesitate to ask questions!}
