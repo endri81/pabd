@@ -1,8 +1,8 @@
 ---
 title: |
-  | **Homophily Analysis and**
+  | **Classification Trees and**
   | **Network-Based Prediction**
-subtitle: "Predictive Analytics Using Networked Data in R"
+subtitle: "Machine Learning with Tree-Based Models in R"
 author: "Prof. Asc. Endri Raco, Ph.D."
 institute: |
   | Department of Mathematical Engineering
@@ -45,1554 +45,2666 @@ knitr::opts_chunk$set(
   fig.height = 4,
   out.width = '80%'
 )
-
-library(igraph)
+library(tidymodels)
+library(rpart)
+library(rpart.plot)
 library(tidyverse)
 library(knitr)
 library(kableExtra)
 ```
 
-# Introduction
+## Welcome to the Course!
 
-## Motivation: Social Networks and Predictive Analytics
+\vspace{2em}
 
-\begin{block}{Real-World Applications}
-\begin{itemize}
-  \item \textbf{Age prediction}: Customer demographics
-  \item \textbf{Gender inference}: Targeted marketing
-  \item \textbf{Fraud detection}: Transaction network analysis
-  \item \textbf{Churn prediction}: Customer defection
-\end{itemize}
-\end{block}
+\begin{center}
+\LARGE{\textbf{Machine Learning with}} \\
+\vspace{0.5em}
+\LARGE{\textbf{Tree-Based Models in R}}
+\end{center}
 
-\vspace{1em}
+\vspace{3em}
 
-\begin{exampleblock}{The Network Advantage}
-Companies predict churn using:
-\begin{enumerate}
-  \item Traditional machine learning techniques
-  \item \textcolor{datagreen}{\textbf{Social networks}} (relational data)
-\end{enumerate}
-\end{exampleblock}
+
+
+---
 
 ## Course Overview
 
-\begin{block}{Module 1: Labeled Social Networks}
-\begin{itemize}
-  \item Construct networks from data
-  \item Label nodes with attributes
-  \item Apply network learning techniques
-\end{itemize}
-\end{block}
+\vspace{1em}
 
-\begin{block}{Module 2: Homophily Analysis}
-\begin{itemize}
-  \item Measure relational dependency
-  \item Understand influence patterns
-  \item Quantify heterophilicity and dyadicity
-\end{itemize}
-\end{block}
+**Chapter 1:** Classification trees
 
-## Course Overview (continued)
+\vspace{0.5em}
 
-\begin{block}{Module 3: Network Featurization}
-\begin{itemize}
-  \item Compute node-level features
-  \item Extract structural properties
-  \item Create predictive variables
-\end{itemize}
-\end{block}
+**Chapter 2:** Regression trees, cross-validation, bias-variance tradeoff
 
-\begin{block}{Module 4: Predictive Modeling}
-\begin{itemize}
-  \item Transform networks into flat datasets
-  \item Build prediction models
-  \item Deploy churn prediction systems
-\end{itemize}
-\end{block}
+\vspace{0.5em}
 
-# Building Networks
+**Chapter 3:** Hyperparameter tuning, bagging, random forests
 
-## Network Structure Example
+\vspace{0.5em}
+
+**Chapter 4:** Boosted trees
+
+---
+
+## Decision Trees are Flowcharts
+
+\vspace{1em}
+
+Decision trees work like flowcharts that help classify data by asking a series of questions.
+
+\vspace{0.5em}
+
+Example: **Classifying Animals**
+
+- Can live in trees? → Yes/No
+- Has scales? → Yes/No
+- Has feathers? → Yes/No
+
+\vspace{0.5em}
+
+Each question splits the data until we reach a final classification.
+
+\vspace{1em}
+
+\tiny{Concept from: Australian Academy of Science}
+
+---
+
+## Advantages of Tree-Based Models
+
+\vspace{1em}
+
+- Easy to explain and understand
+
+\vspace{0.5em}
+
+- Possible to capture non-linear relationships
+
+\vspace{0.5em}
+
+- Require no normalization or standardization of numeric features
+
+\vspace{0.5em}
+
+- No need to create dummy indicator variables
+
+\vspace{0.5em}
+
+- Robust to outliers
+
+\vspace{0.5em}
+
+- Fast for large datasets
+
+---
+
+## Disadvantages of Tree-Based Models
+
+\vspace{2em}
+
+- Hard to interpret if large, deep, or ensembled
+
+\vspace{1.5em}
+
+- High variance, complex trees are prone to overfitting
+
+---
+
+## The tidymodels Ecosystem
+
+\vspace{1em}
+
+**Key packages in tidymodels:**
+
+- **rsample:** Data splitting and resampling
+- **recipes:** Data preprocessing
+- **parsnip:** Model specifications
+- **workflows:** Modeling workflows
+- **tune:** Hyperparameter tuning
+- **yardstick:** Model performance metrics
+- **broom:** Model tidying
+- **dials:** Hyperparameter tuning dials
+
+---
+
+## The tidymodels Package
+```{r eval=FALSE}
+library(tidymodels)
+```
+
+\vspace{0.5em}
+
+\small
+```
+-- Attaching packages ------------ tidymodels 0.1.4 --
+v parsnip   0.2.1     v rsample  0.1.1
+v dplyr     1.0.9     v tibble   3.1.7
+v yardstick 0.0.9     v tune     0.1.6
+```
+
+---
+
+## Create a Decision Tree
+
+### Step 1: Pick a Model Class
+
+\vspace{1em}
+```{r eval=FALSE}
+library(tidymodels)
+
+decision_tree()
+```
+
+\vspace{0.5em}
+```
+Decision Tree Model Specification (unknown)
+```
+
+---
+
+## Create a Decision Tree
+
+### Step 2: Set the Engine
+
+\vspace{1em}
+```{r eval=FALSE}
+library(tidymodels)
+
+decision_tree() %>%
+  set_engine("rpart")
+```
+
+\vspace{0.5em}
+```
+Decision Tree Model Specification (unknown)
+
+Computational engine: rpart
+```
+
+---
+
+## Create a Decision Tree
+
+### Step 3: Set the Mode
+
+\vspace{0.5em}
+```{r eval=FALSE}
+library(tidymodels)
+
+decision_tree() %>%
+  set_engine("rpart") %>%
+  set_mode("classification")
+```
+
+\vspace{0.5em}
+```
+Decision Tree Model Specification (classification)
+
+Computational engine: rpart
+```
+
+---
+
+## From Model Specification to Real Model
+
+### Specification is a skeleton and needs data to be trained with
+
+\vspace{0.5em}
+```{r eval=FALSE}
+library(tidymodels)
+
+tree_spec <- decision_tree() %>%
+             set_engine("rpart") %>%
+             set_mode("classification")
+```
+
+---
+
+## Fitting the Model
+```{r eval=FALSE}
+# A model specification is fit using a formula 
+# to training data
+tree_spec %>%
+  fit(formula = outcome ~ age + bmi,
+      data = diabetes)
+```
+
+\vspace{0.5em}
+```
+parsnip model object
+Fit time: 19 ms
+n = 652
+```
+
+---
+
+## Let's Build a Model!
+
+\vspace{3em}
+
+\begin{center}
+\Huge{\textbf{Let's build a model!}}
+\end{center}
+
+---
+
+## How to Grow Your Tree
+
+\vspace{3em}
+
+\begin{center}
+\Large{\textbf{How to grow your tree}}
+\end{center}
+
+---
+
+## Diabetes Dataset
+```{r eval=FALSE}
+head(diabetes)
+```
+
+\vspace{0.5em}
+
+\scriptsize
+```
+# A tibble: 6 x 9
+  outcome pregnancies glucose blood_pressure 
+    <fct>       <int>   <int>          <int> 
+1 yes             6     148             72   
+2 no              1      85             66   
+3 yes             8     183             64   
+  
+  skin_thickness insulin   bmi   age
+           <int>   <int> <dbl> <int>
+1             35       0  33.6    50
+2             29       0  26.6    31
+3              0       0  23.3    32
+```
+
+---
+
+## Using the Whole Dataset
+
+### Problem: Used all data for training - no data left to test
+
+\vspace{1em}
+
+**All Data** → **Decision Tree** → **Performance Check?**
+
+\vspace{1em}
+
+If we use all our data for training, we have nothing left to evaluate how well the model performs on new, unseen data.
+
+---
+
+## Data Split
+
+### Solution: Split into training and test sets
+
+\vspace{1em}
+
+**Data** → **Training Set** (build model) + **Test Set** (evaluate)
+
+\vspace{1em}
+
+**Decision Tree** (trained on training set) → **Performance Check** (on test set)
+
+---
+
+## Splitting Methods
+
+\vspace{1em}
+
+Three common approaches:
+
+\vspace{0.5em}
+
+1. **Sequential split:** First 75% train, last 25% test
+2. **Random block split:** Random contiguous blocks
+3. **Random split:** Random observations throughout
+
+\vspace{1em}
+
+**Recommendation:** Use random split with stratification for classification
+
+---
+
+## The initial_split() Function
+
+### Splits data randomly into single training and single test set
+
+\vspace{0.5em}
+```{r eval=FALSE}
+# Split data proportionally (default: 0.75)
+diabetes_split <- initial_split(diabetes, 
+                                prop = 0.9)
+diabetes_split
+```
+
+\vspace{0.5em}
+```
+<Analysis/Assess/Total>
+<692/76/768>
+```
+
+\vspace{1em}
+
+\tiny{from the rsample package}
+
+---
+
+## Functions training() and testing()
+
+### Extract training and test sets from a data split
+
+\vspace{0.5em}
+```{r eval=FALSE}
+diabetes_train <- training(diabetes_split)
+diabetes_test  <- testing(diabetes_split)
+```
+
+---
+
+## Verification of Split
+```{r eval=FALSE}
+# Verify the split proportion
+nrow(diabetes_train) / nrow(diabetes)
+```
+
+\vspace{0.5em}
+```
+[1] 0.9007812
+```
+
+\vspace{1em}
+
+\tiny{from rsample}
+
+---
+
+## Avoid Class Imbalances
+
+\vspace{0.5em}
+
+\small
+```{r eval=FALSE}
+# Training count of 'yes' and 'no' outcomes
+counts_train <- table(diabetes_train$outcome)
+counts_train
+```
+```
+no yes
+490 86
+```
+
+---
+
+## Class Imbalance Example (cont.)
+
+\small
+```{r eval=FALSE}
+# Training proportion of 'yes' outcome
+prop_yes_train <- counts_train["yes"] / 
+                  sum(counts_train)
+prop_yes_train
+```
+```
+0.15
+```
+
+---
+
+## Class Imbalance in Test Set
+
+\small
+```{r eval=FALSE}
+# Test data count of 'yes' and 'no' outcomes
+counts_test <- table(diabetes_test$outcome)
+counts_test
+```
+```
+no yes
+28  48
+```
+
+---
+
+## Test Set Proportion
+
+\small
+```{r eval=FALSE}
+# Test data proportion of 'yes' outcome
+prop_yes_test <- counts_test["yes"] / 
+                 sum(counts_test)
+prop_yes_test
+```
+```
+0.63
+```
+
+\vspace{1em}
+
+**Problem:** Very different proportions in train (15%) vs test (63%)!
+
+---
+
+## Solution: Enforce Similar Distributions
+```{r eval=FALSE}
+initial_split(diabetes,
+              prop = 0.9,
+              strata = outcome)
+```
+
+\vspace{1em}
+
+Ensures random split with similar distribution of `outcome` variable
+
+---
+
+## Let's Split!
+
+\vspace{3em}
+
+\begin{center}
+\Huge{\textbf{Let's split!}}
+\end{center}
+
+---
+
+## Predict and Evaluate
+
+\vspace{3em}
+
+\begin{center}
+\Large{\textbf{Predict and evaluate}}
+\end{center}
+
+---
+
+## Predicting on New Data
+
+### General Call:
+```{r eval=FALSE}
+predict(model, new_data, type)
+```
+
+\vspace{1em}
+
+### Arguments:
+
+1. Trained model
+2. Dataset to predict on
+3. Prediction type: labels or probabilities
+
+---
+
+## Class Predictions
+```{r eval=FALSE}
+predict(model, 
+        new_data = test_data,
+        type = "class")
+```
+
+\vspace{0.5em}
+```
+  .pred_class
+        <fct>
+1          no
+2          no
+3         yes
+4          no
+```
+
+---
+
+## Probability Predictions
+```{r eval=FALSE}
+predict(model, 
+        new_data = test_data,
+        type = "prob")
+```
+
+\vspace{0.5em}
+```
+  .pred_no .pred_yes
+     <dbl>     <dbl>
+1    0.866     0.134
+2    0.956     0.044
+3    0.672     0.328
+4    0.877     0.123
+```
+
+---
+
+## Confusion Matrix
+
+### Reveals how confused a model is
+
+\vspace{1em}
+
+**Structure:**
+
+- Rows: Predicted classes
+- Columns: Actual (truth) classes
+- Diagonal: Correct predictions
+- Off-diagonal: Incorrect predictions
+
+---
+
+## Confusion Matrix Components
+
+\vspace{1em}
+
+**True Positives (TP):** Prediction is yes, truth is yes
+
+**True Negatives (TN):** Prediction is no, truth is no
+
+**False Positives (FP):** Prediction is yes, truth is no
+
+**False Negatives (FN):** Prediction is no, truth is yes
+
+---
+
+## Create the Confusion Matrix
+
+### Step 1: Combine predictions and truth values
+
+\small
+```{r eval=FALSE}
+# Combine predictions and truth values
+pred_combined <- predictions %>%
+  mutate(true_class = test_data$outcome)
+
+pred_combined
+```
+```
+  .pred_class true_class
+        <fct>      <fct>
+1          no         no
+2          no        yes
+3          no         no
+4         yes        yes
+```
+
+---
+
+## Create the Confusion Matrix
+
+### Step 2: Calculate the confusion matrix
+
+\small
+```{r eval=FALSE}
+# Calculate the confusion matrix
+conf_mat(data = pred_combined,
+         estimate = .pred_class,
+         truth = true_class)
+```
+
+\vspace{0.5em}
+```
+           Truth
+Prediction   no  yes
+       no  116   31
+      yes   12   40
+```
+
+---
+
+## Accuracy
+
+$$\text{accuracy} = \frac{\text{n of correct predictions}}{\text{n of total predictions}}$$
+
+\vspace{1em}
+
+**Function name:** `accuracy()`
+
+**Same arguments as** `conf_mat()`
+
+- `data`, `estimate`, and `truth`
+- Common structure in yardstick
+
+---
+
+## Calculate Accuracy
+```{r eval=FALSE}
+accuracy(pred_combined,
+         estimate = .pred_class,
+         truth = true_class)
+```
+
+\vspace{0.5em}
+```
+  .metric  .estimate
+    <chr>      <dbl>
+1 accuracy      0.708
+```
+
+\vspace{1em}
+
+This means 70.8% of predictions were correct.
+
+---
+
+## Let's Evaluate!
+
+\vspace{3em}
+
+\begin{center}
+\Huge{\textbf{Let's evaluate!}}
+\end{center}
+
+---
+
+## Continuous Outcomes
+
+\vspace{3em}
+
+\begin{center}
+\Large{\textbf{Continuous outcomes}}
+\end{center}
+
+---
+
+## The Chocolate Dataset
+```{r eval=FALSE}
+head(chocolate, 5)
+```
+
+\vspace{0.5em}
+
+\scriptsize
+```
+# A tibble: 5 x 6
+  final_grade review_date cocoa_percent company_location 
+        <dbl>       <int>         <dbl> <fct>            
+1          3.0        2009          0.80 U.K.             
+2         3.75        2012          0.70 Guatemala        
+3         2.75        2009          0.75 Colombia         
+4          3.5        2014          0.74 Zealand          
+5         3.75        2011          0.72 Australia        
+
+  bean_type              broad_bean_origin
+  <fct>                  <fct>
+  "Criollo, Trinitario" "Madagascar"
+  "Trinitario"          "Madagascar"
+  "Forastero"           "Colombia"
+  ""                    "Papua New Guinea"
+  ""                    "Bolivia"
+```
+
+---
+
+## Construct the Regression Tree
+
+### Step 1: Create model specification
+
+\small
+```{r eval=FALSE}
+spec <- decision_tree() %>%
+  set_mode("regression") %>%
+  set_engine("rpart")
+
+print(spec)
+```
+```
+Decision Tree Model Specification (regression)
+
+Computational engine: rpart
+```
+
+---
+
+## Construct the Regression Tree
+
+### Step 2: Fit the model
+
+\small
+```{r eval=FALSE}
+model <- spec %>%
+  fit(formula = final_grade ~ .,
+      data = chocolate_train)
+
+print(model)
+```
+```
+parsnip model object
+Fit time: 20ms
+n = 1437
+
+node), split, n, deviance, yval
+  * denotes terminal node
+```
+
+---
+
+## Predictions Using a Regression Tree
+```{r eval=FALSE}
+# Model predictions on new data
+predict(model, new_data = chocolate_test)
+```
+
+\vspace{0.5em}
+```
+      .pred
+      <dbl>
+1  3.281915
+2  3.435234
+3  3.281915
+4  3.833931
+5  3.281915
+6  3.514151
+7  3.273864
+8  3.514151
+```
+
+---
+
+## Divide & Conquer
+
+\vspace{1em}
+
+**How decision trees work:**
+
+1. Start with all data at the root node
+2. Find the best split that minimizes variance
+3. Create child nodes based on the split
+4. Recursively repeat for each child node
+5. Stop when stopping criteria are met
+
+\vspace{1em}
+
+This creates a hierarchical tree structure where each leaf contains observations with similar target values.
+
+---
+
+## Hyperparameters
+
+### Goal for regression trees:
+
+Low variance or deviation from the mean within groups
+
+\vspace{0.5em}
+
+### Design decisions:
+
+- `min_n`: Number of data points in a node needed for further split (default: 20)
+- `tree_depth`: Maximum depth of a tree (default: 30)
+- `cost_complexity`: Penalty for complexity (default: 0.01)
+
+---
+
+## Setting Hyperparameters
+
+### Set them in the very first step:
+
+\vspace{0.5em}
+```{r eval=FALSE}
+decision_tree(tree_depth = 4, 
+              cost_complexity = 0.05) %>%
+  set_mode("regression")
+```
+
+\vspace{1em}
+
+These parameters control how the tree grows and help prevent overfitting.
+
+---
+
+## Understanding Model Output
+
+### Model with tree_depth = 1
+
+\scriptsize
+```{r eval=FALSE}
+decision_tree(tree_depth = 1) %>%
+  set_mode("regression") %>%
+  set_engine("rpart") %>%
+  fit(formula = final_grade ~ .,
+      data = chocolate_train)
+```
+```
+parsnip model object
+Fit time: 1ms
+n = 1000
+
+node), split, n, yval
+1) root                      1000 2.347450
+  2) cocoa_percent>=0.905      16 2.171875 *
+  3) cocoa_percent<0.905      984 3.190803 *
+```
+
+---
+
+## Visualization of Simple Tree
+
+\vspace{1em}
+
+**Root node:**
+- n = 1000 samples
+- mean grade: 2.347450
+
+\vspace{0.5em}
+
+**Split:** cocoa_percent >= 0.905?
+
+\vspace{0.5em}
+
+**Leaf node 2:**
+- n = 16 samples
+- mean grade: 2.171875
+
+**Leaf node 3:**
+- n = 984 samples  
+- mean grade: 3.190803
+
+---
+
+## Let's Do Regression!
+
+\vspace{3em}
+
+\begin{center}
+\Huge{\textbf{Let's do regression!}}
+\end{center}
+
+---
+
+## Performance Metrics for Regression Trees
+
+\vspace{3em}
+
+\begin{center}
+\Large{\textbf{Performance metrics}}
+
+\Large{\textbf{for regression trees}}
+\end{center}
+
+---
+
+## How to Measure Performance?
+
+\vspace{1em}
+
+**Classification problems:** 
+
+Accuracy (confusion matrix) - binary correctness
+
+\vspace{1em}
+
+**Regression problems:** 
+
+"Correct" is relative, no binary correctness
+
+$\Rightarrow$ Measure how far predictions are away from truth
+
+---
+
+## Common Metrics for Regression
+
+\vspace{1em}
+
+**Two main metrics:**
+
+1. Mean Absolute Error (MAE)
+2. Root Mean Square Error (RMSE)
+
+\vspace{2em}
+
+Both measure prediction error, but in different ways.
+
+---
+
+## MAE Intuition
+
+\vspace{1em}
+
+**Visual representation:**
+
+- Plot shows true values vs predictions
+- Red vertical bars represent errors
+- MAE = average length of the red bars
+
+\vspace{1em}
+
+**Interpretation:** 
+
+Average absolute distance between predictions and actual values
+
+---
+
+## Formulas and Intuition
+
+\vspace{1em}
+
+$$MAE = \frac{1}{n}\sum_{i=1}^{n}|actual_i - predicted_i|$$
+
+\vspace{0.5em}
+
+**Interpretation:** 
+
+"Sum of absolute deviations divided by the number of predictions"
+
+\vspace{2em}
+
+$$MSE = \frac{1}{n}\sum_{i=1}^{n}(actual_i - predicted_i)^2$$
+
+\vspace{0.5em}
+
+**Interpretation:** 
+
+"Mean squared error"
+
+---
+
+## RMSE Formula
+
+\vspace{1em}
+
+$$RMSE = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(actual - predicted)^2}$$
+
+\vspace{1em}
+
+**Interpretation:** 
+
+"Root of the mean squared error"
+
+\vspace{1em}
+
+**Key difference from MAE:**
+
+Large errors get higher weight due to squaring
+
+---
+
+## Coding: Predictions
+```{r eval=FALSE}
+# parsnip and yardstick are included in tidymodels
+library(tidymodels)
+
+# Make predictions and add to test data
+predictions <- predict(model, 
+                       new_data = chocolate_test) %>%
+  bind_cols(chocolate_test)
+```
+
+---
+
+## Predictions Output
+
+\scriptsize
+```{r eval=FALSE}
+# A tibble: 358 x 7
+    .pred final_grade review_date cocoa_percent 
+    <dbl>       <dbl>       <int>         <dbl> 
+1    2.5        2.75        2013          0.7   
+2   3.64        3.25        2014          0.8   
+3    3.3        3.5         2012          0.7   
+4   3.25        3.5         2011          0.72  
+
+  company_location bean_type  broad_bean_origin
+  <fct>           <fct>      <fct>
+  France          ...        ...
+  France          ...        ...
+  France          ...        ...
+  Fiji            ...        ...
+# ... with 354 more rows
+```
+
+---
+
+## Coding: mae()
+```{r eval=FALSE}
+# Evaluate using mae()
+mae(predictions,
+    estimate = .pred,
+    truth = final_grade)
+```
+
+\vspace{0.5em}
+```
+# A tibble: 1 x 2
+  .metric .estimate
+    <chr>     <dbl>
+1     mae     0.363
+```
+
+\vspace{1em}
+
+On average, predictions are 0.363 points away from true values.
+
+---
+
+## Coding: rmse()
+```{r eval=FALSE}
+# Evaluate using rmse()
+rmse(predictions,
+     estimate = .pred,
+     truth = final_grade)
+```
+
+\vspace{0.5em}
+```
+# A tibble: 1 x 2
+  .metric .estimate
+    <chr>     <dbl>
+1    rmse     0.457
+```
+
+\vspace{1em}
+
+RMSE is higher than MAE because it penalizes larger errors more.
+
+---
+
+## Let's Evaluate!
+
+\vspace{3em}
+
+\begin{center}
+\Huge{\textbf{Let's evaluate!}}
+\end{center}
+
+---
+
+## Cross-Validation
+
+\vspace{3em}
+
+\begin{center}
+\Large{\textbf{Cross-validation}}
+\end{center}
+
+---
+
+## k-Fold Cross-Validation
+
+\vspace{1em}
+
+**Process:**
+
+1. Split training data into k equal folds
+2. For each fold:
+   - Use fold as validation set
+   - Use remaining k-1 folds as training set
+   - Train model and calculate error
+3. Average errors across all k folds
+
+\vspace{1em}
+
+**Benefits:** More robust performance estimate
+
+---
+
+## Visualizing k-Fold CV - Setup
+
+\vspace{1em}
+
+**Initial setup:**
+
+- **Training data:** Rows 1-500
+- **Test data:** Rows 501-600  
+- **Create 5 folds** from training data
+
+\vspace{1em}
+
+Each fold contains approximately 100 observations (500/5 = 100)
+
+---
+
+## k-Fold CV - Fold 1
+
+\vspace{1em}
+
+**Fold 1 as test:**
+
+- **Test:** Rows 1-100 (Fold 1)
+- **Train:** Rows 101-500 (Folds 2-5)
+
+\vspace{0.5em}
+
+**Result:** Model 1, MAE 1
+
+---
+
+## k-Fold CV - Fold 2
+
+\vspace{1em}
+
+**Fold 2 as test:**
+
+- **Train:** Rows 1-100, 201-500 (Folds 1, 3-5)
+- **Test:** Rows 101-200 (Fold 2)
+
+\vspace{0.5em}
+
+**Result:** Model 2, MAE 2
+
+---
+
+## k-Fold CV - Fold 3
+
+\vspace{1em}
+
+**Fold 3 as test:**
+
+- **Train:** Rows 1-200, 301-500 (Folds 1-2, 4-5)
+- **Test:** Rows 201-300 (Fold 3)
+
+\vspace{0.5em}
+
+**Result:** Model 3, MAE 3
+
+---
+
+## k-Fold CV - Fold 4
+
+\vspace{1em}
+
+**Fold 4 as test:**
+
+- **Train:** Rows 1-300, 401-500 (Folds 1-3, 5)
+- **Test:** Rows 301-400 (Fold 4)
+
+\vspace{0.5em}
+
+**Result:** Model 4, MAE 4
+
+---
+
+## k-Fold CV - Fold 5
+
+\vspace{1em}
+
+**Fold 5 as test:**
+
+- **Train:** Rows 1-400 (Folds 1-4)
+- **Test:** Rows 401-500 (Fold 5)
+
+\vspace{0.5em}
+
+**Result:** Model 5, MAE 5
+
+---
+
+## Cross-Validated Performance
+
+\vspace{1em}
+
+**Final metric:**
+
+$$\text{Cross-validated MAE} = \frac{MAE_1 + MAE_2 + ... + MAE_5}{5}$$
+
+\vspace{1em}
+
+This gives a more robust estimate of model performance than a single train-test split.
+
+---
+
+## Fit Final Model on Full Dataset
+
+\vspace{1em}
+
+**After cross-validation:**
+
+1. Use CV results to select best hyperparameters
+2. Train final model on **all training data**
+3. Evaluate on held-out test set
+
+\vspace{1em}
+
+**Training data** (all 5 folds) → **Final Model**
+
+---
+
+## Coding: Split the Data 10 Times
+```{r eval=FALSE}
+# Random seed for reproducibility
+set.seed(100)
+
+# Create 10 folds of the dataset
+chocolate_folds <- vfold_cv(chocolate_train, 
+                            v = 10)
+```
+
+\vspace{0.5em}
+
+\small
+```
+# 10-fold cross-validation
+# A tibble: 10 x 2
+   splits             id    
+1  <split [1293/144]> Fold01
+2  <split [1293/144]> Fold02
+3  <split [1293/144]> Fold03
+4  ...
+```
+
+---
+
+## Coding: Fit the Folds
+
+\small
+```{r eval=FALSE}
+# Fit a model for every fold and calculate MAE and RMSE
+fits_cv <- fit_resamples(tree_spec,
+                         final_grade ~ .,
+                         resamples = chocolate_folds,
+                         metrics = metric_set(mae, rmse))
+```
+
+---
+
+## Resampling Results
+
+\scriptsize
+```
+# Resampling results
+# 10-fold cross-validation
+# A tibble: 10 x 4
+   splits             id      .metrics        
+   <list>             <chr>   <list>          
+1  <split [1293/144]> Fold01  <tibble [2 x 4]>
+2  <split [1293/144]> Fold02  <tibble [2 x 4]>
+3  <split [1293/144]> Fold03  <tibble [2 x 4]>
+4  ...
+```
+
+\vspace{1em}
+
+Each fold produces two metrics (MAE and RMSE).
+
+---
+
+## Coding: Collect All Errors
+
+\small
+```{r eval=FALSE}
+# Collect raw errors of all model runs
+all_errors <- collect_metrics(fits_cv,
+                              summarize = FALSE)
+print(all_errors)
+```
+
+\scriptsize
+```
+# A tibble: 20 x 3
+   id      .metric .estimate
+   <chr>   <chr>       <dbl>
+1  Fold01  mae         0.362
+2  Fold01  rmse        0.442
+3  Fold02  mae         0.385
+4  Fold02  rmse        0.504
+5  ...
+```
+
+---
+
+## Visualize Error Distribution
+
+\small
+```{r eval=FALSE}
+library(ggplot2)
+
+ggplot(all_errors, 
+       aes(x = .estimate, fill = .metric)) +
+  geom_histogram()
+```
+
+\vspace{1em}
+
+This shows the distribution of MAE and RMSE values across all 10 folds, helping identify variability in model performance.
+
+---
+
+## Coding: Summarize Training Sessions
+```{r eval=FALSE}
+# Collect and summarize errors of all model runs
+collect_metrics(fits_cv)
+```
+
+\vspace{0.5em}
+```
+# A tibble: 2 x 3
+  .metric   mean     n
+  <chr>    <dbl> <int>
+1 mae      0.383    10
+2 rmse     0.477    10
+```
+
+\vspace{1em}
+
+**Interpretation:** Average MAE of 0.383 and RMSE of 0.477 across all folds.
+
+---
+
+## Let's Cross-Validate!
+
+\vspace{3em}
+
+\begin{center}
+\Huge{\textbf{Let's cross-validate!}}
+\end{center}
+
+---
+
+---
+
+## Tuning Hyperparameters
+
+\vspace{2em}
+
+\begin{center}
+\Huge{\textbf{Tuning hyperparameters}}
+\end{center}
+
+
+---
+
+## What Are Hyperparameters?
+
+\vspace{1em}
+
+**Model parameters whose values control model complexity and are set prior to model training**
+
+\vspace{1em}
+
+Hyperparameters influence the shape and complexity of trees.
+
+\vspace{1em}
+
+**Hyperparameters in parsnip decision trees:**
+
+- `min_n`: Minimum number of samples required to split a node
+- `tree_depth`: Maximum allowed depth of the tree
+- `cost_complexity`: Penalty for tree complexity
+
+---
+
+## Why Tune Hyperparameters?
+
+\vspace{1em}
+
+Default values set by `parsnip`:
+
+\vspace{0.5em}
+```{r eval=FALSE}
+decision_tree(min_n = 20, 
+              tree_depth = 30, 
+              cost_complexity = 0.01)
+```
+
+\vspace{1em}
+
+These work well in many cases, but may not be optimal for all datasets.
+
+\vspace{1em}
+
+**Goal of hyperparameter tuning:** Find the optimal set of hyperparameter values for your specific data.
+
+---
+
+## The Grid Search Concept
+
+\vspace{1em}
 
 \begin{center}
 \begin{tikzpicture}[scale=0.8]
-  % Draw nodes
-  \node[circle, draw, fill=white, minimum size=0.8cm] (A) at (2, 4) {A};
-  \node[circle, draw, fill=white, minimum size=0.8cm] (B) at (1, 3) {B};
-  \node[circle, draw, fill=white, minimum size=0.8cm] (C) at (1.5, 2) {C};
-  \node[circle, draw, fill=white, minimum size=0.8cm] (D) at (2.5, 2.5) {D};
-  \node[circle, draw, fill=white, minimum size=0.8cm] (E) at (4, 3) {E};
-  \node[circle, draw, fill=white, minimum size=0.8cm] (F) at (4.5, 1.5) {F};
-  \node[circle, draw, fill=white, minimum size=0.8cm] (G) at (3, 0) {G};
-  \node[circle, draw, fill=white, minimum size=0.8cm] (H) at (3.5, -1.5) {H};
-  \node[circle, draw, fill=white, minimum size=0.8cm] (I) at (5, -0.5) {I};
-  \node[circle, draw, fill=white, minimum size=0.8cm] (J) at (6, -2) {J};
+  % Draw grid
+  \draw[step=0.8cm,gray,very thin] (0,0) grid (6.4,6.4);
   
-  % Draw edges
-  \draw[thick] (A) -- (B);
-  \draw[thick] (A) -- (C);
-  \draw[thick] (A) -- (D);
-  \draw[thick] (A) -- (E);
-  \draw[thick] (B) -- (C);
-  \draw[thick] (B) -- (D);
-  \draw[thick] (C) -- (D);
-  \draw[thick] (C) -- (G);
-  \draw[thick] (D) -- (E);
-  \draw[thick] (D) -- (F);
-  \draw[thick] (D) -- (G);
-  \draw[thick] (E) -- (F);
-  \draw[thick] (F) -- (G);
-  \draw[thick] (F) -- (I);
-  \draw[thick] (G) -- (I);
-  \draw[thick] (G) -- (H);
-  \draw[thick] (H) -- (I);
-  \draw[thick] (H) -- (J);
-  \draw[thick] (I) -- (J);
+  % Axes
+  \draw[thick,->] (0,0) -- (7,0) node[right] {\small tree\_depth};
+  \draw[thick,->] (0,0) -- (0,7) node[above] {\small min\_n};
+  
+  % Grid points
+  \foreach \x in {0.8,1.6,2.4,3.2,4.0,4.8,5.6,6.4}
+    \foreach \y in {0.8,1.6,2.4,3.2,4.0,4.8,5.6,6.4}
+      \fill (\x,\y) circle (2pt);
 \end{tikzpicture}
 \end{center}
 
-\begin{block}{Network Components}
-\textbf{Nodes}: Individuals (A, B, C, ...) \\
-\textbf{Edges}: Relationships/collaborations \\
-\textbf{Attributes}: Technology preference (R, Python, ?)
-\end{block}
+\vspace{0.5em}
 
-## Creating Networks in R
-```{r network_creation, eval=FALSE}
-library(igraph)
+**Grid search:** Systematically evaluate model performance across combinations of hyperparameter values.
 
-# Define edges (relationships)
-DataScienceNetwork <- data.frame(
-  from = c('A','A','A','A','B','B','C','C',
-           'D','D','D','E','F','F','G','G',
-           'H','H','I'),
-  to = c('B','C','D','E','C','D','D','G',
-         'E','F','G','F','G','I','I','H',
-         'I','J','J')
-)
+---
 
-# Create graph object
-g <- graph_from_data_frame(DataScienceNetwork, 
-                           directed = FALSE)
-```
-
-\begin{alertblock}{Key Concept}
-\texttt{graph\_from\_data\_frame()} creates an undirected graph where each row defines a connection between two nodes.
-\end{alertblock}
-
-## Visualizing Networks (1/2)
-```{r viz_setup, eval=FALSE}
-# Define node positions for clean layout
-pos <- cbind(
-  c(2, 1, 1.5, 2.5, 4, 4.5, 3, 3.5, 5, 6),
-  c(10.5, 9.5, 8, 8.5, 9, 7.5, 6, 4.5, 5.5, 4)
-)
-
-# Create visualization
-plot.igraph(g, 
-            edge.label = NA,
-            edge.color = 'black',
-            layout = pos,
-            vertex.label = V(g)$name,
-            vertex.color = 'white',
-            vertex.label.color = 'black',
-            vertex.size = 25)
-```
-
-## Visualizing Networks (2/2)
-
-\begin{block}{Visualization Parameters}
-\begin{description}
-  \item[\texttt{layout}] Node positioning (x, y coordinates)
-  \item[\texttt{vertex.*}] Node styling (color, size, labels)
-  \item[\texttt{edge.*}] Connection styling (color, width, labels)
-\end{description}
-\end{block}
+## From Grid to Trained Models
 
 \vspace{1em}
-
-\begin{exampleblock}{Pro Tip}
-Use \texttt{layout\_nicely()} for automatic positioning, or define custom positions for publication-quality figures.
-\end{exampleblock}
-
-## Adding Node Attributes
-```{r node_attributes, eval=FALSE}
-# Assign technology preference to each node
-V(g)$technology <- c('R','R','?','R','R',
-                     'R','P','P','P','P')
-
-# Map preferences to colors
-V(g)$color <- V(g)$technology
-V(g)$color <- gsub('R', "blue3", V(g)$color)
-V(g)$color <- gsub('P', "green4", V(g)$color)
-V(g)$color <- gsub('?', "gray", V(g)$color)
-```
-
-\begin{block}{Color Scheme}
-\textcolor{blue}{\textbf{Blue}}: R users \quad
-\textcolor{green}{\textbf{Green}}: Python users \quad
-\textcolor{gray}{\textbf{Gray}}: Unknown
-\end{block}
-
-\textbf{Result:} A labeled network ready for analysis!
-
-# Labeled Networks and Network Learning
-
-## The Churn Prediction Problem
-
-\begin{columns}[T]
-\begin{column}{0.48\textwidth}
-\textbf{Customer Data:}
-\begin{center}
-\begin{tabular}{rr}
-\toprule
-ID & Churn \\
-\midrule
-1 & 0 \\
-393 & 0 \\
-2573 & 0 \\
-4430 & 0 \\
-\rowcolor{datared!20}
-926 & 1 \\
-\rowcolor{datared!20}
-1574 & 1 \\
-\bottomrule
-\end{tabular}
-\end{center}
-\end{column}
-
-\begin{column}{0.48\textwidth}
-\textbf{Edge List:}
-\begin{center}
-\begin{tabular}{rr}
-\toprule
-From & To \\
-\midrule
-1 & 393 \\
-1 & 2573 \\
-1 & 4430 \\
-393 & 926 \\
-393 & 1574 \\
-\bottomrule
-\end{tabular}
-\end{center}
-\end{column}
-\end{columns}
-
-\vspace{1em}
-
-\begin{alertblock}{Goal}
-Predict which customers will churn based on network structure
-\end{alertblock}
-
-## Network Representation of Churn
-
-\begin{center}
-\begin{tikzpicture}[scale=1.2]
-  % Nodes
-  \node[circle, draw, fill=white, minimum size=1cm] (1) at (0, 2) {1};
-  \node[circle, draw, fill=white, minimum size=1cm] (393) at (2, 1) {393};
-  \node[circle, draw, fill=white, minimum size=1cm] (2573) at (-1.5, 1) {2573};
-  \node[circle, draw, fill=white, minimum size=1cm] (4430) at (0, 3.5) {4430};
-  \node[circle, draw, fill=datared!50, minimum size=1cm] (926) at (3.5, 1.5) {926};
-  \node[circle, draw, fill=datared!50, minimum size=1cm] (1574) at (2, -0.5) {1574};
-  
-  % Edges
-  \draw[thick] (1) -- (393);
-  \draw[thick] (1) -- (2573);
-  \draw[thick] (1) -- (4430);
-  \draw[thick] (393) -- (926);
-  \draw[thick] (393) -- (1574);
-\end{tikzpicture}
-\end{center}
-
-\begin{block}{Key Observations}
-\begin{itemize}
-  \item Customer 1: Connected to 3 non-churners
-  \item Customer 393: Connected to 2 churners!
-  \item \textcolor{datared}{\textbf{Network structure matters}}
-\end{itemize}
-\end{block}
-
-## The Relational Neighbor Classifier (1/2)
-
-\begin{block}{Core Principle: Homophily}
-\textbf{"Birds of a feather flock together"}
-
-Connected individuals tend to be similar in behavior and attributes.
-\end{block}
-
-\vspace{1em}
-
-\begin{exampleblock}{Algorithm Logic}
-For unknown node C (Cecelia with technology = ?):
-\begin{enumerate}
-  \item \textbf{Identify neighbors}: A, B, D, G
-  \item \textbf{Count preferences}:
-  \begin{itemize}
-    \item R users: A, B, D → 3 neighbors (75\%)
-    \item Python users: G → 1 neighbor (25\%)
-  \end{itemize}
-  \item \textbf{Predict}: Cecelia likely prefers R
-\end{enumerate}
-\end{exampleblock}
-
-## The Relational Neighbor Classifier (2/2)
-```{r relational_neighbor, eval=FALSE}
-# Count R-preferring neighbors per node
-rNeighbors <- c(4, 3, 3, 5, 3, 2, 3, 0, 1, 0)
-
-# Count Python-preferring neighbors
-pNeighbors <- c(0, 0, 1, 1, 0, 2, 2, 3, 3, 2)
-
-# Calculate probability of preferring R
-rRelationalNeighbor <- rNeighbors / 
-                       (rNeighbors + pNeighbors)
-
-print(rRelationalNeighbor)
-```
-
-\begin{alertblock}{Output}
-\texttt{[1] 1.00 1.00 0.75 0.83 1.00 0.50 0.60 0.00 0.25 0.00}
-\end{alertblock}
-
-Node C (index 3) has 0.75 probability of preferring R
-
-## Applying RNC to Churn Prediction
-
-\begin{block}{Step-by-Step Application}
-\begin{enumerate}
-  \item For each customer with unknown churn status
-  \item Count neighbors who churned
-  \item Count neighbors who stayed
-  \item Calculate: $P(\text{churn}) = \frac{\text{\# churned neighbors}}{\text{\# total neighbors}}$
-  \item Predict churn if $P(\text{churn}) > 0.5$
-\end{enumerate}
-\end{block}
-
-\vspace{1em}
-
-\begin{exampleblock}{Example: Customer 393}
-\begin{itemize}
-  \item Churned neighbors: 926, 1574 → 2
-  \item Non-churned neighbors: 1 → 1
-  \item $P(\text{churn}) = \frac{2}{3} = 0.67$ → \textcolor{datared}{\textbf{Predict: CHURN}}
-\end{itemize}
-\end{exampleblock}
-
-## RNC Implementation in R
-```{r rnc_implementation, eval=FALSE}
-# Function to compute RNC predictions
-compute_rnc <- function(graph, node_labels) {
-  predictions <- numeric(vcount(graph))
-  
-  for (i in 1:vcount(graph)) {
-    # Get neighbors
-    neighbors <- neighbors(graph, i)
-    
-    if (length(neighbors) == 0) {
-      predictions[i] <- NA  # Isolated node
-      next
-    }
-    
-    # Count churned neighbors
-    churned_count <- sum(node_labels[neighbors] == 1)
-    total_count <- length(neighbors)
-    
-    # Calculate probability
-    predictions[i] <- churned_count / total_count
-  }
-  
-  return(predictions)
-}
-```
-
-## Visualizing Predictions
-
-\begin{center}
-\begin{tikzpicture}[scale=1.1]
-  % Legend
-  \node[circle, draw, fill=datagreen!30, minimum size=0.6cm] at (-2, 3) {};
-  \node[right] at (-1.5, 3) {\small Low churn risk};
-  \node[circle, draw, fill=dataorange!50, minimum size=0.6cm] at (-2, 2.3) {};
-  \node[right] at (-1.5, 2.3) {\small Medium risk};
-  \node[circle, draw, fill=datared!70, minimum size=0.6cm] at (-2, 1.6) {};
-  \node[right] at (-1.5, 1.6) {\small High churn risk};
-  
-  % Network with color-coded predictions
-  \node[circle, draw, fill=datagreen!30, minimum size=1cm] (1) at (2, 2) {1};
-  \node[circle, draw, fill=datared!70, minimum size=1cm] (393) at (4, 1) {393};
-  \node[circle, draw, fill=datagreen!30, minimum size=1cm] (2573) at (0.5, 1) {2573};
-  \node[circle, draw, fill=datagreen!30, minimum size=1cm] (4430) at (2, 3.5) {4430};
-  \node[circle, draw, fill=datared!70, minimum size=1cm] (926) at (5.5, 1.5) {926};
-  \node[circle, draw, fill=datared!70, minimum size=1cm] (1574) at (4, -0.5) {1574};
-  
-  \draw[thick] (1) -- (393);
-  \draw[thick] (1) -- (2573);
-  \draw[thick] (1) -- (4430);
-  \draw[thick] (393) -- (926);
-  \draw[thick] (393) -- (1574);
-\end{tikzpicture}
-\end{center}
-
-Customer 393 surrounded by churners → High risk!
-
-# Challenges in Network Learning
-
-## Challenge 1: Splitting Network Data
-
-\begin{alertblock}{Problem}
-Cannot randomly split networked data like traditional datasets!
-\end{alertblock}
-```{r split_problem, eval=FALSE}
-# WRONG: Random sampling breaks network structure
-set.seed(1001)
-sample_vertices <- sample(1:10, 6, replace = FALSE)
-train_graph <- induced_subgraph(g, V(g)[sample_vertices])
-test_graph <- induced_subgraph(g, V(g)[-sample_vertices])
-```
-
-\begin{block}{Issues with Random Split}
-\begin{itemize}
-  \item Breaks connections between train/test
-  \item Test nodes may be isolated
-  \item Cannot compute neighbor-based features
-  \item Invalidates relational predictions
-\end{itemize}
-\end{block}
-
-## Challenge 1: Visual Illustration
 
 \begin{center}
 \begin{tikzpicture}[scale=0.7]
-  % Original network
-  \node[font=\small] at (1, 4) {\textbf{Full Network}};
-  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (A) at (1, 3) {A};
-  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (B) at (0, 2) {B};
-  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (C) at (1, 1.5) {C};
-  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (D) at (2, 2) {D};
-  \node[circle, draw, fill=datagreen!30, minimum size=0.6cm] (G) at (1, 0) {G};
-  \draw (A) -- (B);
-  \draw (A) -- (C);
-  \draw (A) -- (D);
-  \draw (B) -- (C);
-  \draw (C) -- (D);
-  \draw (C) -- (G);
+  % Grid
+  \draw[step=0.8cm,gray,very thin] (0,0) grid (6.4,6.4);
+  \draw[thick,->] (0,0) -- (7,0) node[right] {\tiny tree\_depth};
+  \draw[thick,->] (0,0) -- (0,7) node[above] {\tiny min\_n};
   
-  % Training set
-  \node[font=\small] at (5, 4) {\textbf{Train (disconnected)}};
-  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (A2) at (4.5, 3) {A};
-  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (B2) at (5.5, 2) {B};
-  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (D2) at (5, 1) {D};
-  \node[circle, draw, fill=datagreen!30, minimum size=0.6cm] (G2) at (4, 1.5) {G};
-  \draw (A2) -- (B2);
+  % Arrow to tree
+  \draw[->,thick] (7,3.2) -- (9,3.2);
   
-  % Test set (isolated)
-  \node[font=\small] at (9, 4) {\textbf{Test (isolated)}};
-  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (C2) at (9, 2.5) {C};
+  % Simple tree representation
+  \draw[thick] (10,3.2) -- (9.5,4) node[above] {\tiny};
+  \draw[thick] (10,3.2) -- (9.5,2.4);
+  \draw[thick] (10,3.2) -- (10.5,4);
+  \draw[thick] (10,3.2) -- (10.5,2.4);
   
-  \draw[->, thick, datared] (2.5, 2) -- (3.5, 2);
-  \draw[->, thick, datared] (6.5, 2) -- (7.5, 2);
+  \node at (10,1.5) {\small Model};
 \end{tikzpicture}
 \end{center}
 
-Node C becomes isolated → Cannot compute neighbor features!
+\vspace{0.5em}
 
-## Solution: Temporal or Stratified Splits
+Each point on the grid represents a unique model to train and evaluate.
 
-\begin{block}{Better Splitting Strategies}
-\begin{enumerate}
-  \item \textbf{Temporal split}:
-  \begin{itemize}
-    \item Use time-stamped data
-    \item Train on early period, test on late period
-    \item Preserves network structure
-  \end{itemize}
-  
-  \item \textbf{Inductive split}:
-  \begin{itemize}
-    \item Keep full network for feature computation
-    \item Split only labels (hide some during training)
-    \item All nodes remain connected
-  \end{itemize}
-  
-  \item \textbf{Cross-validation}:
-  \begin{itemize}
-    \item Stratified k-fold by network communities
-    \item Preserve local structure in each fold
-  \end{itemize}
-\end{enumerate}
-\end{block}
+---
 
-## Challenge 2: Non-IID Data
-
-\begin{alertblock}{Violation of Independence Assumption}
-Observations in networks are \textbf{NOT} independent and identically distributed (IID)
-\end{alertblock}
-
-\vspace{1em}
-
-\begin{block}{Why This Matters}
-\begin{itemize}
-  \item Traditional ML assumes IID data
-  \item Connected nodes influence each other
-  \item Violates statistical assumptions
-  \item Standard confidence intervals invalid
-  \item P-values may be misleading
-\end{itemize}
-\end{block}
-
-\vspace{1em}
-
-\begin{exampleblock}{Consequence}
-If customer A churns, their friend B becomes more likely to churn → observations are \textcolor{datared}{\textbf{dependent}}
-\end{exampleblock}
-
-## Challenge 2: Statistical Dependency
-
-\begin{center}
-\begin{tikzpicture}[scale=1]
-  % Show dependency structure
-  \node[circle, draw, fill=datared!50, minimum size=1cm] (A) at (0, 0) {A};
-  \node[circle, draw, fill=dataorange!50, minimum size=1cm] (B) at (2, 0) {B};
-  \node[circle, draw, fill=dataorange!50, minimum size=1cm] (C) at (1, 1.7) {C};
-  
-  \draw[thick, <->, datared] (A) -- (B);
-  \draw[thick, <->, datared] (A) -- (C);
-  \draw[thick, <->, datared] (B) -- (C);
-  
-  \node[below] at (1, -1) {$P(B|\text{A churned}) \neq P(B)$};
-  \node[below] at (1, -1.5) {$P(C|\text{A churned, B churned}) \neq P(C)$};
-\end{tikzpicture}
-\end{center}
-
-\begin{block}{Implication}
-Must use network-aware methods:
-\begin{itemize}
-  \item Network cross-validation
-  \item Permutation tests respecting structure
-  \item Autocorrelation-adjusted standard errors
-\end{itemize}
-\end{block}
-
-## Challenge 3: Collective Inference
-
-\begin{block}{The Bootstrap Problem}
-\textbf{Scenario}: Predict multiple unknown labels simultaneously
-
-\textbf{Issue}: Predictions depend on each other!
-\end{block}
+## Grid Search with Many Models
 
 \vspace{1em}
 
 \begin{center}
-\begin{tikzpicture}[scale=1.1]
-  \node[circle, draw, fill=datablue!30, minimum size=0.8cm] (known1) at (0, 2) {1};
-  \node[circle, draw, fill=gray!30, minimum size=0.8cm] (unknown1) at (2, 2.5) {?};
-  \node[circle, draw, fill=gray!30, minimum size=0.8cm] (unknown2) at (2, 1.5) {?};
-  \node[circle, draw, fill=datablue!30, minimum size=0.8cm] (known2) at (4, 2) {0};
-  \node[circle, draw, fill=gray!30, minimum size=0.8cm] (unknown3) at (3, 0.5) {?};
-  
-  \draw[thick] (known1) -- (unknown1);
-  \draw[thick] (known1) -- (unknown2);
-  \draw[thick] (unknown1) -- (unknown2);
-  \draw[thick] (unknown2) -- (unknown3);
-  \draw[thick] (unknown1) -- (known2);
-  \draw[thick] (unknown3) -- (known2);
-\end{tikzpicture}
-\end{center}
-
-Unknown nodes influence each other's predictions!
-
-## Collective Inference Solution
-
-\begin{block}{Iterative Classification Algorithm (ICA)}
-\begin{enumerate}
-  \item Initialize predictions for all unknown nodes
-  \item \textbf{Repeat until convergence}:
-  \begin{enumerate}
-    \item For each unknown node:
-    \begin{itemize}
-      \item Compute features using current predictions
-      \item Update prediction
-    \end{itemize}
-    \item Check if predictions changed
-  \end{enumerate}
-  \item Return final predictions
-\end{enumerate}
-\end{block}
-
-\begin{alertblock}{Convergence}
-Usually converges in 3-10 iterations
-\end{alertblock}
-
-## Probabilistic Relational Neighbor Classifier
-
-\begin{block}{Handling Uncertainty}
-Use \textbf{probabilities} instead of hard labels during iteration
-\end{block}
-
-\begin{center}
-\begin{tikzpicture}[scale=0.9]
-  \node[circle, draw, minimum size=1.2cm] (center) at (0, 0) {?};
-  
-  \node[circle, draw, minimum size=0.8cm] (n1) at (-1.5, 1.5) {};
-  \node[above, font=\tiny] at (-1.5, 1.9) {P(C)=0.9};
-  \node[below, font=\tiny] at (-1.5, 1.1) {P(NC)=0.1};
-  
-  \node[circle, draw, minimum size=0.8cm] (n2) at (1.5, 1.5) {};
-  \node[above, font=\tiny] at (1.5, 1.9) {P(C)=0.2};
-  \node[below, font=\tiny] at (1.5, 1.1) {P(NC)=0.8};
-  
-  \node[circle, draw, minimum size=0.8cm] (n3) at (-1.5, -1.5) {};
-  \node[above, font=\tiny] at (-1.5, -1.9) {P(C)=0.4};
-  
-  \node[circle, draw, minimum size=0.8cm] (n4) at (0, -2) {};
-  \node[below, font=\tiny] at (0, -2.4) {P(C)=0.1};
-  
-  \node[circle, draw, minimum size=0.8cm] (n5) at (1.5, -1.5) {};
-  \node[below, font=\tiny] at (1.5, -1.9) {P(C)=0.8};
-  
-  \draw[thick] (center) -- (n1);
-  \draw[thick] (center) -- (n2);
-  \draw[thick] (center) -- (n3);
-  \draw[thick] (center) -- (n4);
-  \draw[thick] (center) -- (n5);
-\end{tikzpicture}
-\end{center}
-
-## PRNC Calculation
-
-\begin{block}{Formula}
-For unknown node $i$:
-$$P(\text{churn}_i) = \frac{\sum_{j \in \mathcal{N}(i)} P(\text{churn}_j)}{|\mathcal{N}(i)|}$$
-
-where $\mathcal{N}(i)$ = neighbors of node $i$
-\end{block}
-
-\begin{exampleblock}{Example Calculation}
-Neighbors' probabilities: 0.9, 0.2, 0.4, 0.1, 0.8
-
-$$P(\text{churn}) = \frac{0.9 + 0.2 + 0.4 + 0.1 + 0.8}{5} = \frac{2.4}{5} = 0.48$$
-
-$$P(\text{non-churn}) = 1 - 0.48 = 0.52$$
-
-\textbf{Prediction}: Slightly more likely to NOT churn
-\end{exampleblock}
-
-## PRNC in R
-```{r prnc_code, eval=FALSE}
-# Probabilistic RNC computation
-compute_prnc <- function(graph, churn_probs) {
-  n <- vcount(graph)
-  new_probs <- numeric(n)
-  
-  for (i in 1:n) {
-    neighbors <- neighbors(graph, i)
-    
-    if (length(neighbors) == 0) {
-      new_probs[i] <- churn_probs[i]  # Keep current
-    } else {
-      # Average neighbor probabilities
-      new_probs[i] <- mean(churn_probs[neighbors])
+\begin{tikzpicture}[scale=0.6]
+  % Dense grid with many colored points
+  \foreach \x in {0.5,1.0,...,6.5}
+    \foreach \y in {0.5,1.0,...,6.5} {
+      \pgfmathsetmacro{\mycolor}{int(random(0,4))}
+      \ifnum\mycolor=0 \fill[datablue] (\x,\y) circle (2pt);\fi
+      \ifnum\mycolor=1 \fill[datagreen] (\x,\y) circle (2pt);\fi
+      \ifnum\mycolor=2 \fill[datared] (\x,\y) circle (2pt);\fi
+      \ifnum\mycolor=3 \fill[dataorange] (\x,\y) circle (2pt);\fi
+      \ifnum\mycolor=4 \fill[datapurple] (\x,\y) circle (2pt);\fi
     }
-  }
   
-  return(new_probs)
-}
-```
-
-## PRNC Example
-```{r prnc_example2, eval=FALSE}
-# Example: 5 neighbors with different probabilities
-neighbor_churn_probs <- c(0.9, 0.2, 0.1, 0.4, 0.8)
-
-# Calculate probability of churn
-prob_churn <- mean(neighbor_churn_probs)
-print(prob_churn)
-
-# Calculate probability of non-churn
-prob_non_churn <- 1 - prob_churn
-print(prob_non_churn)
-```
-
-\begin{block}{Output}
-\texttt{[1] 0.48} \quad (churn probability)
-
-\texttt{[1] 0.52} \quad (non-churn probability)
-\end{block}
-
-\textcolor{datagreen}{\textbf{Prediction}}: More likely to stay (52\% vs 48\%)
-
-# Introduction to Homophily
-
-## What is Homophily?
-
-\begin{block}{Definition}
-\textbf{Homophily}: The tendency for similar individuals to form connections
-\end{block}
+  \draw[thick,->] (0,0) -- (7.5,0) node[right] {\small tree\_depth};
+  \draw[thick,->] (0,0) -- (0,7.5) node[above] {\small min\_n};
+\end{tikzpicture}
+\end{center}
 
 \vspace{0.5em}
 
-**"Birds of a feather flock together"**
+Different colors represent different performance levels across the hyperparameter space.
+
+---
+
+## Finding the Optimal Point
+
+\vspace{1em}
+
+\begin{center}
+\begin{tikzpicture}[scale=0.6]
+  % Dense grid
+  \foreach \x in {0.5,1.0,...,6.5}
+    \foreach \y in {0.5,1.0,...,6.5} {
+      \pgfmathsetmacro{\mycolor}{int(random(0,4))}
+      \ifnum\mycolor=0 \fill[datablue] (\x,\y) circle (2pt);\fi
+      \ifnum\mycolor=1 \fill[datagreen] (\x,\y) circle (2pt);\fi
+      \ifnum\mycolor=2 \fill[datared] (\x,\y) circle (2pt);\fi
+      \ifnum\mycolor=3 \fill[dataorange] (\x,\y) circle (2pt);\fi
+      \ifnum\mycolor=4 \fill[datapurple] (\x,\y) circle (2pt);\fi
+    }
+  
+  % Highlight best point
+  \draw[datacyan,ultra thick] (4.5,3.5) circle (8pt);
+  \draw[datacyan,ultra thick] (4.5,3.5) circle (10pt);
+  \draw[datacyan,ultra thick] (4.5,3.5) circle (12pt);
+  
+  \draw[thick,->] (0,0) -- (7.5,0) node[right] {\small tree\_depth};
+  \draw[thick,->] (0,0) -- (0,7.5) node[above] {\small min\_n};
+\end{tikzpicture}
+\end{center}
 
 \vspace{0.5em}
 
-Individuals with shared characteristics are more likely to connect:
+The goal is to identify the hyperparameter combination that maximizes performance.
 
-- Common hobbies or interests
-- Similar demographics
-- Shared technology preferences
-- Same geographic origin
+---
 
-## Measuring Homophily
+## Tuning with tidymodels
 
-Homophily depends on two key factors:
+### Step 1: Create Placeholders with `tune()`
 
-\begin{enumerate}
-  \item \textbf{Connectedness between nodes with SAME label}
-  \begin{itemize}
-    \item How often do similar nodes connect?
-  \end{itemize}
-  
-  \vspace{0.5em}
-  
-  \item \textbf{Connectedness between nodes with OPPOSITE labels}
-  \begin{itemize}
-    \item How often do dissimilar nodes connect?
-  \end{itemize}
-\end{enumerate}
+\vspace{0.5em}
+```{r eval=FALSE}
+# Mark hyperparameters for tuning
+spec_untuned <- decision_tree(
+  min_n = tune(),
+  tree_depth = tune()
+) %>%
+  set_engine("rpart") %>%
+  set_mode("classification")
+```
 
-\vspace{1em}
+\vspace{0.5em}
 
-\begin{alertblock}{Key Question}
-Are labels randomly distributed, or is there structural organization?
-\end{alertblock}
+\scriptsize
+```
+Decision Tree Model Specification (classification)
 
-## Why Homophily Matters for Predictive Analytics
+Main Arguments:
+  tree_depth = tune()
+  min_n = tune()
+```
 
-\begin{block}{Predictive Value}
-If a network exhibits homophily:
-\begin{itemize}
-  \item Network structure contains information
-  \item Neighbor labels help predict unknown labels
-  \item Relational classifiers can be effective
-\end{itemize}
-\end{block}
+---
+
+## The `tune()` Function
 
 \vspace{1em}
 
-\begin{exampleblock}{Applications}
-\begin{itemize}
-  \item Customer churn prediction
-  \item Fraud detection
-  \item Product recommendation
-  \item Technology preference inference
-\end{itemize}
-\end{exampleblock}
+**Purpose:** Labels parameters for tuning
 
-# Building the Data Scientist Network
+\vspace{1em}
 
-## Creating Node Data
-```{r create_nodes}
-# Define data scientists and their technology preferences
-names <- c('A', 'B', 'C', 'D', 'E', 
-           'F', 'G', 'H', 'I', 'J')
+**Effect:** Tells `tidymodels` which hyperparameters should be optimized rather than fixed
 
-tech <- c(rep('R', 6), rep('P', 4))
+\vspace{1em}
 
-# Create node attribute data frame
-DataScientists <- data.frame(
-  name = names,
-  technology = tech
+The rest of the model specification follows the usual pattern:
+- Set the engine
+- Set the mode
+- Later, fit with data
+
+---
+
+## Step 2: Create a Tuning Grid
+
+### Using `grid_regular()`
+
+\vspace{0.5em}
+```{r eval=FALSE}
+# Create a regular grid of hyperparameter values
+tree_grid <- grid_regular(
+  parameters(spec_untuned),
+  levels = 3
+)
+
+print(tree_grid)
+```
+
+\vspace{0.5em}
+
+\scriptsize
+```
+# A tibble: 9 x 2
+  min_n tree_depth
+  <int>      <int>
+1     2          1
+2    21          1
+3    40          1
+4     2          8
+5    21          8
+6    40          8
+7     2         15
+8    21         15
+9    40         15
+```
+
+---
+
+## Understanding `grid_regular()`
+
+\vspace{1em}
+
+**Function:** Creates a complete factorial grid
+
+\vspace{0.5em}
+
+**Arguments:**
+
+- `parameters(spec_untuned)`: Extracts tunable parameters from model spec
+- `levels = 3`: Number of values to try for each hyperparameter
+
+\vspace{1em}
+
+With 2 hyperparameters and 3 levels each: $3 \times 3 = 9$ combinations
+
+---
+
+## The Tuning Grid
+
+\vspace{1em}
+```{r eval=FALSE}
+tree_grid
+```
+
+\vspace{0.5em}
+
+\small
+\begin{tabular}{rr}
+\toprule
+min\_n & tree\_depth \\
+\midrule
+2 & 1 \\
+21 & 1 \\
+40 & 1 \\
+2 & 8 \\
+21 & 8 \\
+40 & 8 \\
+2 & 15 \\
+21 & 15 \\
+40 & 15 \\
+\bottomrule
+\end{tabular}
+
+\vspace{1em}
+
+Each row represents one model configuration to evaluate.
+
+---
+
+## Step 3: Tune the Grid
+
+### Using `tune_grid()`
+
+\vspace{0.5em}
+
+\small
+```{r eval=FALSE}
+# Tune the model across all grid combinations
+tune_results <- tune_grid(
+  spec_untuned,
+  outcome ~ .,
+  resamples = my_folds,
+  grid = tree_grid,
+  metrics = metric_set(accuracy)
 )
 ```
 
+\vspace{1em}
+
+**What happens:**
+
+1. Builds a model for every grid point
+2. Evaluates each model using cross-validation
+3. Records performance metrics for each combination
+
+---
+
+## Arguments to `tune_grid()`
+
+\vspace{0.5em}
+```{r eval=FALSE}
+tune_grid(
+  spec_untuned,          # Untuned model specification
+  outcome ~ .,           # Model formula
+  resamples = my_folds,  # CV folds
+  grid = tree_grid,      # Hyperparameter grid
+  metrics = metric_set(accuracy)  # Evaluation metrics
+)
+```
+
+\vspace{1em}
+
+**Computational cost:** Fits $\text{models} \times \text{folds}$ total models
+
+Example: 9 grid points × 5 folds = 45 models trained
+
+---
+
+---
+
+## Visualizing Tuning Results
+
+\vspace{0.5em}
+```{r eval=FALSE}
+# Automatically plot performance across grid
+autoplot(tune_results)
+```
+
+\vspace{1em}
+
 \begin{center}
-\begin{tabular}{ll}
+\begin{tikzpicture}[scale=1.0]
+  % Axes
+  \draw[->] (0,0) -- (8,0) node[right] {\small Cost-Complexity Parameter};
+  \draw[->] (0,0) -- (0,6) node[above] {\small Accuracy};
+  
+  % Grid lines
+  \foreach \y in {1,2,3,4,5}
+    \draw[gray,very thin] (0,\y) -- (7.5,\y);
+  
+  % Multiple curves for different min_n values
+  \draw[thick,datablue] (0.5,2.5) .. controls (2,5.2) and (4,5.4) .. (7,2.8);
+  \draw[thick,datagreen] (0.5,2.8) .. controls (2,5.0) and (4,5.2) .. (7,3.2);
+  \draw[thick,datared] (0.5,3.0) .. controls (2,4.8) and (4,4.9) .. (7,3.5);
+  
+  % Legend
+  \node[right] at (8,5) {\tiny min\_n = 2};
+  \draw[thick,datablue] (7.5,5) -- (8,5);
+  
+  \node[right] at (8,4.5) {\tiny min\_n = 21};
+  \draw[thick,datagreen] (7.5,4.5) -- (8,4.5);
+  
+  \node[right] at (8,4.0) {\tiny min\_n = 40};
+  \draw[thick,datared] (7.5,4.0) -- (8,4.0);
+  
+  % Axis labels
+  \node at (4,-0.7) {\small 1e-08 \hspace{2cm} 1e-05 \hspace{2cm} 1e-02};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+Shows how performance changes with different hyperparameter values.
+
+---
+
+## Understanding the Tuning Plot
+
+\vspace{1em}
+
+\begin{center}
+\begin{tikzpicture}[scale=1.0]
+  % Axes
+  \draw[->] (0,0) -- (8,0) node[right] {\small Cost-Complexity Parameter};
+  \draw[->] (0,0) -- (0,6) node[above] {\small Accuracy};
+  
+  % Grid
+  \foreach \y in {1,2,3,4,5}
+    \draw[gray,very thin] (0,\y) -- (7.5,\y);
+    
+  % Curves with highlighted peak
+  \draw[thick,datablue,line width=1.5pt] (0.5,2.5) .. controls (2,5.2) and (4,5.4) .. (7,2.8);
+  \draw[thick,datagreen] (0.5,2.8) .. controls (2,5.0) and (4,5.2) .. (7,3.2);
+  \draw[thick,datared] (0.5,3.0) .. controls (2,4.8) and (4,4.9) .. (7,3.5);
+  
+  % Highlight best point
+  \fill[datacyan] (4,5.4) circle (4pt);
+  \draw[datacyan,ultra thick] (4,5.4) circle (6pt);
+  
+  % Annotations
+  \draw[<-,thick] (4,5.4) -- (5,5.8) node[right] {\small \textbf{Best}};
+  
+  % Axis labels
+  \node at (4,-0.7) {\small 1e-08 \hspace{2cm} 1e-05 \hspace{2cm} 1e-02};
+  \node at (9,0.5) {\tiny min\_n = 2};
+  \node at (9,0) {\tiny min\_n = 21};
+  \node at (9,-0.5) {\tiny min\_n = 40};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+- X-axis: Cost-complexity parameter (log scale)
+- Y-axis: Accuracy  
+- Different lines: Different values of minimal node size
+- Goal: Find the peak accuracy
+
+---
+
+## ROC Curve Visualization
+
+\vspace{1em}
+
+\begin{center}
+\begin{tikzpicture}[scale=0.9]
+  % Axes
+  \draw[->] (0,0) -- (6,0) node[right] {\small 1 - Specificity (FPR)};
+  \draw[->] (0,0) -- (0,6) node[above] {\small Sensitivity (TPR)};
+  
+  % Grid
+  \foreach \x in {1,2,3,4,5}
+    \draw[gray,very thin] (\x,0) -- (\x,5.5);
+  \foreach \y in {1,2,3,4,5}
+    \draw[gray,very thin] (0,\y) -- (5.5,\y);
+  
+  % Diagonal reference line
+  \draw[dashed,gray,thick] (0,0) -- (5.5,5.5) node[pos=0.7,above,sloped] {\tiny Random};
+  
+  % ROC curve
+  \draw[thick,datablue,line width=1.5pt] (0,0) .. controls (0.3,3.5) and (1.5,5.3) .. (5.5,5.5);
+  
+  % Area shading
+  \fill[datablue,opacity=0.1] (0,0) .. controls (0.3,3.5) and (1.5,5.3) .. (5.5,5.5) -- (5.5,0) -- cycle;
+  
+  % Axis ticks
+  \foreach \x in {0,0.25,0.5,0.75,1.0}
+    \node at (\x*5.5,-0.3) {\tiny \x};
+  \foreach \y in {0,0.25,0.5,0.75,1.0}
+    \node at (-0.3,\y*5.5) {\tiny \y};
+    
+  % AUC label
+  \node at (3,2) {\small AUC = 0.87};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+The curve shows the trade-off between sensitivity and specificity across all thresholds.
+
+---
+
+## Interpreting ROC Curves
+
+\vspace{1em}
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8]
+  % Axes
+  \draw[->] (0,0) -- (6,0) node[right] {\scriptsize False Positive Rate};
+  \draw[->] (0,0) -- (0,6) node[above] {\scriptsize True Positive Rate};
+  
+  % Grid
+  \foreach \x in {1,2,3,4,5}
+    \draw[gray,very thin] (\x,0) -- (\x,5.5);
+  \foreach \y in {1,2,3,4,5}
+    \draw[gray,very thin] (0,\y) -- (5.5,\y);
+  
+  % Perfect classifier
+  \draw[thick,datagreen,line width=1pt] (0,0) -- (0,5.5) -- (5.5,5.5);
+  \node[right] at (6,5.5) {\tiny \color{datagreen} Perfect (AUC=1.0)};
+  
+  % Better model
+  \draw[thick,datablue,line width=1pt] (0,0) .. controls (0.3,3.5) and (1.5,5.3) .. (5.5,5.5);
+  \node[right] at (6,4) {\tiny \color{datablue} Better (AUC=0.9)};
+  
+  % Random classifier
+  \draw[dashed,gray,thick] (0,0) -- (5.5,5.5);
+  \node[right] at (6,2.75) {\tiny \color{gray} Random (AUC=0.5)};
+  
+  % Poor model
+  \draw[thick,datared,line width=1pt] (0,0) .. controls (2,1.5) and (4,2.5) .. (5.5,5.5);
+  \node[right] at (6,1.5) {\tiny \color{datared} Poor (AUC=0.6)};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+Better models have curves closer to the top-left corner with higher AUC values.
+
+---
+
+## The ROC Output
+
+\vspace{0.5em}
+```{r eval=FALSE}
+# Plot the ROC curve
+autoplot(roc)
+```
+
+\vspace{0.5em}
+
+\begin{center}
+\begin{tikzpicture}[scale=1.0]
+  % Axes with grid
+  \draw[->] (0,0) -- (7,0) node[right] {\small 1 - specificity};
+  \draw[->] (0,0) -- (0,6) node[above] {\small sensitivity};
+  
+  % Background grid
+  \foreach \x in {0,1.4,2.8,4.2,5.6}
+    \draw[gray,very thin] (\x,0) -- (\x,5.5);
+  \foreach \y in {0,1.4,2.8,4.2,5.6}
+    \draw[gray,very thin] (0,\y) -- (6.5,\y);
+  
+  % ROC curve
+  \draw[thick,datablue,line width=2pt] (0,0.3) .. controls (0.5,4.2) and (2.0,5.4) .. (6.5,5.6);
+  
+  % Reference line
+  \draw[dotted,gray,thick] (0,0) -- (6.5,6.5);
+  
+  % Tick labels
+  \node at (0,-0.4) {\tiny 0.00};
+  \node at (1.4,-0.4) {\tiny 0.25};
+  \node at (2.8,-0.4) {\tiny 0.50};
+  \node at (4.2,-0.4) {\tiny 0.75};
+  \node at (5.6,-0.4) {\tiny 1.00};
+  
+  \node at (-0.5,0) {\tiny 0.00};
+  \node at (-0.5,1.4) {\tiny 0.25};
+  \node at (-0.5,2.8) {\tiny 0.50};
+  \node at (-0.5,4.2) {\tiny 0.75};
+  \node at (-0.5,5.6) {\tiny 1.00};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+This visualization is automatically generated by `autoplot()` from the `roc_curve()` output.
+
+---
+
+
+---
+
+## Understanding the Tuning Plot
+
+\vspace{1em}
+
+**Key elements of the tuning visualization:**
+
+\vspace{0.5em}
+
+- **X-axis:** Cost-complexity parameter (displayed on log scale)
+- **Y-axis:** Model accuracy
+- **Multiple lines:** Each represents a different `min_n` value
+- **Goal:** Identify the hyperparameter combination with peak accuracy
+
+\vspace{1em}
+
+\begin{center}
+\begin{tikzpicture}[scale=1.0]
+  % Axes
+  \draw[->] (0,0) -- (8,0) node[right] {\small Cost-Complexity Parameter};
+  \draw[->] (0,0) -- (0,6) node[above] {\small Accuracy};
+  
+  % Grid
+  \foreach \y in {0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5}
+    \draw[gray,very thin] (0,\y) -- (7.5,\y);
+    
+  % Curves representing different min_n values
+  \draw[thick,datablue,line width=1.2pt] (0.5,4.6) .. controls (2,5.3) and (4,5.35) .. (7,4.5);
+  \draw[thick,datagreen,line width=1.2pt] (0.5,4.65) .. controls (2,5.15) and (4,5.2) .. (7,4.65);
+  \draw[thick,dataorange,line width=1.2pt] (0.5,4.7) .. controls (2,4.95) and (4,5.0) .. (7,4.8);
+  \draw[thick,datared,line width=1.2pt] (0.5,4.55) .. controls (2,4.75) and (4,4.82) .. (7,4.6);
+  \draw[thick,datapurple,line width=1.2pt] (0.5,4.5) .. controls (2,4.65) and (4,4.7) .. (7,4.55);
+  
+  % Highlight optimal point
+  \fill[datacyan] (4,5.35) circle (4pt);
+  \draw[datacyan,ultra thick] (4,5.35) circle (6pt);
+  \draw[datacyan,ultra thick] (4,5.35) circle (8pt);
+  
+  % Annotation for best point
+  \draw[->,thick] (4.5,5.35) -- (5.5,5.7) node[right] {\small \textbf{Optimal}};
+  
+  % Legend
+  \node[right,datablue] at (8.2,5.5) {\scriptsize min\_n = 2};
+  \node[right,datagreen] at (8.2,5.0) {\scriptsize min\_n = 11};
+  \node[right,dataorange] at (8.2,4.5) {\scriptsize min\_n = 21};
+  \node[right,datared] at (8.2,4.0) {\scriptsize min\_n = 30};
+  \node[right,datapurple] at (8.2,3.5) {\scriptsize min\_n = 40};
+  
+  % X-axis labels (log scale)
+  \node at (1,-0.5) {\tiny 1e-08};
+  \node at (4,-0.5) {\tiny 1e-05};
+  \node at (7,-0.5) {\tiny 1e-02};
+  
+  % Y-axis labels
+  \node at (-0.5,4.5) {\tiny 0.89};
+  \node at (-0.5,5.0) {\tiny 0.93};
+  \node at (-0.5,5.5) {\tiny 0.935};
+\end{tikzpicture}
+\end{center}
+
+---
+
+---
+
+## Step 4: Select Best Parameters
+
+### Using `select_best()`
+
+\vspace{0.5em}
+```{r eval=FALSE}
+# Extract the hyperparameters with best performance
+final_params <- select_best(tune_results)
+
+print(final_params)
+```
+
+\vspace{0.5em}
+
+\scriptsize
+```
+# A tibble: 1 x 3
+  min_n tree_depth .config
+  <int>      <int> <chr>  
+1     2          8 Model4
+```
+
+\vspace{1em}
+
+**Result:** The combination that achieved the highest accuracy during tuning.
+
+---
+
+## Finalizing the Model
+
+### Using `finalize_model()`
+
+\vspace{0.5em}
+```{r eval=FALSE}
+# Plug best parameters into the specification
+best_spec <- finalize_model(spec_untuned, 
+                            final_params)
+
+print(best_spec)
+```
+
+\vspace{0.5em}
+
+\scriptsize
+```
+Decision Tree Model Specification (classification)
+
+Main Arguments:
+  tree_depth = 8
+  min_n = 2
+
+Computational engine: rpart
+```
+
+---
+
+## From Tuned Spec to Final Model
+
+\vspace{0.5em}
+```{r eval=FALSE}
+# Train final model on full training set
+final_model <- best_spec %>%
+  fit(outcome ~ ., data = train_data)
+
+# Evaluate on test set
+test_predictions <- predict(final_model, 
+                             new_data = test_data)
+
+# Calculate final performance
+accuracy(test_predictions, truth = outcome)
+```
+
+\vspace{1em}
+
+This is the model you'd deploy after confirming good test set performance.
+
+---
+
+## Complete Tuning Workflow
+
+\vspace{0.5em}
+
+\small
+1. Create model spec with `tune()` placeholders
+2. Generate hyperparameter grid with `grid_regular()`
+3. Tune models with `tune_grid()` using cross-validation
+4. Visualize results with `autoplot()`
+5. Select best parameters with `select_best()`
+6. Finalize model spec with `finalize_model()`
+7. Train final model on full training data
+8. Evaluate on test set
+
+\vspace{1em}
+
+This systematic approach prevents overfitting and finds optimal configurations.
+
+---
+
+## Let's Tune!
+
+\vspace{3em}
+
+\begin{center}
+\Huge{\textbf{Let's tune!}}
+\end{center}
+
+---
+
+## More Model Measures
+
+\vspace{2em}
+
+\begin{center}
+\Large{\textbf{More model measures}}
+\end{center}
+
+\vspace{2em}
+
+
+
+---
+
+## Limitations of Accuracy
+
+\vspace{1em}
+
+**Example:** A "naive" model that always predicts "no"
+
+\vspace{1em}
+
+In an imbalanced dataset with 98\% negative samples:
+
+- Naive accuracy: 98\%
+- Actual value: The model learns nothing!
+
+\vspace{1em}
+
+**Problem:** Accuracy alone can be misleading when classes are imbalanced.
+
+\vspace{1em}
+
+**Solution:** Use additional metrics that capture different aspects of performance.
+
+---
+
+## The Confusion Matrix
+
+\vspace{1em}
+
+\begin{center}
+\begin{tabular}{cc|cc}
+& & \multicolumn{2}{c}{\textbf{Truth}} \\
+& & Yes & No \\
+\hline
+\multirow{2}{*}{\textbf{Prediction}} 
+& Yes & TP & FP \\
+& No & FN & TN \\
+\end{tabular}
+\end{center}
+
+\vspace{1em}
+
+- **TP (True Positive):** Correctly predicted positive
+- **TN (True Negative):** Correctly predicted negative
+- **FP (False Positive):** Incorrectly predicted positive
+- **FN (False Negative):** Incorrectly predicted negative
+
+---
+
+## Sensitivity (True Positive Rate)
+
+\vspace{1em}
+
+**Definition:** Proportion of actual positives correctly classified
+
+\vspace{1em}
+
+$$\text{Sensitivity} = \frac{TP}{TP + FN}$$
+
+\vspace{1em}
+
+\begin{center}
+\begin{tabular}{cc|cc}
+& & \multicolumn{2}{c}{\textbf{Truth}} \\
+& & \color{datagreen}{\textbf{Yes}} & No \\
+\hline
+\multirow{2}{*}{\textbf{Prediction}} 
+& Yes & \color{datagreen}{\textbf{TP}} & FP \\
+& No & \color{datagreen}{\textbf{FN}} & TN \\
+\end{tabular}
+\end{center}
+
+\vspace{1em}
+
+**Also known as:** Recall
+
+---
+
+## Specificity (True Negative Rate)
+
+\vspace{1em}
+
+**Definition:** Proportion of actual negatives correctly classified
+
+\vspace{1em}
+
+$$\text{Specificity} = \frac{TN}{TN + FP}$$
+
+\vspace{1em}
+
+\begin{center}
+\begin{tabular}{cc|cc}
+& & \multicolumn{2}{c}{\textbf{Truth}} \\
+& & Yes & \color{datablue}{\textbf{No}} \\
+\hline
+\multirow{2}{*}{\textbf{Prediction}} 
+& Yes & TP & \color{datablue}{\textbf{FP}} \\
+& No & FN & \color{datablue}{\textbf{TN}} \\
+\end{tabular}
+\end{center}
+
+---
+
+## Threshold Effects
+
+\vspace{0.5em}
+
+\small
+\begin{center}
+\begin{tabular}{c|ccc}
 \toprule
-\textbf{Node} & \textbf{Technology} \\
+\textbf{Pred Prob} & \textbf{T = 0.3} & \textbf{T = 0.5} & \textbf{T = 0.75} \\
 \midrule
-A-F & R \\
-G-J & Python \\
+0.8 & yes & yes & yes \\
+0.5 & yes & yes & no \\
+0.7 & yes & yes & no \\
+0.6 & yes & yes & no \\
+0.3 & yes & no & no \\
+0.5 & yes & yes & no \\
+0.3 & yes & no & no \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-## Creating Edge Data
-```{r create_edges}
-# Define collaboration connections
-DataScienceNetwork <- data.frame(
-  from = c('A','A','A','A','B','B','C','C','D',
-           'D','D','E','F','F','G','G','H','H','I'),
-  to = c('B','C','D','E','C','D','D','G','E',
-         'F','G','F','G','I','I','H','I','J','J'),
-  label = c(rep('rr',7), 'rp', 'rr', 'rr', 
-            'rp', 'rr', 'rp', 'rp', rep('pp',5))
-)
-```
-
-**Edge labels:**
-
-- `rr`: R to R connection
-- `pp`: Python to Python connection  
-- `rp`: R to Python connection (cross-label)
-
-## Building the Graph Object
-```{r build_graph}
-# Create undirected graph
-g <- graph_from_data_frame(DataScienceNetwork, 
-                           directed = FALSE)
-
-# Add technology as node attribute
-V(g)$label <- as.character(DataScientists$technology)
-
-# Assign colors based on technology
-V(g)$color <- V(g)$label
-V(g)$color <- gsub('R', "blue", V(g)$color)
-V(g)$color <- gsub('P', "green", V(g)$color)
-```
-
-\begin{alertblock}{Result}
-Network with 10 nodes and 19 edges, labeled by technology preference
-\end{alertblock}
-
-## Coloring Edges by Type
-```{r color_edges}
-# Color edges based on connection type
-E(g)$color <- E(g)$label
-E(g)$color <- gsub('rp', 'red', E(g)$color)
-E(g)$color <- gsub('rr', 'blue', E(g)$color)
-E(g)$color <- gsub('pp', 'green', E(g)$color)
-```
-
-**Color scheme:**
-
-- \textcolor{blue}{Blue edges}: R-to-R (homophilic)
-- \textcolor{green}{Green edges}: Python-to-Python (homophilic)
-- \textcolor{red}{Red edges}: Cross-technology (heterophilic)
-
-## Visualizing the Network
-```{r viz_network, fig.height=5, echo=FALSE}
-# Custom layout for better visualization
-pos <- cbind(
-  c(2, 1, 1.5, 2.5, 4, 4.5, 3, 3.5, 5, 6),
-  c(10.5, 9.5, 8, 8.5, 9, 7.5, 6, 4.5, 5.5, 4)
-)
-
-plot(g, 
-     edge.label = NA,
-     vertex.label.color = 'white',
-     layout = pos,
-     vertex.size = 25,
-     vertex.label.cex = 1.2,
-     edge.width = 2)
-```
-
-# Quantifying Network Structure
-
-## Counting Edge Types
-```{r count_edges, results='asis'}
-# Count edges by type
-edge_rr <- sum(E(g)$label == 'rr')
-edge_pp <- sum(E(g)$label == 'pp')
-edge_rp <- sum(E(g)$label == 'rp')
-
-# Create summary table
-edge_counts <- data.frame(
-  Type = c("R-to-R", "Python-to-Python", "Cross-label"),
-  Count = c(edge_rr, edge_pp, edge_rp)
-)
-
-kable(edge_counts, format = "latex", booktabs = TRUE)
-```
-
 \vspace{1em}
 
-**Observations:**
+Different thresholds produce different confusion matrices and performance metrics.
 
-- Most edges connect same-technology users
-- Few cross-technology connections
-- Suggests homophilic structure
+---
 
-## Network Connectance
-```{r connectance}
-# Calculate network properties
-nodes <- vcount(g)
-edges <- ecount(g)
+## ROC Curve
 
-# Compute connectance
-p <- 2 * edges / (nodes * (nodes - 1))
-```
-
-\begin{block}{Formula}
-$$p = \frac{2 \cdot \text{edges}}{\text{nodes} \cdot (\text{nodes} - 1)}$$
-\end{block}
-
-**Result:** $p = `r round(p, 3)`$
+**Receiver Operating Characteristic Curve**
 
 \vspace{0.5em}
 
-This represents the proportion of possible edges that actually exist (network density).
-
-## Interpreting Connectance
-```{r interpret_connectance, echo=FALSE}
-max_edges <- nodes * (nodes - 1) / 2
-```
-
-\begin{block}{Network Density Analysis}
-\begin{itemize}
-  \item Total possible edges: `r max_edges`
-  \item Observed edges: `r edges`
-  \item Connectance: `r round(p, 3)` (`r round(p*100, 1)`\%)
-\end{itemize}
-\end{block}
-
-\vspace{1em}
-
-**Interpretation:**
-
-- $p < 0.2$: Sparse network
-- $0.2 \leq p \leq 0.5$: Moderate density
-- $p > 0.5$: Dense network
-
-This network is **moderately dense**.
-
-# Dyadicity Analysis
-
-## What is Dyadicity?
-
-\begin{block}{Definition}
-\textbf{Dyadicity}: Connectedness between nodes with the \textbf{same label} compared to random expectation
-\end{block}
-
-\vspace{1em}
-
-\begin{block}{Formula}
-$$D = \frac{\text{observed same-label edges}}{\text{expected same-label edges}}$$
-\end{block}
-
-\vspace{1em}
-
-**Interpretation:**
-
-- $D > 1$: Dyadic (homophilic clustering)
-- $D \approx 1$: Random mixing
-- $D < 1$: Anti-dyadic (avoidance)
-
-## Expected Same-Label Edges
-
-Under random mixing, expected number of same-label edges:
-
-$$\mathbb{E}[\text{same-label edges}] = \binom{n_g}{2} \cdot p = \frac{n_g(n_g-1)}{2} \cdot p$$
-
-where:
-
-- $n_g$ = number of nodes with label $g$
-- $p$ = network connectance
-
-\vspace{1em}
-
-\begin{exampleblock}{Example: R Users}
-- $n_R = 6$ R users
-- $p = `r round(p, 3)`$
-- Expected R-to-R edges: $\frac{6 \times 5}{2} \times `r round(p, 3)` = `r round(6*5/2*p, 2)`$
-\end{exampleblock}
-
-## Computing Dyadicity for R Users
-```{r dyadicity_r}
-# Number of R users
-n_R <- sum(DataScientists$technology == 'R')
-
-# Expected R-to-R edges
-expectedREdges <- (n_R * (n_R - 1) / 2) * p
-
-# Observed R-to-R edges
-# edge_rr already computed
-
-# Calculate dyadicity
-dyadicityR <- edge_rr / expectedREdges
-```
-
-\begin{block}{Results}
-\begin{itemize}
-  \item Expected R-to-R edges: `r round(expectedREdges, 2)`
-  \item Observed R-to-R edges: `r edge_rr`
-  \item Dyadicity: $D_R = `r round(dyadicityR, 3)`$
-\end{itemize}
-\end{block}
-
-## Computing Dyadicity for Python Users
-```{r dyadicity_python}
-# Number of Python users
-n_P <- sum(DataScientists$technology == 'P')
-
-# Expected Python-to-Python edges
-expectedPEdges <- (n_P * (n_P - 1) / 2) * p
-
-# Calculate dyadicity
-dyadicityP <- edge_pp / expectedPEdges
-```
-
-\begin{block}{Results}
-\begin{itemize}
-  \item Expected Python-to-Python edges: `r round(expectedPEdges, 2)`
-  \item Observed Python-to-Python edges: `r edge_pp`
-  \item Dyadicity: $D_P = `r round(dyadicityP, 3)`$
-\end{itemize}
-\end{block}
-
-## Interpreting Dyadicity Results
-```{r dyadicity_summary, results='asis'}
-dyad_summary <- data.frame(
-  Group = c("R Users", "Python Users"),
-  Dyadicity = round(c(dyadicityR, dyadicityP), 3),
-  Interpretation = c(
-    ifelse(dyadicityR > 1.2, "Strong homophily",
-           ifelse(dyadicityR > 1, "Moderate homophily", 
-                  "Random/Anti-dyadic")),
-    ifelse(dyadicityP > 1.2, "Strong homophily",
-           ifelse(dyadicityP > 1, "Moderate homophily", 
-                  "Random/Anti-dyadic"))
-  )
-)
-
-kable(dyad_summary, format = "latex", booktabs = TRUE)
-```
-
-\vspace{1em}
-
-\begin{alertblock}{Conclusion}
-Both groups show homophilic behavior ($D > 1$), with Python users clustering more strongly.
-\end{alertblock}
-
-## Visual Comparison: Dyadicity Types
-
-\begin{center}
-\begin{tabular}{ccc}
-\textbf{Dyadic} & \textbf{Random} & \textbf{Anti-Dyadic} \\
-$D > 1$ & $D \approx 1$ & $D < 1$ \\
-Clustering & No pattern & Avoidance \\
-\end{tabular}
-\end{center}
-
-\vspace{1em}
-
-**Our network:** Shows dyadic behavior (clustering of similar nodes)
-
-# Heterophilicity Analysis
-
-## What is Heterophilicity?
-
-\begin{block}{Definition}
-\textbf{Heterophilicity}: Connectedness between nodes with \textbf{different labels} compared to random expectation
-\end{block}
-
-\vspace{1em}
-
-\begin{block}{Formula}
-$$H = \frac{\text{observed cross-label edges}}{\text{expected cross-label edges}}$$
-\end{block}
-
-\vspace{1em}
-
-**Interpretation:**
-
-- $H > 1$: Heterophilic (attraction to different)
-- $H \approx 1$: Random mixing
-- $H < 1$: Heterophobic (avoidance of different)
-
-## Expected Cross-Label Edges
-
-Under random mixing, expected cross-label edges:
-
-$$\mathbb{E}[\text{cross-label edges}] = n_1 \cdot n_2 \cdot p$$
-
-where:
-
-- $n_1$ = number of nodes with label 1
-- $n_2$ = number of nodes with label 2
-- $p$ = network connectance
-
-\vspace{1em}
-
-\begin{exampleblock}{Example: R and Python Users}
-- $n_R = 6$, $n_P = 4$
-- $p =$ `r round(p, 3)`
-- Expected cross-label edges: $6 \times 4 \times $`r round(p, 3)` $=$ `r round(6*4*p, 2)`
-\end{exampleblock}
-
-## Computing Heterophilicity
-```{r heterophilicity}
-# Expected cross-label edges
-expectedCrossEdges <- n_R * n_P * p
-
-# Observed cross-label edges
-# edge_rp already computed
-
-# Calculate heterophilicity
-heterophilicity <- edge_rp / expectedCrossEdges
-```
-
-\begin{block}{Results}
-\begin{itemize}
-  \item Expected R-Python edges: `r round(expectedCrossEdges, 2)`
-  \item Observed R-Python edges: `r edge_rp`
-  \item Heterophilicity: $H = `r round(heterophilicity, 3)`$
-\end{itemize}
-\end{block}
-
-## Interpreting Heterophilicity
-```{r hetero_interpretation, echo=FALSE}
-hetero_type <- ifelse(heterophilicity < 0.8, "Heterophobic",
-                     ifelse(heterophilicity < 1.2, "Random", 
-                            "Heterophilic"))
-```
-
-\begin{block}{Interpretation}
-$H = `r round(heterophilicity, 3)` < 1$ indicates \textbf{`r hetero_type`} behavior
-\end{block}
-
-\vspace{1em}
-
-**What this means:**
-
-- Cross-technology connections are **suppressed**
-- R and Python users avoid connecting
-- Fewer bridges between communities
-- Strong **group segregation**
-
-\vspace{1em}
-
-\begin{alertblock}{Combined Insight}
-High dyadicity ($D > 1$) + Low heterophilicity ($H < 1$) = Strong homophily!
-\end{alertblock}
-
-## Types of Heterophilicity
-```{r hetero_examples, echo=FALSE, results='asis'}
-hetero_types <- data.frame(
-  Scenario = c("Heterophilic", "Random", "Heterophobic"),
-  H_Value = c("$H > 1$", "$H \\approx 1$", "$H < 1$"),
-  Description = c(
-    "Cross-group attraction",
-    "No preference",
-    "Cross-group avoidance"
-  )
-)
-
-kable(hetero_types, format = "latex", booktabs = TRUE, escape = FALSE)
-```
-
-\vspace{1em}
-
-**Real-world examples:**
-
-- Heterophilic: Mentorship networks (experienced-novice)
-- Random: Large social networks
-- Heterophobic: Polarized political networks
-
-# Complete Homophily Assessment
-
-## Summary of All Metrics
-```{r summary_table, results='asis'}
-homophily_metrics <- data.frame(
-  Metric = c("Connectance", "Dyadicity (R)", 
-             "Dyadicity (Python)", "Heterophilicity"),
-  Value = round(c(p, dyadicityR, dyadicityP, 
-                  heterophilicity), 3),
-  Interpretation = c(
-    "Moderate density",
-    ifelse(dyadicityR > 1, "Homophilic", "Not homophilic"),
-    ifelse(dyadicityP > 1, "Homophilic", "Not homophilic"),
-    ifelse(heterophilicity < 1, "Heterophobic", "Not heterophobic")
-  ),
-  stringsAsFactors = FALSE
-)
-
-kable(homophily_metrics, format = "latex", booktabs = TRUE)
-```
-
-## Can We Do Predictive Analytics?
-
-\begin{block}{Assessment Checklist}
-\begin{enumerate}
-  \item Are relationships between nodes important? \textcolor{datagreen}{\checkmark}
-  \item Are labels non-randomly distributed? \textcolor{datagreen}{\checkmark}
-  \item Is the network homophilic? \textcolor{datagreen}{\checkmark}
-\end{enumerate}
-\end{block}
-
-\vspace{1em}
-
-\begin{alertblock}{Answer: YES!}
-This network exhibits strong homophily:
-\begin{itemize}
-  \item Within-group clustering ($D > 1$)
-  \item Cross-group suppression ($H < 1$)
-  \item Network structure is informative
-  \item Neighbor-based prediction will work
-\end{itemize}
-\end{alertblock}
-
-## Larger Network Example
-```{r larger_network}
-# Simulate parameters for 40-node network
-N_large <- 40
-E_large <- 39
-n_green_large <- 10
-n_white_large <- 30
-e_green_large <- 6
-e_mixed_large <- 13
-
-# Calculate metrics
-p_large <- 2 * E_large / (N_large * (N_large - 1))
-m_green_large <- n_green_large * (n_green_large - 1) / 2 * p_large
-m_mixed_large <- n_green_large * n_white_large * p_large
-
-D_large <- e_green_large / m_green_large
-H_large <- e_mixed_large / m_mixed_large
-```
-
-## Larger Network Results
-```{r large_results, results='asis'}
-large_metrics <- data.frame(
-  Metric = c("Connectance", "Dyadicity (Green)", "Heterophilicity"),
-  Value = round(c(p_large, D_large, H_large), 3),
-  stringsAsFactors = FALSE
-)
-
-kable(large_metrics, format = "latex", booktabs = TRUE)
-```
-
-\vspace{1em}
-
-\begin{block}{Analysis}
-\begin{itemize}
-  \item $D = `r round(D_large, 2)` > 1$: Green nodes cluster
-  \item $H = `r round(H_large, 2)` < 1$: Cross-group avoidance
-  \item \textbf{Conclusion}: Homophilic network, suitable for prediction
-\end{itemize}
-\end{block}
-
-# Network-Based Classification
-
-## The Relational Neighbor Classifier
-
-\begin{block}{Core Principle: Homophily}
-"Birds of a feather flock together" \\
-$\Rightarrow$ Predict unknown labels from neighbor labels
-\end{block}
-
-\vspace{1em}
-
-\begin{block}{Algorithm}
-For unknown node $i$:
-\begin{enumerate}
-  \item Identify neighbors: $\mathcal{N}(i)$
-  \item Count labels: $n_0, n_1, \ldots$
-  \item Calculate probabilities: $P(\text{label} = k) = \frac{n_k}{|\mathcal{N}(i)|}$
-  \item Predict: $\hat{y}_i = \arg\max_k P(\text{label} = k)$
-\end{enumerate}
-\end{block}
-
-## RNC Example: Node C
-
-**Node C** (unknown technology) is connected to: A, B, D, G
-
-- A, B, D: R users (3 neighbors)
-- G: Python user (1 neighbor)
-
-\vspace{1em}
-```{r rnc_example}
-rNeighbors_C <- 3
-pNeighbors_C <- 1
-total_neighbors <- rNeighbors_C + pNeighbors_C
-
-prob_R_C <- rNeighbors_C / total_neighbors
-```
-
-\begin{block}{Calculation}
-$$P(\text{R} | \text{C's neighbors}) = \frac{3}{4} = `r prob_R_C`$$
-\end{block}
-
-**Prediction:** Node C prefers **R** (75\% confidence)
-
-## RNC for All Nodes
-```{r rnc_all}
-# Neighbor counts for each node (based on network)
-rNeighbors <- c(4, 3, 3, 5, 3, 2, 3, 0, 1, 0)
-pNeighbors <- c(0, 0, 1, 1, 0, 2, 2, 3, 3, 2)
-
-# Calculate probabilities
-rProb <- rNeighbors / (rNeighbors + pNeighbors)
-```
-```{r rnc_table, results='asis', echo=FALSE}
-rnc_results <- data.frame(
-  Node = names,
-  Actual = tech,
-  R_Neighbors = rNeighbors,
-  P_Neighbors = pNeighbors,
-  Prob_R = round(rProb, 2),
-  stringsAsFactors = FALSE
-)
-
-kable(rnc_results[1:5, ], format = "latex", booktabs = TRUE, 
-      caption = "RNC Predictions (first 5 nodes)")
-```
-
-## Churn Prediction Application
-
-\begin{block}{Customer Network Scenario}
-\begin{itemize}
-  \item Customers connected through social ties
-  \item Some have churned (1), others stayed (0)
-  \item Predict churn for customers with unknown status
-\end{itemize}
-\end{block}
-
-\vspace{1em}
-
-\begin{exampleblock}{Example: Customer 393}
-Neighbors:
-\begin{itemize}
-  \item Customer 1: Stayed (0)
-  \item Customer 2573: Stayed (0)
-  \item Customer 4430: Stayed (0)
-  \item Customer 926: \textcolor{datared}{Churned (1)}
-  \item Customer 1574: \textcolor{datared}{Churned (1)}
-\end{itemize}
-\end{exampleblock}
-
-## Churn Prediction Calculation
-```{r churn_prediction}
-# Customer 393's neighbors
-churned_neighbors <- 2  # Customers 926, 1574
-stayed_neighbors <- 1   # Customer 1
-total_neighbors_393 <- churned_neighbors + stayed_neighbors
-
-# Calculate churn probability
-prob_churn_393 <- churned_neighbors / total_neighbors_393
-```
-
-\begin{block}{RNC Prediction}
-$$P(\text{churn} | \text{neighbors of 393}) = \frac{2}{3} = `r round(prob_churn_393, 3)`$$
-\end{block}
-
-\vspace{1em}
-
-\begin{alertblock}{Result}
-Customer 393 has `r round(prob_churn_393*100, 1)`\% probability of churning
-
-\textbf{Prediction: WILL CHURN}
-\end{alertblock}
-
-# Advanced Topics
-
-## Probabilistic RNC (PRNC)
-
-\begin{block}{Handling Uncertainty}
-Instead of hard labels (0 or 1), use \textbf{probabilities}
-\end{block}
-
-\vspace{1em}
-
-\begin{block}{PRNC Formula}
-For unknown node $i$:
-$$P(\text{churn}_i) = \frac{1}{|\mathcal{N}(i)|} \sum_{j \in \mathcal{N}(i)} P(\text{churn}_j)$$
-\end{block}
-
-\vspace{1em}
-
-**Advantage:** Incorporates uncertainty from neighbors
-
-## PRNC Example
-
-Suppose node $i$ has 5 neighbors with churn probabilities:
-```{r prnc_example}
-neighbor_probs <- c(0.9, 0.2, 0.4, 0.1, 0.8)
-
-# Calculate average
-prob_churn_prnc <- mean(neighbor_probs)
-prob_stay_prnc <- 1 - prob_churn_prnc
-```
-
-\begin{block}{Calculation}
-$$P(\text{churn}_i) = \frac{0.9 + 0.2 + 0.4 + 0.1 + 0.8}{5} = `r prob_churn_prnc`$$
-\end{block}
-
-\vspace{1em}
-
-**Interpretation:**
-
-- 48\% probability of churn
-- 52\% probability of staying
-- **Prediction: STAY** (but it's close!)
-
-## Iterative Classification
-
-\begin{block}{The Bootstrap Problem}
-When multiple nodes have unknown labels:
-\begin{itemize}
-  \item Predictions depend on each other
-  \item Need iterative refinement
-  \item Continue until convergence
-\end{itemize}
-\end{block}
-
-\vspace{1em}
-
-\begin{block}{Iterative Algorithm}
-\begin{enumerate}
-  \item Initialize all unknown nodes (e.g., 0.5 probability)
-  \item \textbf{Repeat} until convergence:
-  \begin{itemize}
-    \item Update each unknown node using PRNC
-    \item Check if predictions changed
-  \end{itemize}
-  \item Return final predictions
-\end{enumerate}
-\end{block}
-
-## Challenges in Network Learning
-
-\begin{alertblock}{Challenge 1: Data Splitting}
-Cannot randomly split network data!
-\begin{itemize}
-  \item Breaks network structure
-  \item Creates isolated nodes
-  \item Invalidates neighbor-based features
-\end{itemize}
-\end{alertblock}
-
-\vspace{1em}
-
-\begin{alertblock}{Challenge 2: Non-IID Data}
-Observations are \textbf{not independent}!
-\begin{itemize}
-  \item Violates ML assumptions
-  \item Standard confidence intervals invalid
-  \item Need network-aware validation
-\end{itemize}
-\end{alertblock}
-
-## Solutions to Challenges
-
-\begin{block}{Better Splitting Strategies}
-\begin{enumerate}
-  \item \textbf{Temporal split}: Train on early period, test on later
-  \item \textbf{Inductive split}: Keep full network, hide some labels
-  \item \textbf{Stratified CV}: Preserve community structure
-\end{enumerate}
-\end{block}
-
-\vspace{1em}
-
-\begin{block}{Handling Non-IID Data}
-\begin{itemize}
-  \item Use network cross-validation
-  \item Apply permutation tests
-  \item Compute autocorrelation-adjusted errors
-  \item Report network-aware metrics
-\end{itemize}
-\end{block}
-
-# Summary and Conclusions
-
-## Key Takeaways
-
-\begin{block}{What We Learned}
-\begin{enumerate}
-  \item \textbf{Homophily}: Similar nodes connect more than expected
-  \item \textbf{Dyadicity}: Measures within-group clustering
-  \item \textbf{Heterophilicity}: Measures cross-group connections
-  \item \textbf{RNC/PRNC}: Predict labels from neighbor information
-  \item \textbf{Challenges}: Data splitting and non-IID assumptions
-\end{enumerate}
-\end{block}
-
-## When to Use Network-Based Prediction
-
-\begin{block}{Checklist}
-Use network-based methods when:
-\begin{itemize}
-  \item Network exhibits homophily ($D > 1$, $H < 1$)
-  \item Relational data is available and reliable
-  \item Node attributes alone are insufficient
-  \item Computational resources allow network features
-\end{itemize}
-\end{block}
-
-\vspace{1em}
-
-\begin{alertblock}{Caution}
-If network is random ($D \approx 1$, $H \approx 1$):
-\begin{itemize}
-  \item Network provides little information
-  \item Use traditional attribute-based methods
-  \item Network features may add noise
-\end{itemize}
-\end{alertblock}
-
-## Practical Guidelines
-
-\begin{block}{Best Practices}
-\begin{enumerate}
-  \item \textbf{Always visualize} your network first
-  \item \textbf{Measure homophily} before investing in network features
-  \item \textbf{Use appropriate} train/test splitting
-  \item \textbf{Account for} statistical dependencies
-  \item \textbf{Validate} with network-aware metrics
-  \item \textbf{Consider} combining network + attribute features
-\end{enumerate}
-\end{block}
-
-## Applications in Practice
-
-\begin{block}{Real-World Use Cases}
-\begin{description}
-  \item[Telecom] Customer churn prediction using call networks
-  \item[Finance] Fraud detection in transaction networks
-  \item[E-commerce] Product recommendation via user networks
-  \item[Social Media] Content recommendation and influence analysis
-  \item[Healthcare] Disease spread prediction in contact networks
-\end{description}
-\end{block}
-
-## Next Steps
-
-\begin{block}{Extending Network Analytics}
-\begin{itemize}
-  \item \textbf{Feature engineering}: Degree, centrality, clustering
-  \item \textbf{Advanced models}: Graph neural networks
-  \item \textbf{Community detection}: Identify network modules
-  \item \textbf{Temporal networks}: Model dynamics over time
-  \item \textbf{Attributed networks}: Combine structure + attributes
-\end{itemize}
-\end{block}
+Visualizes model performance across all possible thresholds.
 
 \vspace{1em}
 
 \begin{center}
-\Large{\textbf{Thank you! Questions?}}
+\begin{tikzpicture}[scale=0.8]
+  \draw[->] (0,0) -- (6,0) node[right] {\small 1 - Specificity};
+  \draw[->] (0,0) -- (0,6) node[above] {\small Sensitivity};
+  
+  % ROC curve
+  \draw[thick,datablue] (0,0) .. controls (0.5,3) and (2,5.5) .. (5.5,5.8);
+  
+  % Diagonal reference
+  \draw[dashed,gray] (0,0) -- (5.5,5.5);
+  
+  \node at (3,-1) {\small False Positive Rate};
+  \node[rotate=90] at (-1,3) {\small True Positive Rate};
+\end{tikzpicture}
 \end{center}
 
-## References and Resources
+---
 
-\begin{block}{Key References}
-\begin{itemize}
-  \item Baesens et al. (2020). \textit{Network Analytics in Business}
-  \item Kolaczyk \& Csárdi (2014). \textit{Statistical Analysis of Network Data with R}
-  \item Newman (2018). \textit{Networks: An Introduction}
-\end{itemize}
-\end{block}
+---
+
+## Interpreting ROC Curves
 
 \vspace{1em}
 
-\begin{block}{R Packages}
-\begin{itemize}
-  \item \texttt{igraph}: Network analysis and visualization
-  \item \texttt{statnet}: Statistical network analysis
-  \item \texttt{tidygraph}: Tidy network data manipulation
-\end{itemize}
-\end{block}
+\begin{center}
+\begin{tikzpicture}[scale=0.9]
+  % Axes
+  \draw[->] (0,0) -- (6.5,0) node[right] {\scriptsize False Positive Rate};
+  \draw[->] (0,0) -- (0,6.5) node[above] {\scriptsize True Positive Rate};
+  
+  % Grid
+  \foreach \x in {1,2,3,4,5,6}
+    \draw[gray,very thin] (\x,0) -- (\x,6);
+  \foreach \y in {1,2,3,4,5,6}
+    \draw[gray,very thin] (0,\y) -- (6,\y);
+  
+  % Perfect classifier (hugs top-left)
+  \draw[thick,datagreen,line width=1.2pt] (0,0) -- (0,6) -- (6,6);
+  \node[right,datagreen] at (6.5,6) {\scriptsize \textbf{Perfect}};
+  \node[right,datagreen] at (6.5,5.6) {\scriptsize AUC = 1.0};
+  
+  % Better model
+  \draw[thick,datablue,line width=1.2pt] (0,0) .. controls (0.2,4) and (1.2,5.8) .. (6,6);
+  \node[right,datablue] at (6.5,4.8) {\scriptsize \textbf{Better}};
+  \node[right,datablue] at (6.5,4.4) {\scriptsize AUC = 0.9};
+  
+  % Random classifier (diagonal)
+  \draw[dashed,gray,thick,line width=1pt] (0,0) -- (6,6);
+  \node[right,gray] at (6.5,3) {\scriptsize \textbf{Random}};
+  \node[right,gray] at (6.5,2.6) {\scriptsize AUC = 0.5};
+  
+  % Poor model
+  \draw[thick,dataorange,line width=1.2pt] (0,0) .. controls (2,1.2) and (4,2.5) .. (6,6);
+  \node[right,dataorange] at (6.5,1.2) {\scriptsize \textbf{Poor}};
+  \node[right,dataorange] at (6.5,0.8) {\scriptsize AUC = 0.65};
+  
+  % Worse than random
+  \draw[thick,datared,line width=1.2pt] (0,0) .. controls (3.5,0.8) and (5,2) .. (6,6);
+  \node[right,datared] at (6.5,0) {\scriptsize \textbf{Very Poor}};
+  \node[right,datared] at (6.5,-0.4) {\scriptsize AUC < 0.5};
+  
+  % Axis ticks
+  \foreach \x in {0,1,2,3,4,5,6}
+    \node at (\x,-0.4) {\tiny \pgfmathparse{\x/6}\pgfmathprintnumber[precision=1]{\pgfmathresult}};
+  \foreach \y in {0,1,2,3,4,5,6}
+    \node at (-0.4,\y) {\tiny \pgfmathparse{\y/6}\pgfmathprintnumber[precision=1]{\pgfmathresult}};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+
+**Key insights:**
+
+- **Perfect classifier:** Curve goes straight up, then right (AUC = 1.0)
+- **Better models:** Curves closer to top-left corner
+- **Random classifier:** Diagonal line (AUC = 0.5)
+- **Worse than random:** Curve below diagonal (AUC < 0.5)
+
+---
+
+---
+
+## Area Under the Curve (AUC)
+
+\vspace{1em}
+
+**AUC** summarizes ROC curve into a single number:
+
+\vspace{1em}
+
+- **AUC = 1.0:** Perfect classification
+- **AUC = 0.9-1.0:** Excellent
+- **AUC = 0.8-0.9:** Good
+- **AUC = 0.7-0.8:** Fair
+- **AUC = 0.6-0.7:** Poor
+- **AUC = 0.5:** No better than random
+- **AUC < 0.5:** Worse than random (predictions inverted)
+
+---
+
+## Calculating Sensitivity in yardstick
+
+\vspace{0.5em}
+```{r eval=FALSE}
+# Calculate sensitivity
+sens(predictions,
+     estimate = .pred_class,
+     truth = true_class)
+```
+
+\vspace{0.5em}
+
+\scriptsize
+```
+# A tibble: 1 x 2
+  .metric     .estimate
+  <chr>           <dbl>
+1 sensitivity     0.872
+```
+
+\vspace{1em}
+
+**Arguments:**
+
+- `predictions`: Data frame with predictions and truth
+- `estimate`: Column with predicted classes
+- `truth`: Column with actual classes
+
+---
+
+## Computing ROC Curve
+
+\vspace{0.5em}
+
+\small
+```{r eval=FALSE}
+# Predict probabilities (not classes)
+predictions <- predict(model, 
+                       data_test, 
+                       type = "prob") %>%
+  bind_cols(data_test)
+
+# Calculate ROC curve for all thresholds
+roc <- roc_curve(predictions,
+                 estimate = .pred_yes,
+                 truth = still_customer)
+
+# Plot the curve
+autoplot(roc)
+```
+
+---
+
+
+
+---
+
+## Calculating AUC
+
+\vspace{0.5em}
+```{r eval=FALSE}
+# Calculate area under the ROC curve
+roc_auc(predictions,
+        estimate = .pred_yes,
+        truth = still_customer)
+```
+
+\vspace{0.5em}
+
+\scriptsize
+```
+# A tibble: 1 x 3
+  .metric .estimator .estimate
+  <chr>   <chr>          <dbl>
+1 roc_auc binary         0.872
+```
+
+\vspace{1em}
+
+Same arguments as `roc_curve()`, but returns single summary statistic.
+
+---
+
+## Let's Measure!
+
+\vspace{3em}
+
+\begin{center}
+\Huge{\textbf{Let's measure!}}
+\end{center}
+
+---
+
+# Model Comparison Framework
+
+\framesubtitle{Systematic evaluation across methods}
+
+Comparing multiple modeling approaches requires consistent evaluation metrics and a structured comparison framework.
+
+\vspace{1em}
+
+**Models to Compare:**
+
+- Single decision tree (baseline)
+- Bagged trees (bootstrap aggregation)
+- Random forest (feature randomization)
+- Gradient boosting (sequential learning)
+
+\vspace{1em}
+
+**Comparison Metrics:**
+
+- AUC-ROC for overall discrimination ability
+- ROC curves for threshold analysis
+- Training time and computational efficiency
+- Model complexity and interpretability
+
+Each model is trained on identical training data and evaluated on the same held-out test set to ensure fair comparison.
+
+---
+
+# Combining Predictions
+
+\framesubtitle{Preparing data for comparison}
+
+We consolidate predictions from all models into a single dataset with the true outcomes for systematic comparison.
+
+\vspace{1em}
+```{r, eval=FALSE}
+# Combine predictions from all models
+preds_combined <- bind_cols(
+  preds_tree,      # Decision tree predictions
+  preds_bagging,   # Bagged tree predictions  
+  preds_forest,    # Random forest predictions
+  preds_boosting,  # Boosted tree predictions
+  test_data %>% select(outcome)
+)
+```
+
+\vspace{0.5em}
+```{r, echo=FALSE}
+cat("# A tibble: 1,011 × 5\n")
+cat("   preds_tree preds_bagging preds_forest preds_boosting outcome\n")
+cat("        <dbl>         <dbl>        <dbl>          <dbl> <fct>  \n")
+cat(" 1      0.144         0.115       0.0333          0.136 no     \n")
+cat(" 2      0.441         0.326       0.360           0.149 no     \n")
+cat(" 3      0.144         0.115       0.0333          0.116 no     \n")
+```
+
+\vspace{0.5em}
+
+The combined dataset contains predicted probabilities from each model along with true outcomes, enabling direct performance comparison.
+
+---
+
+# Computing AUC for Each Model
+
+\framesubtitle{Quantitative performance comparison}
+
+We calculate AUC-ROC for each model to quantify discrimination ability on the test set.
+
+\vspace{1em}
+```{r, eval=FALSE}
+# Calculate AUC for all models
+auc_comparison <- bind_rows(
+  decision_tree = roc_auc(preds_combined, outcome, preds_tree),
+  bagged_trees  = roc_auc(preds_combined, outcome, preds_bagging),
+  random_forest = roc_auc(preds_combined, outcome, preds_forest),
+  boosted_trees = roc_auc(preds_combined, outcome, preds_boosting),
+  .id = "model"
+)
+```
+
+\vspace{0.5em}
+```{r, echo=FALSE}
+cat("# A tibble: 4 × 3\n")
+cat("  model         .metric .estimate\n")
+cat("  <chr>         <chr>       <dbl>\n")
+cat("1 decision_tree roc_auc     0.911\n")
+cat("2 bagged_trees  roc_auc     0.936\n")
+cat("3 random_forest roc_auc     0.974\n")
+cat("4 boosted_trees roc_auc     0.984\n")
+```
+
+---
+
+# ROC Curve Comparison
+
+\framesubtitle{Visual performance evaluation}
+
+ROC curves provide comprehensive visualization of model discrimination across all classification thresholds.
+
+\vspace{1em}
+```{r, eval=FALSE}
+# Reshape predictions to long format
+predictions_long <- tidyr::pivot_longer(
+  preds_combined,
+  cols = starts_with("preds_"),
+  names_to = "model",
+  values_to = "predictions"
+)
+
+# Calculate ROC curves for each model
+roc_curves <- predictions_long %>%
+  group_by(model) %>%
+  roc_curve(truth = outcome, estimate = predictions)
+
+# Visualize
+autoplot(roc_curves)
+```
+
+\vspace{1em}
+
+The closer the curve approaches the top-left corner (sensitivity = 1, specificity = 1), the better the model's discrimination ability.
+
+---
+
+# Interpreting Model Comparison
+
+\framesubtitle{Drawing conclusions from evaluation}
+
+The comparison reveals clear performance hierarchy and provides insights for model selection decisions.
+
+\vspace{1em}
+
+**Performance Ranking:**
+
+1. Gradient boosting (AUC = 0.984) - Best overall discrimination
+2. Random forest (AUC = 0.974) - Strong performance, more stable
+3. Bagged trees (AUC = 0.936) - Moderate improvement over single tree
+4. Single tree (AUC = 0.911) - Baseline performance
+
+\vspace{1em}
+
+**Key Insights:**
+
+Ensemble methods consistently outperform single trees. Boosting achieves highest performance but requires careful tuning. Random forests offer excellent performance with fewer hyperparameters. The performance gain from bagging to random forests demonstrates feature randomization benefits.
+
+---
+
+# Let's Compare!
+
+\vspace{3em}
+
+\begin{center}
+\Huge{\textbf{Let's compare!}}
+\end{center}
+
+---
+
+# Lecture Summary
+
+\framesubtitle{Key concepts covered}
+
+We explored gradient boosting algorithms and systematic model optimization techniques for achieving state-of-the-art predictive performance.
+
+\vspace{1em}
+
+**Core Concepts:**
+
+- AdaBoost introduces adaptive weighting for sequential learning
+- Gradient boosting optimizes loss functions through gradient descent
+- Boosted models require careful hyperparameter tuning across multiple dimensions
+- Systematic tuning workflow: specify, grid, validate, select, finalize, fit
+- Model comparison requires consistent metrics and evaluation frameworks
+
+\vspace{1em}
+
+**Practical Skills:**
+
+You can now implement gradient boosted models with XGBoost, conduct comprehensive hyperparameter tuning using grid search and cross-validation, and systematically compare multiple modeling approaches using AUC and ROC curves.
+
+---
+
+# Course Wrap-Up
+
+\framesubtitle{What we've learned}
+
+\vspace{1em}
+
+**Chapter 1:** Classification trees - Decision trees, data splitting, confusion matrices
+
+\vspace{0.5em}
+
+**Chapter 2:** Regression trees - MAE, RMSE, cross-validation, bias-variance tradeoff
+
+\vspace{0.5em}
+
+**Chapter 3:** Hyperparameter tuning - Grid search, bagging, random forests
+
+\vspace{0.5em}
+
+**Chapter 4:** Boosting - AdaBoost, gradient boosting, model comparison
+
+\vspace{2em}
+
+You now have a complete toolkit for building, tuning, and deploying tree-based machine learning models in R!
+
+---
+
+# Thank You!
+
+\vspace{3em}
+
+\begin{center}
+\Huge{\textbf{Thank you!}}
+\end{center}
+
+\vspace{2em}
+
+\begin{center}
+\Large{Machine Learning with}
+
+\Large{Tree-Based Models in R}
+\end{center}
