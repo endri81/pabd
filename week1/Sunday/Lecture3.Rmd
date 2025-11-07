@@ -1,0 +1,1598 @@
+---
+title: |
+  | **Homophily Analysis and**
+  | **Network-Based Prediction**
+subtitle: "Predictive Analytics Using Networked Data in R"
+author: "Prof. Asc. Endri Raco, Ph.D."
+institute: |
+  | Department of Mathematical Engineering
+  | Polytechnic University of Tirana
+date: "November 2025"
+output:
+  beamer_presentation:
+    theme: "Madrid"
+    colortheme: "default"
+    fonttheme: "professionalfonts"
+    slide_level: 2
+    toc: false
+    keep_tex: false
+header-includes:
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
+  - \usepackage{graphicx}
+  - \usepackage{booktabs}
+  - \usepackage{tikz}
+  - \usepackage{xcolor}
+  - \definecolor{datablue}{RGB}{0,102,204}
+  - \definecolor{datagreen}{RGB}{0,153,76}
+  - \definecolor{datared}{RGB}{204,0,0}
+  - \definecolor{dataorange}{RGB}{255,140,0}
+  - \definecolor{datapurple}{RGB}{128,0,128}
+  - \definecolor{datacyan}{RGB}{0,191,255}
+  - \setbeamercolor{structure}{fg=datablue}
+  - \setbeamertemplate{navigation symbols}{}
+  - \setbeamertemplate{footline}[frame number]
+  - \setbeamertemplate{frametitle}{\vspace{0.5em}\insertframetitle}
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  comment = "",
+  fig.align = 'center',
+  fig.width = 6,
+  fig.height = 4,
+  out.width = '80%'
+)
+
+library(igraph)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+
+# Introduction
+
+## Motivation: Social Networks and Predictive Analytics
+
+\begin{block}{Real-World Applications}
+\begin{itemize}
+  \item \textbf{Age prediction}: Customer demographics
+  \item \textbf{Gender inference}: Targeted marketing
+  \item \textbf{Fraud detection}: Transaction network analysis
+  \item \textbf{Churn prediction}: Customer defection
+\end{itemize}
+\end{block}
+
+\vspace{1em}
+
+\begin{exampleblock}{The Network Advantage}
+Companies predict churn using:
+\begin{enumerate}
+  \item Traditional machine learning techniques
+  \item \textcolor{datagreen}{\textbf{Social networks}} (relational data)
+\end{enumerate}
+\end{exampleblock}
+
+## Course Overview
+
+\begin{block}{Module 1: Labeled Social Networks}
+\begin{itemize}
+  \item Construct networks from data
+  \item Label nodes with attributes
+  \item Apply network learning techniques
+\end{itemize}
+\end{block}
+
+\begin{block}{Module 2: Homophily Analysis}
+\begin{itemize}
+  \item Measure relational dependency
+  \item Understand influence patterns
+  \item Quantify heterophilicity and dyadicity
+\end{itemize}
+\end{block}
+
+## Course Overview (continued)
+
+\begin{block}{Module 3: Network Featurization}
+\begin{itemize}
+  \item Compute node-level features
+  \item Extract structural properties
+  \item Create predictive variables
+\end{itemize}
+\end{block}
+
+\begin{block}{Module 4: Predictive Modeling}
+\begin{itemize}
+  \item Transform networks into flat datasets
+  \item Build prediction models
+  \item Deploy churn prediction systems
+\end{itemize}
+\end{block}
+
+# Building Networks
+
+## Network Structure Example
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8]
+  % Draw nodes
+  \node[circle, draw, fill=white, minimum size=0.8cm] (A) at (2, 4) {A};
+  \node[circle, draw, fill=white, minimum size=0.8cm] (B) at (1, 3) {B};
+  \node[circle, draw, fill=white, minimum size=0.8cm] (C) at (1.5, 2) {C};
+  \node[circle, draw, fill=white, minimum size=0.8cm] (D) at (2.5, 2.5) {D};
+  \node[circle, draw, fill=white, minimum size=0.8cm] (E) at (4, 3) {E};
+  \node[circle, draw, fill=white, minimum size=0.8cm] (F) at (4.5, 1.5) {F};
+  \node[circle, draw, fill=white, minimum size=0.8cm] (G) at (3, 0) {G};
+  \node[circle, draw, fill=white, minimum size=0.8cm] (H) at (3.5, -1.5) {H};
+  \node[circle, draw, fill=white, minimum size=0.8cm] (I) at (5, -0.5) {I};
+  \node[circle, draw, fill=white, minimum size=0.8cm] (J) at (6, -2) {J};
+  
+  % Draw edges
+  \draw[thick] (A) -- (B);
+  \draw[thick] (A) -- (C);
+  \draw[thick] (A) -- (D);
+  \draw[thick] (A) -- (E);
+  \draw[thick] (B) -- (C);
+  \draw[thick] (B) -- (D);
+  \draw[thick] (C) -- (D);
+  \draw[thick] (C) -- (G);
+  \draw[thick] (D) -- (E);
+  \draw[thick] (D) -- (F);
+  \draw[thick] (D) -- (G);
+  \draw[thick] (E) -- (F);
+  \draw[thick] (F) -- (G);
+  \draw[thick] (F) -- (I);
+  \draw[thick] (G) -- (I);
+  \draw[thick] (G) -- (H);
+  \draw[thick] (H) -- (I);
+  \draw[thick] (H) -- (J);
+  \draw[thick] (I) -- (J);
+\end{tikzpicture}
+\end{center}
+
+\begin{block}{Network Components}
+\textbf{Nodes}: Individuals (A, B, C, ...) \\
+\textbf{Edges}: Relationships/collaborations \\
+\textbf{Attributes}: Technology preference (R, Python, ?)
+\end{block}
+
+## Creating Networks in R
+```{r network_creation, eval=FALSE}
+library(igraph)
+
+# Define edges (relationships)
+DataScienceNetwork <- data.frame(
+  from = c('A','A','A','A','B','B','C','C',
+           'D','D','D','E','F','F','G','G',
+           'H','H','I'),
+  to = c('B','C','D','E','C','D','D','G',
+         'E','F','G','F','G','I','I','H',
+         'I','J','J')
+)
+
+# Create graph object
+g <- graph_from_data_frame(DataScienceNetwork, 
+                           directed = FALSE)
+```
+
+\begin{alertblock}{Key Concept}
+\texttt{graph\_from\_data\_frame()} creates an undirected graph where each row defines a connection between two nodes.
+\end{alertblock}
+
+## Visualizing Networks (1/2)
+```{r viz_setup, eval=FALSE}
+# Define node positions for clean layout
+pos <- cbind(
+  c(2, 1, 1.5, 2.5, 4, 4.5, 3, 3.5, 5, 6),
+  c(10.5, 9.5, 8, 8.5, 9, 7.5, 6, 4.5, 5.5, 4)
+)
+
+# Create visualization
+plot.igraph(g, 
+            edge.label = NA,
+            edge.color = 'black',
+            layout = pos,
+            vertex.label = V(g)$name,
+            vertex.color = 'white',
+            vertex.label.color = 'black',
+            vertex.size = 25)
+```
+
+## Visualizing Networks (2/2)
+
+\begin{block}{Visualization Parameters}
+\begin{description}
+  \item[\texttt{layout}] Node positioning (x, y coordinates)
+  \item[\texttt{vertex.*}] Node styling (color, size, labels)
+  \item[\texttt{edge.*}] Connection styling (color, width, labels)
+\end{description}
+\end{block}
+
+\vspace{1em}
+
+\begin{exampleblock}{Pro Tip}
+Use \texttt{layout\_nicely()} for automatic positioning, or define custom positions for publication-quality figures.
+\end{exampleblock}
+
+## Adding Node Attributes
+```{r node_attributes, eval=FALSE}
+# Assign technology preference to each node
+V(g)$technology <- c('R','R','?','R','R',
+                     'R','P','P','P','P')
+
+# Map preferences to colors
+V(g)$color <- V(g)$technology
+V(g)$color <- gsub('R', "blue3", V(g)$color)
+V(g)$color <- gsub('P', "green4", V(g)$color)
+V(g)$color <- gsub('?', "gray", V(g)$color)
+```
+
+\begin{block}{Color Scheme}
+\textcolor{blue}{\textbf{Blue}}: R users \quad
+\textcolor{green}{\textbf{Green}}: Python users \quad
+\textcolor{gray}{\textbf{Gray}}: Unknown
+\end{block}
+
+\textbf{Result:} A labeled network ready for analysis!
+
+# Labeled Networks and Network Learning
+
+## The Churn Prediction Problem
+
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\textbf{Customer Data:}
+\begin{center}
+\begin{tabular}{rr}
+\toprule
+ID & Churn \\
+\midrule
+1 & 0 \\
+393 & 0 \\
+2573 & 0 \\
+4430 & 0 \\
+\rowcolor{datared!20}
+926 & 1 \\
+\rowcolor{datared!20}
+1574 & 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\textbf{Edge List:}
+\begin{center}
+\begin{tabular}{rr}
+\toprule
+From & To \\
+\midrule
+1 & 393 \\
+1 & 2573 \\
+1 & 4430 \\
+393 & 926 \\
+393 & 1574 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{column}
+\end{columns}
+
+\vspace{1em}
+
+\begin{alertblock}{Goal}
+Predict which customers will churn based on network structure
+\end{alertblock}
+
+## Network Representation of Churn
+
+\begin{center}
+\begin{tikzpicture}[scale=1.2]
+  % Nodes
+  \node[circle, draw, fill=white, minimum size=1cm] (1) at (0, 2) {1};
+  \node[circle, draw, fill=white, minimum size=1cm] (393) at (2, 1) {393};
+  \node[circle, draw, fill=white, minimum size=1cm] (2573) at (-1.5, 1) {2573};
+  \node[circle, draw, fill=white, minimum size=1cm] (4430) at (0, 3.5) {4430};
+  \node[circle, draw, fill=datared!50, minimum size=1cm] (926) at (3.5, 1.5) {926};
+  \node[circle, draw, fill=datared!50, minimum size=1cm] (1574) at (2, -0.5) {1574};
+  
+  % Edges
+  \draw[thick] (1) -- (393);
+  \draw[thick] (1) -- (2573);
+  \draw[thick] (1) -- (4430);
+  \draw[thick] (393) -- (926);
+  \draw[thick] (393) -- (1574);
+\end{tikzpicture}
+\end{center}
+
+\begin{block}{Key Observations}
+\begin{itemize}
+  \item Customer 1: Connected to 3 non-churners
+  \item Customer 393: Connected to 2 churners!
+  \item \textcolor{datared}{\textbf{Network structure matters}}
+\end{itemize}
+\end{block}
+
+## The Relational Neighbor Classifier (1/2)
+
+\begin{block}{Core Principle: Homophily}
+\textbf{"Birds of a feather flock together"}
+
+Connected individuals tend to be similar in behavior and attributes.
+\end{block}
+
+\vspace{1em}
+
+\begin{exampleblock}{Algorithm Logic}
+For unknown node C (Cecelia with technology = ?):
+\begin{enumerate}
+  \item \textbf{Identify neighbors}: A, B, D, G
+  \item \textbf{Count preferences}:
+  \begin{itemize}
+    \item R users: A, B, D → 3 neighbors (75\%)
+    \item Python users: G → 1 neighbor (25\%)
+  \end{itemize}
+  \item \textbf{Predict}: Cecelia likely prefers R
+\end{enumerate}
+\end{exampleblock}
+
+## The Relational Neighbor Classifier (2/2)
+```{r relational_neighbor, eval=FALSE}
+# Count R-preferring neighbors per node
+rNeighbors <- c(4, 3, 3, 5, 3, 2, 3, 0, 1, 0)
+
+# Count Python-preferring neighbors
+pNeighbors <- c(0, 0, 1, 1, 0, 2, 2, 3, 3, 2)
+
+# Calculate probability of preferring R
+rRelationalNeighbor <- rNeighbors / 
+                       (rNeighbors + pNeighbors)
+
+print(rRelationalNeighbor)
+```
+
+\begin{alertblock}{Output}
+\texttt{[1] 1.00 1.00 0.75 0.83 1.00 0.50 0.60 0.00 0.25 0.00}
+\end{alertblock}
+
+Node C (index 3) has 0.75 probability of preferring R
+
+## Applying RNC to Churn Prediction
+
+\begin{block}{Step-by-Step Application}
+\begin{enumerate}
+  \item For each customer with unknown churn status
+  \item Count neighbors who churned
+  \item Count neighbors who stayed
+  \item Calculate: $P(\text{churn}) = \frac{\text{\# churned neighbors}}{\text{\# total neighbors}}$
+  \item Predict churn if $P(\text{churn}) > 0.5$
+\end{enumerate}
+\end{block}
+
+\vspace{1em}
+
+\begin{exampleblock}{Example: Customer 393}
+\begin{itemize}
+  \item Churned neighbors: 926, 1574 → 2
+  \item Non-churned neighbors: 1 → 1
+  \item $P(\text{churn}) = \frac{2}{3} = 0.67$ → \textcolor{datared}{\textbf{Predict: CHURN}}
+\end{itemize}
+\end{exampleblock}
+
+## RNC Implementation in R
+```{r rnc_implementation, eval=FALSE}
+# Function to compute RNC predictions
+compute_rnc <- function(graph, node_labels) {
+  predictions <- numeric(vcount(graph))
+  
+  for (i in 1:vcount(graph)) {
+    # Get neighbors
+    neighbors <- neighbors(graph, i)
+    
+    if (length(neighbors) == 0) {
+      predictions[i] <- NA  # Isolated node
+      next
+    }
+    
+    # Count churned neighbors
+    churned_count <- sum(node_labels[neighbors] == 1)
+    total_count <- length(neighbors)
+    
+    # Calculate probability
+    predictions[i] <- churned_count / total_count
+  }
+  
+  return(predictions)
+}
+```
+
+## Visualizing Predictions
+
+\begin{center}
+\begin{tikzpicture}[scale=1.1]
+  % Legend
+  \node[circle, draw, fill=datagreen!30, minimum size=0.6cm] at (-2, 3) {};
+  \node[right] at (-1.5, 3) {\small Low churn risk};
+  \node[circle, draw, fill=dataorange!50, minimum size=0.6cm] at (-2, 2.3) {};
+  \node[right] at (-1.5, 2.3) {\small Medium risk};
+  \node[circle, draw, fill=datared!70, minimum size=0.6cm] at (-2, 1.6) {};
+  \node[right] at (-1.5, 1.6) {\small High churn risk};
+  
+  % Network with color-coded predictions
+  \node[circle, draw, fill=datagreen!30, minimum size=1cm] (1) at (2, 2) {1};
+  \node[circle, draw, fill=datared!70, minimum size=1cm] (393) at (4, 1) {393};
+  \node[circle, draw, fill=datagreen!30, minimum size=1cm] (2573) at (0.5, 1) {2573};
+  \node[circle, draw, fill=datagreen!30, minimum size=1cm] (4430) at (2, 3.5) {4430};
+  \node[circle, draw, fill=datared!70, minimum size=1cm] (926) at (5.5, 1.5) {926};
+  \node[circle, draw, fill=datared!70, minimum size=1cm] (1574) at (4, -0.5) {1574};
+  
+  \draw[thick] (1) -- (393);
+  \draw[thick] (1) -- (2573);
+  \draw[thick] (1) -- (4430);
+  \draw[thick] (393) -- (926);
+  \draw[thick] (393) -- (1574);
+\end{tikzpicture}
+\end{center}
+
+Customer 393 surrounded by churners → High risk!
+
+# Challenges in Network Learning
+
+## Challenge 1: Splitting Network Data
+
+\begin{alertblock}{Problem}
+Cannot randomly split networked data like traditional datasets!
+\end{alertblock}
+```{r split_problem, eval=FALSE}
+# WRONG: Random sampling breaks network structure
+set.seed(1001)
+sample_vertices <- sample(1:10, 6, replace = FALSE)
+train_graph <- induced_subgraph(g, V(g)[sample_vertices])
+test_graph <- induced_subgraph(g, V(g)[-sample_vertices])
+```
+
+\begin{block}{Issues with Random Split}
+\begin{itemize}
+  \item Breaks connections between train/test
+  \item Test nodes may be isolated
+  \item Cannot compute neighbor-based features
+  \item Invalidates relational predictions
+\end{itemize}
+\end{block}
+
+## Challenge 1: Visual Illustration
+
+\begin{center}
+\begin{tikzpicture}[scale=0.7]
+  % Original network
+  \node[font=\small] at (1, 4) {\textbf{Full Network}};
+  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (A) at (1, 3) {A};
+  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (B) at (0, 2) {B};
+  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (C) at (1, 1.5) {C};
+  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (D) at (2, 2) {D};
+  \node[circle, draw, fill=datagreen!30, minimum size=0.6cm] (G) at (1, 0) {G};
+  \draw (A) -- (B);
+  \draw (A) -- (C);
+  \draw (A) -- (D);
+  \draw (B) -- (C);
+  \draw (C) -- (D);
+  \draw (C) -- (G);
+  
+  % Training set
+  \node[font=\small] at (5, 4) {\textbf{Train (disconnected)}};
+  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (A2) at (4.5, 3) {A};
+  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (B2) at (5.5, 2) {B};
+  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (D2) at (5, 1) {D};
+  \node[circle, draw, fill=datagreen!30, minimum size=0.6cm] (G2) at (4, 1.5) {G};
+  \draw (A2) -- (B2);
+  
+  % Test set (isolated)
+  \node[font=\small] at (9, 4) {\textbf{Test (isolated)}};
+  \node[circle, draw, fill=datablue!30, minimum size=0.6cm] (C2) at (9, 2.5) {C};
+  
+  \draw[->, thick, datared] (2.5, 2) -- (3.5, 2);
+  \draw[->, thick, datared] (6.5, 2) -- (7.5, 2);
+\end{tikzpicture}
+\end{center}
+
+Node C becomes isolated → Cannot compute neighbor features!
+
+## Solution: Temporal or Stratified Splits
+
+\begin{block}{Better Splitting Strategies}
+\begin{enumerate}
+  \item \textbf{Temporal split}:
+  \begin{itemize}
+    \item Use time-stamped data
+    \item Train on early period, test on late period
+    \item Preserves network structure
+  \end{itemize}
+  
+  \item \textbf{Inductive split}:
+  \begin{itemize}
+    \item Keep full network for feature computation
+    \item Split only labels (hide some during training)
+    \item All nodes remain connected
+  \end{itemize}
+  
+  \item \textbf{Cross-validation}:
+  \begin{itemize}
+    \item Stratified k-fold by network communities
+    \item Preserve local structure in each fold
+  \end{itemize}
+\end{enumerate}
+\end{block}
+
+## Challenge 2: Non-IID Data
+
+\begin{alertblock}{Violation of Independence Assumption}
+Observations in networks are \textbf{NOT} independent and identically distributed (IID)
+\end{alertblock}
+
+\vspace{1em}
+
+\begin{block}{Why This Matters}
+\begin{itemize}
+  \item Traditional ML assumes IID data
+  \item Connected nodes influence each other
+  \item Violates statistical assumptions
+  \item Standard confidence intervals invalid
+  \item P-values may be misleading
+\end{itemize}
+\end{block}
+
+\vspace{1em}
+
+\begin{exampleblock}{Consequence}
+If customer A churns, their friend B becomes more likely to churn → observations are \textcolor{datared}{\textbf{dependent}}
+\end{exampleblock}
+
+## Challenge 2: Statistical Dependency
+
+\begin{center}
+\begin{tikzpicture}[scale=1]
+  % Show dependency structure
+  \node[circle, draw, fill=datared!50, minimum size=1cm] (A) at (0, 0) {A};
+  \node[circle, draw, fill=dataorange!50, minimum size=1cm] (B) at (2, 0) {B};
+  \node[circle, draw, fill=dataorange!50, minimum size=1cm] (C) at (1, 1.7) {C};
+  
+  \draw[thick, <->, datared] (A) -- (B);
+  \draw[thick, <->, datared] (A) -- (C);
+  \draw[thick, <->, datared] (B) -- (C);
+  
+  \node[below] at (1, -1) {$P(B|\text{A churned}) \neq P(B)$};
+  \node[below] at (1, -1.5) {$P(C|\text{A churned, B churned}) \neq P(C)$};
+\end{tikzpicture}
+\end{center}
+
+\begin{block}{Implication}
+Must use network-aware methods:
+\begin{itemize}
+  \item Network cross-validation
+  \item Permutation tests respecting structure
+  \item Autocorrelation-adjusted standard errors
+\end{itemize}
+\end{block}
+
+## Challenge 3: Collective Inference
+
+\begin{block}{The Bootstrap Problem}
+\textbf{Scenario}: Predict multiple unknown labels simultaneously
+
+\textbf{Issue}: Predictions depend on each other!
+\end{block}
+
+\vspace{1em}
+
+\begin{center}
+\begin{tikzpicture}[scale=1.1]
+  \node[circle, draw, fill=datablue!30, minimum size=0.8cm] (known1) at (0, 2) {1};
+  \node[circle, draw, fill=gray!30, minimum size=0.8cm] (unknown1) at (2, 2.5) {?};
+  \node[circle, draw, fill=gray!30, minimum size=0.8cm] (unknown2) at (2, 1.5) {?};
+  \node[circle, draw, fill=datablue!30, minimum size=0.8cm] (known2) at (4, 2) {0};
+  \node[circle, draw, fill=gray!30, minimum size=0.8cm] (unknown3) at (3, 0.5) {?};
+  
+  \draw[thick] (known1) -- (unknown1);
+  \draw[thick] (known1) -- (unknown2);
+  \draw[thick] (unknown1) -- (unknown2);
+  \draw[thick] (unknown2) -- (unknown3);
+  \draw[thick] (unknown1) -- (known2);
+  \draw[thick] (unknown3) -- (known2);
+\end{tikzpicture}
+\end{center}
+
+Unknown nodes influence each other's predictions!
+
+## Collective Inference Solution
+
+\begin{block}{Iterative Classification Algorithm (ICA)}
+\begin{enumerate}
+  \item Initialize predictions for all unknown nodes
+  \item \textbf{Repeat until convergence}:
+  \begin{enumerate}
+    \item For each unknown node:
+    \begin{itemize}
+      \item Compute features using current predictions
+      \item Update prediction
+    \end{itemize}
+    \item Check if predictions changed
+  \end{enumerate}
+  \item Return final predictions
+\end{enumerate}
+\end{block}
+
+\begin{alertblock}{Convergence}
+Usually converges in 3-10 iterations
+\end{alertblock}
+
+## Probabilistic Relational Neighbor Classifier
+
+\begin{block}{Handling Uncertainty}
+Use \textbf{probabilities} instead of hard labels during iteration
+\end{block}
+
+\begin{center}
+\begin{tikzpicture}[scale=0.9]
+  \node[circle, draw, minimum size=1.2cm] (center) at (0, 0) {?};
+  
+  \node[circle, draw, minimum size=0.8cm] (n1) at (-1.5, 1.5) {};
+  \node[above, font=\tiny] at (-1.5, 1.9) {P(C)=0.9};
+  \node[below, font=\tiny] at (-1.5, 1.1) {P(NC)=0.1};
+  
+  \node[circle, draw, minimum size=0.8cm] (n2) at (1.5, 1.5) {};
+  \node[above, font=\tiny] at (1.5, 1.9) {P(C)=0.2};
+  \node[below, font=\tiny] at (1.5, 1.1) {P(NC)=0.8};
+  
+  \node[circle, draw, minimum size=0.8cm] (n3) at (-1.5, -1.5) {};
+  \node[above, font=\tiny] at (-1.5, -1.9) {P(C)=0.4};
+  
+  \node[circle, draw, minimum size=0.8cm] (n4) at (0, -2) {};
+  \node[below, font=\tiny] at (0, -2.4) {P(C)=0.1};
+  
+  \node[circle, draw, minimum size=0.8cm] (n5) at (1.5, -1.5) {};
+  \node[below, font=\tiny] at (1.5, -1.9) {P(C)=0.8};
+  
+  \draw[thick] (center) -- (n1);
+  \draw[thick] (center) -- (n2);
+  \draw[thick] (center) -- (n3);
+  \draw[thick] (center) -- (n4);
+  \draw[thick] (center) -- (n5);
+\end{tikzpicture}
+\end{center}
+
+## PRNC Calculation
+
+\begin{block}{Formula}
+For unknown node $i$:
+$$P(\text{churn}_i) = \frac{\sum_{j \in \mathcal{N}(i)} P(\text{churn}_j)}{|\mathcal{N}(i)|}$$
+
+where $\mathcal{N}(i)$ = neighbors of node $i$
+\end{block}
+
+\begin{exampleblock}{Example Calculation}
+Neighbors' probabilities: 0.9, 0.2, 0.4, 0.1, 0.8
+
+$$P(\text{churn}) = \frac{0.9 + 0.2 + 0.4 + 0.1 + 0.8}{5} = \frac{2.4}{5} = 0.48$$
+
+$$P(\text{non-churn}) = 1 - 0.48 = 0.52$$
+
+\textbf{Prediction}: Slightly more likely to NOT churn
+\end{exampleblock}
+
+## PRNC in R
+```{r prnc_code, eval=FALSE}
+# Probabilistic RNC computation
+compute_prnc <- function(graph, churn_probs) {
+  n <- vcount(graph)
+  new_probs <- numeric(n)
+  
+  for (i in 1:n) {
+    neighbors <- neighbors(graph, i)
+    
+    if (length(neighbors) == 0) {
+      new_probs[i] <- churn_probs[i]  # Keep current
+    } else {
+      # Average neighbor probabilities
+      new_probs[i] <- mean(churn_probs[neighbors])
+    }
+  }
+  
+  return(new_probs)
+}
+```
+
+## PRNC Example
+```{r prnc_example2, eval=FALSE}
+# Example: 5 neighbors with different probabilities
+neighbor_churn_probs <- c(0.9, 0.2, 0.1, 0.4, 0.8)
+
+# Calculate probability of churn
+prob_churn <- mean(neighbor_churn_probs)
+print(prob_churn)
+
+# Calculate probability of non-churn
+prob_non_churn <- 1 - prob_churn
+print(prob_non_churn)
+```
+
+\begin{block}{Output}
+\texttt{[1] 0.48} \quad (churn probability)
+
+\texttt{[1] 0.52} \quad (non-churn probability)
+\end{block}
+
+\textcolor{datagreen}{\textbf{Prediction}}: More likely to stay (52\% vs 48\%)
+
+# Introduction to Homophily
+
+## What is Homophily?
+
+\begin{block}{Definition}
+\textbf{Homophily}: The tendency for similar individuals to form connections
+\end{block}
+
+\vspace{0.5em}
+
+**"Birds of a feather flock together"**
+
+\vspace{0.5em}
+
+Individuals with shared characteristics are more likely to connect:
+
+- Common hobbies or interests
+- Similar demographics
+- Shared technology preferences
+- Same geographic origin
+
+## Measuring Homophily
+
+Homophily depends on two key factors:
+
+\begin{enumerate}
+  \item \textbf{Connectedness between nodes with SAME label}
+  \begin{itemize}
+    \item How often do similar nodes connect?
+  \end{itemize}
+  
+  \vspace{0.5em}
+  
+  \item \textbf{Connectedness between nodes with OPPOSITE labels}
+  \begin{itemize}
+    \item How often do dissimilar nodes connect?
+  \end{itemize}
+\end{enumerate}
+
+\vspace{1em}
+
+\begin{alertblock}{Key Question}
+Are labels randomly distributed, or is there structural organization?
+\end{alertblock}
+
+## Why Homophily Matters for Predictive Analytics
+
+\begin{block}{Predictive Value}
+If a network exhibits homophily:
+\begin{itemize}
+  \item Network structure contains information
+  \item Neighbor labels help predict unknown labels
+  \item Relational classifiers can be effective
+\end{itemize}
+\end{block}
+
+\vspace{1em}
+
+\begin{exampleblock}{Applications}
+\begin{itemize}
+  \item Customer churn prediction
+  \item Fraud detection
+  \item Product recommendation
+  \item Technology preference inference
+\end{itemize}
+\end{exampleblock}
+
+# Building the Data Scientist Network
+
+## Creating Node Data
+```{r create_nodes}
+# Define data scientists and their technology preferences
+names <- c('A', 'B', 'C', 'D', 'E', 
+           'F', 'G', 'H', 'I', 'J')
+
+tech <- c(rep('R', 6), rep('P', 4))
+
+# Create node attribute data frame
+DataScientists <- data.frame(
+  name = names,
+  technology = tech
+)
+```
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Node} & \textbf{Technology} \\
+\midrule
+A-F & R \\
+G-J & Python \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+## Creating Edge Data
+```{r create_edges}
+# Define collaboration connections
+DataScienceNetwork <- data.frame(
+  from = c('A','A','A','A','B','B','C','C','D',
+           'D','D','E','F','F','G','G','H','H','I'),
+  to = c('B','C','D','E','C','D','D','G','E',
+         'F','G','F','G','I','I','H','I','J','J'),
+  label = c(rep('rr',7), 'rp', 'rr', 'rr', 
+            'rp', 'rr', 'rp', 'rp', rep('pp',5))
+)
+```
+
+**Edge labels:**
+
+- `rr`: R to R connection
+- `pp`: Python to Python connection  
+- `rp`: R to Python connection (cross-label)
+
+## Building the Graph Object
+```{r build_graph}
+# Create undirected graph
+g <- graph_from_data_frame(DataScienceNetwork, 
+                           directed = FALSE)
+
+# Add technology as node attribute
+V(g)$label <- as.character(DataScientists$technology)
+
+# Assign colors based on technology
+V(g)$color <- V(g)$label
+V(g)$color <- gsub('R', "blue", V(g)$color)
+V(g)$color <- gsub('P', "green", V(g)$color)
+```
+
+\begin{alertblock}{Result}
+Network with 10 nodes and 19 edges, labeled by technology preference
+\end{alertblock}
+
+## Coloring Edges by Type
+```{r color_edges}
+# Color edges based on connection type
+E(g)$color <- E(g)$label
+E(g)$color <- gsub('rp', 'red', E(g)$color)
+E(g)$color <- gsub('rr', 'blue', E(g)$color)
+E(g)$color <- gsub('pp', 'green', E(g)$color)
+```
+
+**Color scheme:**
+
+- \textcolor{blue}{Blue edges}: R-to-R (homophilic)
+- \textcolor{green}{Green edges}: Python-to-Python (homophilic)
+- \textcolor{red}{Red edges}: Cross-technology (heterophilic)
+
+## Visualizing the Network
+```{r viz_network, fig.height=5, echo=FALSE}
+# Custom layout for better visualization
+pos <- cbind(
+  c(2, 1, 1.5, 2.5, 4, 4.5, 3, 3.5, 5, 6),
+  c(10.5, 9.5, 8, 8.5, 9, 7.5, 6, 4.5, 5.5, 4)
+)
+
+plot(g, 
+     edge.label = NA,
+     vertex.label.color = 'white',
+     layout = pos,
+     vertex.size = 25,
+     vertex.label.cex = 1.2,
+     edge.width = 2)
+```
+
+# Quantifying Network Structure
+
+## Counting Edge Types
+```{r count_edges, results='asis'}
+# Count edges by type
+edge_rr <- sum(E(g)$label == 'rr')
+edge_pp <- sum(E(g)$label == 'pp')
+edge_rp <- sum(E(g)$label == 'rp')
+
+# Create summary table
+edge_counts <- data.frame(
+  Type = c("R-to-R", "Python-to-Python", "Cross-label"),
+  Count = c(edge_rr, edge_pp, edge_rp)
+)
+
+kable(edge_counts, format = "latex", booktabs = TRUE)
+```
+
+\vspace{1em}
+
+**Observations:**
+
+- Most edges connect same-technology users
+- Few cross-technology connections
+- Suggests homophilic structure
+
+## Network Connectance
+```{r connectance}
+# Calculate network properties
+nodes <- vcount(g)
+edges <- ecount(g)
+
+# Compute connectance
+p <- 2 * edges / (nodes * (nodes - 1))
+```
+
+\begin{block}{Formula}
+$$p = \frac{2 \cdot \text{edges}}{\text{nodes} \cdot (\text{nodes} - 1)}$$
+\end{block}
+
+**Result:** $p = `r round(p, 3)`$
+
+\vspace{0.5em}
+
+This represents the proportion of possible edges that actually exist (network density).
+
+## Interpreting Connectance
+```{r interpret_connectance, echo=FALSE}
+max_edges <- nodes * (nodes - 1) / 2
+```
+
+\begin{block}{Network Density Analysis}
+\begin{itemize}
+  \item Total possible edges: `r max_edges`
+  \item Observed edges: `r edges`
+  \item Connectance: `r round(p, 3)` (`r round(p*100, 1)`\%)
+\end{itemize}
+\end{block}
+
+\vspace{1em}
+
+**Interpretation:**
+
+- $p < 0.2$: Sparse network
+- $0.2 \leq p \leq 0.5$: Moderate density
+- $p > 0.5$: Dense network
+
+This network is **moderately dense**.
+
+# Dyadicity Analysis
+
+## What is Dyadicity?
+
+\begin{block}{Definition}
+\textbf{Dyadicity}: Connectedness between nodes with the \textbf{same label} compared to random expectation
+\end{block}
+
+\vspace{1em}
+
+\begin{block}{Formula}
+$$D = \frac{\text{observed same-label edges}}{\text{expected same-label edges}}$$
+\end{block}
+
+\vspace{1em}
+
+**Interpretation:**
+
+- $D > 1$: Dyadic (homophilic clustering)
+- $D \approx 1$: Random mixing
+- $D < 1$: Anti-dyadic (avoidance)
+
+## Expected Same-Label Edges
+
+Under random mixing, expected number of same-label edges:
+
+$$\mathbb{E}[\text{same-label edges}] = \binom{n_g}{2} \cdot p = \frac{n_g(n_g-1)}{2} \cdot p$$
+
+where:
+
+- $n_g$ = number of nodes with label $g$
+- $p$ = network connectance
+
+\vspace{1em}
+
+\begin{exampleblock}{Example: R Users}
+- $n_R = 6$ R users
+- $p = `r round(p, 3)`$
+- Expected R-to-R edges: $\frac{6 \times 5}{2} \times `r round(p, 3)` = `r round(6*5/2*p, 2)`$
+\end{exampleblock}
+
+## Computing Dyadicity for R Users
+```{r dyadicity_r}
+# Number of R users
+n_R <- sum(DataScientists$technology == 'R')
+
+# Expected R-to-R edges
+expectedREdges <- (n_R * (n_R - 1) / 2) * p
+
+# Observed R-to-R edges
+# edge_rr already computed
+
+# Calculate dyadicity
+dyadicityR <- edge_rr / expectedREdges
+```
+
+\begin{block}{Results}
+\begin{itemize}
+  \item Expected R-to-R edges: `r round(expectedREdges, 2)`
+  \item Observed R-to-R edges: `r edge_rr`
+  \item Dyadicity: $D_R = `r round(dyadicityR, 3)`$
+\end{itemize}
+\end{block}
+
+## Computing Dyadicity for Python Users
+```{r dyadicity_python}
+# Number of Python users
+n_P <- sum(DataScientists$technology == 'P')
+
+# Expected Python-to-Python edges
+expectedPEdges <- (n_P * (n_P - 1) / 2) * p
+
+# Calculate dyadicity
+dyadicityP <- edge_pp / expectedPEdges
+```
+
+\begin{block}{Results}
+\begin{itemize}
+  \item Expected Python-to-Python edges: `r round(expectedPEdges, 2)`
+  \item Observed Python-to-Python edges: `r edge_pp`
+  \item Dyadicity: $D_P = `r round(dyadicityP, 3)`$
+\end{itemize}
+\end{block}
+
+## Interpreting Dyadicity Results
+```{r dyadicity_summary, results='asis'}
+dyad_summary <- data.frame(
+  Group = c("R Users", "Python Users"),
+  Dyadicity = round(c(dyadicityR, dyadicityP), 3),
+  Interpretation = c(
+    ifelse(dyadicityR > 1.2, "Strong homophily",
+           ifelse(dyadicityR > 1, "Moderate homophily", 
+                  "Random/Anti-dyadic")),
+    ifelse(dyadicityP > 1.2, "Strong homophily",
+           ifelse(dyadicityP > 1, "Moderate homophily", 
+                  "Random/Anti-dyadic"))
+  )
+)
+
+kable(dyad_summary, format = "latex", booktabs = TRUE)
+```
+
+\vspace{1em}
+
+\begin{alertblock}{Conclusion}
+Both groups show homophilic behavior ($D > 1$), with Python users clustering more strongly.
+\end{alertblock}
+
+## Visual Comparison: Dyadicity Types
+
+\begin{center}
+\begin{tabular}{ccc}
+\textbf{Dyadic} & \textbf{Random} & \textbf{Anti-Dyadic} \\
+$D > 1$ & $D \approx 1$ & $D < 1$ \\
+Clustering & No pattern & Avoidance \\
+\end{tabular}
+\end{center}
+
+\vspace{1em}
+
+**Our network:** Shows dyadic behavior (clustering of similar nodes)
+
+# Heterophilicity Analysis
+
+## What is Heterophilicity?
+
+\begin{block}{Definition}
+\textbf{Heterophilicity}: Connectedness between nodes with \textbf{different labels} compared to random expectation
+\end{block}
+
+\vspace{1em}
+
+\begin{block}{Formula}
+$$H = \frac{\text{observed cross-label edges}}{\text{expected cross-label edges}}$$
+\end{block}
+
+\vspace{1em}
+
+**Interpretation:**
+
+- $H > 1$: Heterophilic (attraction to different)
+- $H \approx 1$: Random mixing
+- $H < 1$: Heterophobic (avoidance of different)
+
+## Expected Cross-Label Edges
+
+Under random mixing, expected cross-label edges:
+
+$$\mathbb{E}[\text{cross-label edges}] = n_1 \cdot n_2 \cdot p$$
+
+where:
+
+- $n_1$ = number of nodes with label 1
+- $n_2$ = number of nodes with label 2
+- $p$ = network connectance
+
+\vspace{1em}
+
+\begin{exampleblock}{Example: R and Python Users}
+- $n_R = 6$, $n_P = 4$
+- $p =$ `r round(p, 3)`
+- Expected cross-label edges: $6 \times 4 \times $`r round(p, 3)` $=$ `r round(6*4*p, 2)`
+\end{exampleblock}
+
+## Computing Heterophilicity
+```{r heterophilicity}
+# Expected cross-label edges
+expectedCrossEdges <- n_R * n_P * p
+
+# Observed cross-label edges
+# edge_rp already computed
+
+# Calculate heterophilicity
+heterophilicity <- edge_rp / expectedCrossEdges
+```
+
+\begin{block}{Results}
+\begin{itemize}
+  \item Expected R-Python edges: `r round(expectedCrossEdges, 2)`
+  \item Observed R-Python edges: `r edge_rp`
+  \item Heterophilicity: $H = `r round(heterophilicity, 3)`$
+\end{itemize}
+\end{block}
+
+## Interpreting Heterophilicity
+```{r hetero_interpretation, echo=FALSE}
+hetero_type <- ifelse(heterophilicity < 0.8, "Heterophobic",
+                     ifelse(heterophilicity < 1.2, "Random", 
+                            "Heterophilic"))
+```
+
+\begin{block}{Interpretation}
+$H = `r round(heterophilicity, 3)` < 1$ indicates \textbf{`r hetero_type`} behavior
+\end{block}
+
+\vspace{1em}
+
+**What this means:**
+
+- Cross-technology connections are **suppressed**
+- R and Python users avoid connecting
+- Fewer bridges between communities
+- Strong **group segregation**
+
+\vspace{1em}
+
+\begin{alertblock}{Combined Insight}
+High dyadicity ($D > 1$) + Low heterophilicity ($H < 1$) = Strong homophily!
+\end{alertblock}
+
+## Types of Heterophilicity
+```{r hetero_examples, echo=FALSE, results='asis'}
+hetero_types <- data.frame(
+  Scenario = c("Heterophilic", "Random", "Heterophobic"),
+  H_Value = c("$H > 1$", "$H \\approx 1$", "$H < 1$"),
+  Description = c(
+    "Cross-group attraction",
+    "No preference",
+    "Cross-group avoidance"
+  )
+)
+
+kable(hetero_types, format = "latex", booktabs = TRUE, escape = FALSE)
+```
+
+\vspace{1em}
+
+**Real-world examples:**
+
+- Heterophilic: Mentorship networks (experienced-novice)
+- Random: Large social networks
+- Heterophobic: Polarized political networks
+
+# Complete Homophily Assessment
+
+## Summary of All Metrics
+```{r summary_table, results='asis'}
+homophily_metrics <- data.frame(
+  Metric = c("Connectance", "Dyadicity (R)", 
+             "Dyadicity (Python)", "Heterophilicity"),
+  Value = round(c(p, dyadicityR, dyadicityP, 
+                  heterophilicity), 3),
+  Interpretation = c(
+    "Moderate density",
+    ifelse(dyadicityR > 1, "Homophilic", "Not homophilic"),
+    ifelse(dyadicityP > 1, "Homophilic", "Not homophilic"),
+    ifelse(heterophilicity < 1, "Heterophobic", "Not heterophobic")
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(homophily_metrics, format = "latex", booktabs = TRUE)
+```
+
+## Can We Do Predictive Analytics?
+
+\begin{block}{Assessment Checklist}
+\begin{enumerate}
+  \item Are relationships between nodes important? \textcolor{datagreen}{\checkmark}
+  \item Are labels non-randomly distributed? \textcolor{datagreen}{\checkmark}
+  \item Is the network homophilic? \textcolor{datagreen}{\checkmark}
+\end{enumerate}
+\end{block}
+
+\vspace{1em}
+
+\begin{alertblock}{Answer: YES!}
+This network exhibits strong homophily:
+\begin{itemize}
+  \item Within-group clustering ($D > 1$)
+  \item Cross-group suppression ($H < 1$)
+  \item Network structure is informative
+  \item Neighbor-based prediction will work
+\end{itemize}
+\end{alertblock}
+
+## Larger Network Example
+```{r larger_network}
+# Simulate parameters for 40-node network
+N_large <- 40
+E_large <- 39
+n_green_large <- 10
+n_white_large <- 30
+e_green_large <- 6
+e_mixed_large <- 13
+
+# Calculate metrics
+p_large <- 2 * E_large / (N_large * (N_large - 1))
+m_green_large <- n_green_large * (n_green_large - 1) / 2 * p_large
+m_mixed_large <- n_green_large * n_white_large * p_large
+
+D_large <- e_green_large / m_green_large
+H_large <- e_mixed_large / m_mixed_large
+```
+
+## Larger Network Results
+```{r large_results, results='asis'}
+large_metrics <- data.frame(
+  Metric = c("Connectance", "Dyadicity (Green)", "Heterophilicity"),
+  Value = round(c(p_large, D_large, H_large), 3),
+  stringsAsFactors = FALSE
+)
+
+kable(large_metrics, format = "latex", booktabs = TRUE)
+```
+
+\vspace{1em}
+
+\begin{block}{Analysis}
+\begin{itemize}
+  \item $D = `r round(D_large, 2)` > 1$: Green nodes cluster
+  \item $H = `r round(H_large, 2)` < 1$: Cross-group avoidance
+  \item \textbf{Conclusion}: Homophilic network, suitable for prediction
+\end{itemize}
+\end{block}
+
+# Network-Based Classification
+
+## The Relational Neighbor Classifier
+
+\begin{block}{Core Principle: Homophily}
+"Birds of a feather flock together" \\
+$\Rightarrow$ Predict unknown labels from neighbor labels
+\end{block}
+
+\vspace{1em}
+
+\begin{block}{Algorithm}
+For unknown node $i$:
+\begin{enumerate}
+  \item Identify neighbors: $\mathcal{N}(i)$
+  \item Count labels: $n_0, n_1, \ldots$
+  \item Calculate probabilities: $P(\text{label} = k) = \frac{n_k}{|\mathcal{N}(i)|}$
+  \item Predict: $\hat{y}_i = \arg\max_k P(\text{label} = k)$
+\end{enumerate}
+\end{block}
+
+## RNC Example: Node C
+
+**Node C** (unknown technology) is connected to: A, B, D, G
+
+- A, B, D: R users (3 neighbors)
+- G: Python user (1 neighbor)
+
+\vspace{1em}
+```{r rnc_example}
+rNeighbors_C <- 3
+pNeighbors_C <- 1
+total_neighbors <- rNeighbors_C + pNeighbors_C
+
+prob_R_C <- rNeighbors_C / total_neighbors
+```
+
+\begin{block}{Calculation}
+$$P(\text{R} | \text{C's neighbors}) = \frac{3}{4} = `r prob_R_C`$$
+\end{block}
+
+**Prediction:** Node C prefers **R** (75\% confidence)
+
+## RNC for All Nodes
+```{r rnc_all}
+# Neighbor counts for each node (based on network)
+rNeighbors <- c(4, 3, 3, 5, 3, 2, 3, 0, 1, 0)
+pNeighbors <- c(0, 0, 1, 1, 0, 2, 2, 3, 3, 2)
+
+# Calculate probabilities
+rProb <- rNeighbors / (rNeighbors + pNeighbors)
+```
+```{r rnc_table, results='asis', echo=FALSE}
+rnc_results <- data.frame(
+  Node = names,
+  Actual = tech,
+  R_Neighbors = rNeighbors,
+  P_Neighbors = pNeighbors,
+  Prob_R = round(rProb, 2),
+  stringsAsFactors = FALSE
+)
+
+kable(rnc_results[1:5, ], format = "latex", booktabs = TRUE, 
+      caption = "RNC Predictions (first 5 nodes)")
+```
+
+## Churn Prediction Application
+
+\begin{block}{Customer Network Scenario}
+\begin{itemize}
+  \item Customers connected through social ties
+  \item Some have churned (1), others stayed (0)
+  \item Predict churn for customers with unknown status
+\end{itemize}
+\end{block}
+
+\vspace{1em}
+
+\begin{exampleblock}{Example: Customer 393}
+Neighbors:
+\begin{itemize}
+  \item Customer 1: Stayed (0)
+  \item Customer 2573: Stayed (0)
+  \item Customer 4430: Stayed (0)
+  \item Customer 926: \textcolor{datared}{Churned (1)}
+  \item Customer 1574: \textcolor{datared}{Churned (1)}
+\end{itemize}
+\end{exampleblock}
+
+## Churn Prediction Calculation
+```{r churn_prediction}
+# Customer 393's neighbors
+churned_neighbors <- 2  # Customers 926, 1574
+stayed_neighbors <- 1   # Customer 1
+total_neighbors_393 <- churned_neighbors + stayed_neighbors
+
+# Calculate churn probability
+prob_churn_393 <- churned_neighbors / total_neighbors_393
+```
+
+\begin{block}{RNC Prediction}
+$$P(\text{churn} | \text{neighbors of 393}) = \frac{2}{3} = `r round(prob_churn_393, 3)`$$
+\end{block}
+
+\vspace{1em}
+
+\begin{alertblock}{Result}
+Customer 393 has `r round(prob_churn_393*100, 1)`\% probability of churning
+
+\textbf{Prediction: WILL CHURN}
+\end{alertblock}
+
+# Advanced Topics
+
+## Probabilistic RNC (PRNC)
+
+\begin{block}{Handling Uncertainty}
+Instead of hard labels (0 or 1), use \textbf{probabilities}
+\end{block}
+
+\vspace{1em}
+
+\begin{block}{PRNC Formula}
+For unknown node $i$:
+$$P(\text{churn}_i) = \frac{1}{|\mathcal{N}(i)|} \sum_{j \in \mathcal{N}(i)} P(\text{churn}_j)$$
+\end{block}
+
+\vspace{1em}
+
+**Advantage:** Incorporates uncertainty from neighbors
+
+## PRNC Example
+
+Suppose node $i$ has 5 neighbors with churn probabilities:
+```{r prnc_example}
+neighbor_probs <- c(0.9, 0.2, 0.4, 0.1, 0.8)
+
+# Calculate average
+prob_churn_prnc <- mean(neighbor_probs)
+prob_stay_prnc <- 1 - prob_churn_prnc
+```
+
+\begin{block}{Calculation}
+$$P(\text{churn}_i) = \frac{0.9 + 0.2 + 0.4 + 0.1 + 0.8}{5} = `r prob_churn_prnc`$$
+\end{block}
+
+\vspace{1em}
+
+**Interpretation:**
+
+- 48\% probability of churn
+- 52\% probability of staying
+- **Prediction: STAY** (but it's close!)
+
+## Iterative Classification
+
+\begin{block}{The Bootstrap Problem}
+When multiple nodes have unknown labels:
+\begin{itemize}
+  \item Predictions depend on each other
+  \item Need iterative refinement
+  \item Continue until convergence
+\end{itemize}
+\end{block}
+
+\vspace{1em}
+
+\begin{block}{Iterative Algorithm}
+\begin{enumerate}
+  \item Initialize all unknown nodes (e.g., 0.5 probability)
+  \item \textbf{Repeat} until convergence:
+  \begin{itemize}
+    \item Update each unknown node using PRNC
+    \item Check if predictions changed
+  \end{itemize}
+  \item Return final predictions
+\end{enumerate}
+\end{block}
+
+## Challenges in Network Learning
+
+\begin{alertblock}{Challenge 1: Data Splitting}
+Cannot randomly split network data!
+\begin{itemize}
+  \item Breaks network structure
+  \item Creates isolated nodes
+  \item Invalidates neighbor-based features
+\end{itemize}
+\end{alertblock}
+
+\vspace{1em}
+
+\begin{alertblock}{Challenge 2: Non-IID Data}
+Observations are \textbf{not independent}!
+\begin{itemize}
+  \item Violates ML assumptions
+  \item Standard confidence intervals invalid
+  \item Need network-aware validation
+\end{itemize}
+\end{alertblock}
+
+## Solutions to Challenges
+
+\begin{block}{Better Splitting Strategies}
+\begin{enumerate}
+  \item \textbf{Temporal split}: Train on early period, test on later
+  \item \textbf{Inductive split}: Keep full network, hide some labels
+  \item \textbf{Stratified CV}: Preserve community structure
+\end{enumerate}
+\end{block}
+
+\vspace{1em}
+
+\begin{block}{Handling Non-IID Data}
+\begin{itemize}
+  \item Use network cross-validation
+  \item Apply permutation tests
+  \item Compute autocorrelation-adjusted errors
+  \item Report network-aware metrics
+\end{itemize}
+\end{block}
+
+# Summary and Conclusions
+
+## Key Takeaways
+
+\begin{block}{What We Learned}
+\begin{enumerate}
+  \item \textbf{Homophily}: Similar nodes connect more than expected
+  \item \textbf{Dyadicity}: Measures within-group clustering
+  \item \textbf{Heterophilicity}: Measures cross-group connections
+  \item \textbf{RNC/PRNC}: Predict labels from neighbor information
+  \item \textbf{Challenges}: Data splitting and non-IID assumptions
+\end{enumerate}
+\end{block}
+
+## When to Use Network-Based Prediction
+
+\begin{block}{Checklist}
+Use network-based methods when:
+\begin{itemize}
+  \item Network exhibits homophily ($D > 1$, $H < 1$)
+  \item Relational data is available and reliable
+  \item Node attributes alone are insufficient
+  \item Computational resources allow network features
+\end{itemize}
+\end{block}
+
+\vspace{1em}
+
+\begin{alertblock}{Caution}
+If network is random ($D \approx 1$, $H \approx 1$):
+\begin{itemize}
+  \item Network provides little information
+  \item Use traditional attribute-based methods
+  \item Network features may add noise
+\end{itemize}
+\end{alertblock}
+
+## Practical Guidelines
+
+\begin{block}{Best Practices}
+\begin{enumerate}
+  \item \textbf{Always visualize} your network first
+  \item \textbf{Measure homophily} before investing in network features
+  \item \textbf{Use appropriate} train/test splitting
+  \item \textbf{Account for} statistical dependencies
+  \item \textbf{Validate} with network-aware metrics
+  \item \textbf{Consider} combining network + attribute features
+\end{enumerate}
+\end{block}
+
+## Applications in Practice
+
+\begin{block}{Real-World Use Cases}
+\begin{description}
+  \item[Telecom] Customer churn prediction using call networks
+  \item[Finance] Fraud detection in transaction networks
+  \item[E-commerce] Product recommendation via user networks
+  \item[Social Media] Content recommendation and influence analysis
+  \item[Healthcare] Disease spread prediction in contact networks
+\end{description}
+\end{block}
+
+## Next Steps
+
+\begin{block}{Extending Network Analytics}
+\begin{itemize}
+  \item \textbf{Feature engineering}: Degree, centrality, clustering
+  \item \textbf{Advanced models}: Graph neural networks
+  \item \textbf{Community detection}: Identify network modules
+  \item \textbf{Temporal networks}: Model dynamics over time
+  \item \textbf{Attributed networks}: Combine structure + attributes
+\end{itemize}
+\end{block}
+
+\vspace{1em}
+
+\begin{center}
+\Large{\textbf{Thank you! Questions?}}
+\end{center}
+
+## References and Resources
+
+\begin{block}{Key References}
+\begin{itemize}
+  \item Baesens et al. (2020). \textit{Network Analytics in Business}
+  \item Kolaczyk \& Csárdi (2014). \textit{Statistical Analysis of Network Data with R}
+  \item Newman (2018). \textit{Networks: An Introduction}
+\end{itemize}
+\end{block}
+
+\vspace{1em}
+
+\begin{block}{R Packages}
+\begin{itemize}
+  \item \texttt{igraph}: Network analysis and visualization
+  \item \texttt{statnet}: Statistical network analysis
+  \item \texttt{tidygraph}: Tidy network data manipulation
+\end{itemize}
+\end{block}

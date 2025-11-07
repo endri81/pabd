@@ -2164,3 +2164,2192 @@ Spend 80% of time on feature engineering, 20% on model selection!
  **Production** requires robust pipelines
 
 
+# Part 1: Creating Dummy Variables
+
+## The Problem: Categorical Variables
+
+**Machine learning models need numbers, not categories!**
+
+Consider this donor dataset:
+
+| donor_id | gender | country | segment |
+|----------|--------|---------|---------|
+| 5 | F | India | Gold |
+| 3 | M | USA | Silver |
+| 2 | M | India | Bronze |
+| 8 | F | UK | Silver |
+| 1 | F | USA | Bronze |
+
+**Question:** How do we include gender, country, and segment in a logistic regression model?
+
+**Answer:** Convert categories to binary dummy variables (one-hot encoding)
+
+---
+
+## One-Hot Encoding: Gender Example
+
+Transform each category into a binary indicator:
+
+| donor_id | gender | gender_F | gender_M |
+|----------|--------|----------|----------|
+| 5 | F | 1 | 0 |
+| 3 | M | 0 | 1 |
+| 2 | M | 0 | 1 |
+| 8 | F | 1 | 0 |
+| 1 | F | 1 | 0 |
+
+**Interpretation:** Each dummy variable answers a yes/no question. `gender_F = 1` means "Is this donor female? Yes."
+
+---
+
+## The Multicollinearity Problem
+
+**Issue:** If we know `gender_F`, we automatically know `gender_M`!
+
+When `gender_F = 0`, then `gender_M` must equal 1. This creates **perfect multicollinearity**, which breaks regression models.
+
+**Mathematical problem:** gender_F + gender_M = 1 (always)
+
+This linear dependence means the design matrix is not full rank, causing estimation failure.
+
+**Solution:** Drop one category to serve as the reference level.
+
+---
+
+## Solution: Drop One Category
+
+Keep only k-1 dummy variables for a categorical variable with k categories:
+
+| donor_id | gender | gender_F |
+|----------|--------|----------|
+| 5 | F | 1 |
+| 3 | M | 0 |
+| 2 | M | 0 |
+| 8 | F | 1 |
+| 1 | F | 1 |
+
+**Interpretation:** `gender_F = 0` implicitly means Male (reference category). The coefficient on `gender_F` represents the difference between Female and Male donors.
+
+---
+
+## Multi-Category Example: Country
+
+For a variable with 3 categories, create 2 dummy variables:
+
+| donor_id | country | country_USA | country_India |
+|----------|---------|-------------|---------------|
+| 5 | India | 0 | 1 |
+| 3 | USA | 1 | 0 |
+| 2 | India | 0 | 1 |
+| 8 | UK | 0 | 0 |
+| 1 | USA | 1 | 0 |
+
+**Reference category:** UK (when both dummies equal 0).
+
+**Model interpretation:** Coefficients measure effects relative to UK.
+
+---
+
+## Creating Dummy Variables in R
+```{r, eval=FALSE}
+# Method 1: Using fastDummies package
+library(fastDummies)
+
+# Create dummies, drop first category
+basetable <- dummy_cols(
+  basetable, 
+  select_columns = "segment",
+  remove_first_dummy = TRUE,
+  remove_selected_columns = TRUE
+)
+
+# Method 2: Using model.matrix (automatic)
+dummies <- model.matrix(~ segment - 1, data = basetable)
+
+# Method 3: Manual approach for single variable
+basetable$segment_Gold <- as.integer(basetable$segment == "Gold")
+basetable$segment_Silver <- as.integer(basetable$segment == "Silver")
+# Bronze becomes reference (both dummies = 0)
+```
+
+---
+
+## Practical Example: Complete Pipeline
+```{r, eval=FALSE}
+# Original data
+head(basetable[, c("donor_id", "segment")])
+#   donor_id segment
+# 1    32770    Gold
+# 2    32776  Silver
+# 3    32777  Bronze
+# 4    65552  Bronze
+
+# Create dummy variables
+basetable <- dummy_cols(
+  basetable,
+  select_columns = "segment",
+  remove_first_dummy = TRUE,
+  remove_selected_columns = TRUE
+)
+
+# Result: Bronze is reference (omitted)
+head(basetable[, c("donor_id", "segment_Gold", "segment_Silver")])
+#   donor_id segment_Gold segment_Silver
+# 1    32770            1              0
+# 2    32776            0              1
+# 3    32777            0              0
+# 4    65552            0              0
+```
+
+---
+
+# Part 2: Handling Missing Values
+
+## Why Missing Values Matter
+
+**Models cannot handle NA values!** Most algorithms will fail or silently drop observations.
+```{r, eval=FALSE}
+# Example: Missing age values
+basetable[c("donor_id", "age")]
+#   donor_id age
+# 1        5  NA
+# 2        3  25
+# 3        2  36
+# 4        8  40
+# 5        1  26
+```
+
+**Critical questions:**
+
+1. Why is the value missing? (Random? Systematic?)
+2. How many values are missing? (1%? 50%?)
+3. What's the best replacement strategy?
+
+---
+
+## Strategy 1: Replace with Mean
+
+**When to use:** Continuous variables, few missing values, roughly normal distribution.
+```{r, eval=FALSE}
+# Calculate mean age (excluding NA)
+mean_age <- mean(basetable$age, na.rm = TRUE)  # 31.75
+
+# Replace missing values
+basetable$age[is.na(basetable$age)] <- mean_age
+
+# Result
+#   donor_id age
+# 1        5  31.75  # Was NA
+# 2        3  25.00
+# 3        2  36.00
+# 4        8  40.00
+# 5        1  26.00
+```
+
+**Advantage:** Simple, maintains overall mean.
+
+**Disadvantage:** Reduces variance, breaks correlations.
+
+---
+
+## Strategy 2: Replace with Median (Better for Outliers)
+
+**When to use:** Skewed distributions or presence of outliers.
+```{r, eval=FALSE}
+# Example with outlier in max_donation
+basetable$max_donation
+# 100, 1000000, 100, 40, 120
+
+# Mean heavily influenced by outlier
+mean(basetable$max_donation, na.rm = TRUE)    # 200,052
+median(basetable$max_donation, na.rm = TRUE)  # 110
+
+# Use median for robustness
+replacement <- median(basetable$max_donation, na.rm = TRUE)
+basetable$max_donation[is.na(basetable$max_donation)] <- replacement
+
+# Result: Missing value now 110 (much more reasonable!)
+```
+
+**Why median?** The €1,000,000 donor skews the mean but doesn't affect the median.
+
+---
+
+## Strategy 3: Replace with Fixed Value (Zero)
+
+**When to use:** Missing means "absence of activity" or "zero count."
+```{r, eval=FALSE}
+# Example: donations_last_year
+# NA means they didn't donate (zero donations)
+basetable[c("donor_id", "donations_last_year")]
+#   donor_id donations_last_year
+# 1        5                 130
+# 2        3                  10
+# 3        2                  NA  # No donations
+# 4        8                  40
+# 5        1                 120
+
+# Replace NA with 0 (no donations)
+basetable$donations_last_year[
+  is.na(basetable$donations_last_year)
+] <- 0
+
+# Result: NA becomes 0 (meaningful zero)
+```
+
+**Semantic meaning:** Zero is not arbitrary here, it represents actual absence.
+
+---
+
+## General Missing Value Replacement Function
+```{r, eval=FALSE}
+# Flexible function for different strategies
+replace_missing <- function(x, method = "mean") {
+  if (method == "mean") {
+    replacement <- mean(x, na.rm = TRUE)
+  } else if (method == "median") {
+    replacement <- median(x, na.rm = TRUE)
+  } else if (method == "zero") {
+    replacement <- 0
+  } else {
+    stop("Method must be 'mean', 'median', or 'zero'")
+  }
+  
+  x[is.na(x)] <- replacement
+  return(x)
+}
+
+# Usage
+basetable$age <- replace_missing(basetable$age, method = "mean")
+basetable$max_donation <- replace_missing(
+  basetable$max_donation, 
+  method = "median"
+)
+basetable$donations_last_year <- replace_missing(
+  basetable$donations_last_year, 
+  method = "zero"
+)
+```
+
+---
+
+## Strategy 4: Missing Value Indicator
+
+**Concept:** Sometimes "missingness" itself is informative!
+```{r, eval=FALSE}
+# Example: email address
+basetable[c("donor_id", "email")]
+#   donor_id email
+# 1    32770 person32770@provider.com
+# 2    32776 NA
+# 3    32777 person32777@provider.com
+# 4    65552 NA
+
+# Create indicator: 1 if missing, 0 if present
+basetable$no_email <- as.integer(is.na(basetable$email))
+
+# Result
+#   donor_id email                    no_email
+# 1    32770 person32770@provider.com        0
+# 2    32776 NA                              1
+# 3    32777 person32777@provider.com        0
+# 4    65552 NA                              1
+```
+
+**Why this matters:** Missing email might indicate lower engagement or privacy concerns, which could be predictive!
+
+---
+
+## Missing Value Indicators in Practice
+
+**Use cases where missingness is predictive:**
+
+1. **Missing email** → Lower tech-savviness, privacy concerns
+2. **Missing income** → Reluctance to share financial info
+3. **Missing phone number** → Reduced contactability
+4. **Missing survey responses** → Lower engagement
+```{r, eval=FALSE}
+# Create multiple missingness indicators
+basetable$missing_email <- as.integer(is.na(basetable$email))
+basetable$missing_phone <- as.integer(is.na(basetable$phone))
+basetable$missing_income <- as.integer(is.na(basetable$income))
+
+# These can be powerful predictors in the model!
+# Example: Donors without email might be 30% less likely to donate
+```
+
+**Best practice:** Create indicator BEFORE imputing the actual variable.
+
+---
+
+# Part 3: Handling Outliers
+
+## The Outlier Problem
+
+**Outliers distort model coefficients and predictions.**
+
+Consider this visualization:
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8]
+% Axes
+\draw[->] (0,0) -- (10,0) node[right] {Age};
+\draw[->] (0,0) -- (0,5) node[above] {P(Donate)};
+
+% Most data points
+\foreach \x in {2,2.5,3,3.5,4,4.5,5,5.5,6} {
+  \fill[datablue] (\x,0.2) circle (2pt);
+}
+
+% Outlier
+\fill[datared] (9.5,0.2) circle (3pt);
+
+% Regression lines
+\draw[datablue, thick] (1,1) -- (7,3.5);  % Without outlier
+\draw[datared, thick, dashed] (1,0.5) -- (10,3);  % With outlier
+
+\node[datablue] at (4,4) {Without outlier};
+\node[datared] at (7,2) {With outlier};
+\end{tikzpicture}
+\end{center}
+
+**Impact:** One extreme age value pulls the entire regression line!
+
+---
+
+## Causes of Outliers
+
+**Before removing outliers, understand why they exist:**
+
+1. **Data entry errors** → Age = 999 (should be 99)
+2. **Measurement errors** → Equipment malfunction
+3. **Truly extreme values** → Billionaire donor (real, but rare)
+4. **Different population** → Corporate donor in individual database
+
+**Decision tree:**
+
+- Error? → Correct or remove
+- Measurement issue? → Remove
+- True extreme? → Cap (winsorize) or transform
+- Different population? → Separate analysis or remove
+
+---
+
+## Method 1: Winsorization
+
+**Concept:** Cap extreme values at specified percentiles (typically 5th and 95th).
+
+\begin{center}
+\begin{tikzpicture}[scale=0.7]
+% Draw normal curve
+\draw[thick] plot[smooth,domain=-3:3] (\x+5,{3*exp(-\x*\x/2)});
+\fill[datagreen,opacity=0.3] plot[smooth,domain=-1.64:1.64] 
+  (\x+5,{3*exp(-\x*\x/2)}) -- (6.64,0) -- (3.36,0) -- cycle;
+
+% Markers
+\draw[thick,datared] (3.36,0) -- (3.36,3) node[above] {5\%};
+\draw[thick,datared] (6.64,0) -- (6.64,3) node[above] {95\%};
+
+% Labels
+\node at (2,0) [below] {EUR 6};
+\node at (8,0) [below] {EUR 950};
+\node at (5,4) {90\% of data unchanged};
+
+\draw[<->,thick] (3.36,-0.5) -- (2,-0.5);
+\draw[<->,thick] (6.64,-0.5) -- (8,-0.5);
+\node at (2.5,-1) {Capped};
+\node at (7.5,-1) {Capped};
+\end{tikzpicture}
+\end{center}
+
+**Result:** Values below 5th percentile set to 5th percentile value. Values above 95th percentile set to 95th percentile value.
+
+---
+
+## Winsorization in R
+```{r, eval=FALSE}
+# Using DescTools package
+library(DescTools)
+
+# Winsorize at 5% and 95% percentiles
+basetable$mean_donation_winsorized <- Winsorize(
+  basetable$mean_donation,
+  probs = c(0.05, 0.95)
+)
+
+# Manual implementation
+winsorize_manual <- function(x, lower = 0.05, upper = 0.95) {
+  # Calculate percentile thresholds
+  lower_limit <- quantile(x, lower, na.rm = TRUE)
+  upper_limit <- quantile(x, upper, na.rm = TRUE)
+  
+  # Cap values
+  x[x < lower_limit] <- lower_limit
+  x[x > upper_limit] <- upper_limit
+  
+  return(x)
+}
+
+# Apply manual function
+basetable$mean_donation_winsorized <- winsorize_manual(
+  basetable$mean_donation,
+  lower = 0.05,
+  upper = 0.95
+)
+```
+
+---
+
+## Method 2: Standard Deviation Method
+
+**Concept:** Cap values beyond mean $\pm$ 3 standard deviations.
+
+\begin{center}
+\begin{tikzpicture}[scale=0.7]
+% Draw normal curve
+\draw[thick] plot[smooth,domain=-3.5:3.5] (\x+5,{3*exp(-\x*\x/2)});
+\fill[datagreen,opacity=0.3] plot[smooth,domain=-3:3] 
+  (\x+5,{3*exp(-\x*\x/2)}) -- (8,0) -- (2,0) -- cycle;
+
+% Markers
+\draw[thick,dashed] (2,0) -- (2,3.5);
+\draw[thick,dashed] (8,0) -- (8,3.5);
+
+% Labels
+\node at (2,0) [below] {16};
+\node at (5,0) [below] {54 (mean)};
+\node at (8,0) [below] {130};
+\node at (5,4) {99.7\% within 3 SD};
+
+\node at (2,3.8) {$\mu - 3\sigma$};
+\node at (8,3.8) {$\mu + 3\sigma$};
+\end{tikzpicture}
+\end{center}
+
+**Why 3 SD?** In a normal distribution, 99.7% of data falls within this range. Values beyond are statistically extreme.
+
+---
+
+## Standard Deviation Method in R
+```{r, eval=FALSE}
+# Calculate boundaries
+mean_age <- mean(basetable$age, na.rm = TRUE)
+sd_age <- sd(basetable$age, na.rm = TRUE)
+
+lower_limit <- mean_age - 3 * sd_age
+upper_limit <- mean_age + 3 * sd_age
+
+# Apply capping
+basetable$age_no_outliers <- pmin(
+  pmax(basetable$age, lower_limit),  # Cap below
+  upper_limit                        # Cap above
+)
+
+# Alternative using ifelse
+basetable$age_no_outliers <- ifelse(
+  basetable$age < lower_limit, lower_limit,
+  ifelse(basetable$age > upper_limit, upper_limit, 
+         basetable$age)
+)
+
+# Function version
+cap_outliers <- function(x, n_sd = 3) {
+  mean_x <- mean(x, na.rm = TRUE)
+  sd_x <- sd(x, na.rm = TRUE)
+  lower <- mean_x - n_sd * sd_x
+  upper <- mean_x + n_sd * sd_x
+  pmin(pmax(x, lower), upper)
+}
+```
+
+---
+
+## Winsorization vs. Standard Deviation Method
+
+**Comparison:**
+
+| Method | When to Use | Advantage | Disadvantage |
+|--------|-------------|-----------|--------------|
+| **Winsorization** | Skewed data, many outliers | Preserves distribution shape | Arbitrary percentile choice |
+| **Standard Deviation** | Normal data, few outliers | Statistically principled | Assumes normality |
+
+**Example decision:**
+
+- **Age variable** (roughly normal) → Use SD method
+- **Donation amounts** (heavily skewed) → Use winsorization
+```{r, eval=FALSE}
+# Check distribution before choosing
+hist(basetable$age)           # Normal? Use SD method
+hist(basetable$mean_donation) # Skewed? Use winsorization
+
+# Formal test for normality
+shapiro.test(basetable$age)  # p > 0.05 suggests normality
+```
+
+---
+
+# Part 4: Transformations
+
+## Why Transform Variables?
+
+**Problem:** Large differences in scale distort model predictions.
+
+**Example:** Four donors with very different donation amounts:
+
+- **Alice:** €100 (modest donor)
+- **Bob:** €1,100 (10× more than Alice)
+- **Carol:** €10,000 (100× more than Alice)
+- **Dave:** €11,000 (only 10% more than Carol)
+
+**Issue:** The difference between Alice and Bob (€1,000) seems similar to the difference between Carol and Dave (€1,000), but the relative importance is very different!
+
+**Solution:** Transform to capture relative rather than absolute differences.
+
+---
+
+## Log Transformation: The Concept
+
+**Logarithm converts multiplication into addition:**
+
+- Alice: €100 → log(100) = 4.6
+- Bob: €1,100 → log(1,100) = 7.0
+- Carol: €10,000 → log(10,000) = 9.2
+- Dave: €11,000 → log(11,000) = 9.3
+
+**Key insight:** The gap between Alice and Bob (7.0 - 4.6 = 2.4) is now comparable to the gap between Carol and Dave (9.3 - 9.2 = 0.1). This better reflects the relative differences in giving capacity!
+
+---
+
+## Log Transformation Formula
+
+**Mathematical properties:**
+
+$$\log(a \times b) = \log(a) + \log(b)$$
+
+This means percentage changes become additive:
+
+- 10% increase: $\log(1.1 \times x) = \log(x) + 0.095$
+- Same for all values of $x$!
+
+\begin{center}
+\begin{tikzpicture}[scale=0.6]
+\draw[->] (0,0) -- (11,0) node[right] {Original value};
+\draw[->] (0,0) -- (0,6) node[above] {Log value};
+\draw[thick, datablue] plot[smooth,domain=0.5:10] (\x,{ln(\x)+2});
+\node at (6,5) {Compresses large values};
+\node at (6,4.5) {Expands small values};
+\end{tikzpicture}
+\end{center}
+
+---
+
+## Log Transformation in R
+```{r, eval=FALSE}
+# Apply natural logarithm
+basetable$log_mean_donation <- log(basetable$mean_donation)
+
+# Handle zeros (log(0) is undefined!)
+# Add small constant before logging
+basetable$log_mean_donation <- log(basetable$mean_donation + 1)
+
+# Alternative: log1p function (more numerically stable)
+basetable$log_mean_donation <- log1p(basetable$mean_donation)
+
+# Compare distributions
+par(mfrow = c(1, 2))
+hist(basetable$mean_donation, main = "Original", 
+     xlab = "Mean Donation")
+hist(basetable$log_mean_donation, main = "Log-transformed",
+     xlab = "Log(Mean Donation)")
+```
+
+**When to use:** Monetary values, counts, ratios, or any right-skewed variable.
+
+---
+
+## Other Useful Transformations
+
+**Square root transformation** (milder than log):
+```{r, eval=FALSE}
+basetable$sqrt_donations <- sqrt(basetable$mean_donation)
+```
+
+**Inverse transformation** (for extreme skew):
+```{r, eval=FALSE}
+basetable$inv_recency <- 1 / (basetable$days_since_last + 1)
+# Recent donors get high values, old donors get low values
+```
+
+**Box-Cox transformation** (automatically finds best power):
+```{r, eval=FALSE}
+library(car)
+bc <- powerTransform(basetable$mean_donation)
+basetable$bc_donation <- bcPower(basetable$mean_donation, 
+                                  bc$lambda)
+```
+
+---
+
+# Part 5: Interaction Features
+
+## The Concept of Interactions
+
+**Problem:** Features may have combined effects that are greater than the sum of their parts.
+
+**Example:** Donor engagement depends on BOTH frequency and recency:
+
+- **High frequency + Recent donation** → Very likely to donate
+- **High frequency + Old donation** → Moderate likelihood
+- **Low frequency + Recent donation** → Moderate likelihood
+- **Low frequency + Old donation** → Very unlikely to donate
+
+The effect of frequency depends on recency (and vice versa)!
+
+---
+
+## Interaction Visualization
+
+\begin{center}
+\begin{tikzpicture}[scale=0.9]
+% Timeline arrows
+\draw[->,ultra thick,datagreen] (0,3) -- (9,3);
+\draw[->,ultra thick,datared] (0,0.5) -- (9,0.5);
+
+% Donors on first timeline (high frequency)
+\foreach \x in {0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5} {
+  \fill[datagreen] (\x,3) circle (3pt);
+}
+
+% Donors on second timeline (low frequency)
+\fill[datared] (0.7,0.5) circle (3pt);
+\fill[datared] (7,0.5) circle (3pt);
+
+% Labels
+\node at (-1.5,3) [left] {High frequency:};
+\node at (-1.5,0.5) [left] {Low frequency:};
+\node at (9.5,3) [right] {Likely};
+\node at (9.5,0.5) [right] {Unlikely};
+\node at (4.5,-0.5) {\textbf{Recency: Recent $\rightarrow$ Old}};
+\end{tikzpicture}
+\end{center}
+
+**Key insight:** The combination of high frequency AND recent donation creates the strongest prediction signal.
+
+---
+
+## Creating Interactions in R
+```{r, eval=FALSE}
+# Multiplicative interaction
+basetable$freq_recency_interaction <- 
+  basetable$donation_count * basetable$days_since_last
+
+# Interpretation: Higher values = active donors
+# Recent + frequent donors get high scores
+# Old + infrequent donors get low scores
+
+# Alternative: Inverse recency for intuition
+basetable$freq_recency_interaction <- 
+  basetable$donation_count / (basetable$days_since_last + 1)
+
+# Now higher values = more engaged
+# Recent frequent donors: 12 / 10 = 1.2
+# Old infrequent donors: 2 / 365 = 0.005
+
+# Multiple interactions
+basetable$rfm_interaction <- 
+  (1 / (basetable$days_since_last + 1)) *  # Recency
+  basetable$donation_count *                # Frequency
+  basetable$mean_donation                   # Monetary
+```
+
+---
+
+## Interaction Example: RFM Combined Score
+```{r, eval=FALSE}
+# Create comprehensive engagement score
+compute_rfm_score <- function(recency, frequency, monetary) {
+  # Normalize recency (inverse so recent = high)
+  r_score <- 1 / (recency + 1)
+  
+  # Normalize frequency (already in right direction)
+  f_score <- frequency
+  
+  # Normalize monetary
+  m_score <- monetary
+  
+  # Combined multiplicative score
+  rfm_score <- r_score * f_score * m_score
+  
+  return(rfm_score)
+}
+
+# Apply to all donors
+basetable$rfm_score <- compute_rfm_score(
+  basetable$days_since_last,
+  basetable$donation_count,
+  basetable$mean_donation
+)
+
+# Top 10 most engaged donors
+head(basetable[order(-basetable$rfm_score), 
+               c("donor_id", "rfm_score")], 10)
+```
+
+---
+
+## Automatic Interaction Creation
+```{r, eval=FALSE}
+# Create interactions between all numeric variables
+numeric_vars <- c("days_since_last", "donation_count", 
+                  "mean_donation", "max_donation")
+
+# All pairwise interactions
+for (i in 1:(length(numeric_vars)-1)) {
+  for (j in (i+1):length(numeric_vars)) {
+    var1 <- numeric_vars[i]
+    var2 <- numeric_vars[j]
+    
+    interaction_name <- paste0(var1, "_x_", var2)
+    basetable[[interaction_name]] <- basetable[[var1]] * 
+                                      basetable[[var2]]
+  }
+}
+
+# Result: Creates
+# days_since_last_x_donation_count
+# days_since_last_x_mean_donation
+# donation_count_x_mean_donation
+# ... and more
+
+# Warning: Can create many features quickly!
+```
+
+---
+
+# Part 6: Complete Preprocessing Pipeline
+
+## Putting It All Together
+```{r, eval=FALSE}
+# Step 1: Handle missing values
+basetable$age[is.na(basetable$age)] <- 
+  median(basetable$age, na.rm = TRUE)
+
+basetable$donations_last_year[is.na(basetable$donations_last_year)] <- 0
+
+basetable$missing_email <- as.integer(is.na(basetable$email))
+
+# Step 2: Handle outliers
+basetable$mean_donation_capped <- cap_outliers(
+  basetable$mean_donation, 
+  n_sd = 3
+)
+
+# Step 3: Create dummy variables
+basetable <- dummy_cols(
+  basetable,
+  select_columns = c("segment", "country"),
+  remove_first_dummy = TRUE,
+  remove_selected_columns = TRUE
+)
+
+# Step 4: Transform skewed variables
+basetable$log_mean_donation <- log1p(basetable$mean_donation_capped)
+
+# Step 5: Create interactions
+basetable$rfm_score <- compute_rfm_score(
+  basetable$days_since_last,
+  basetable$donation_count,
+  basetable$mean_donation
+)
+```
+
+---
+
+## Preprocessing Checklist
+
+Before modeling, verify:
+
+- Missing values handled for ALL variables
+- Outliers addressed in key variables
+- Categorical variables converted to dummies
+- Skewed variables transformed
+- Meaningful interactions created
+- No infinite or undefined values (check log(0))
+- Feature names are clear and documented
+- Original variables retained (for interpretation)
+```{r, eval=FALSE}
+# Final data quality check
+summary(basetable)  # Check for NA, Inf
+sapply(basetable, function(x) sum(is.na(x)))  # Count NAs
+sapply(basetable, function(x) sum(is.infinite(x)))  # Count Inf
+```
+
+---
+
+## Feature Naming Convention
+
+**Good practice:** Use clear, consistent names.
+```{r, eval=FALSE}
+# Bad naming
+basetable$var1 <- ...
+basetable$x_new <- ...
+basetable$temp2 <- ...
+
+# Good naming
+basetable$age_median_imputed <- ...
+basetable$mean_donation_log <- ...
+basetable$rfm_interaction_score <- ...
+
+# Pattern: [variable]_[transformation]_[method]
+# Examples:
+# - age_winsorized_95
+# - donation_log_plus1
+# - recency_inverse
+# - freq_rec_interaction
+# - segment_Gold_dummy
+```
+
+**Why this matters:** In 6 months, you'll thank yourself!
+
+---
+
+## Summary: Preprocessing Workflow
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8,
+  box/.style={rectangle, draw, thick, text width=3cm, align=center, 
+              minimum height=1cm, fill=datablue!20}]
+
+\node[box] (raw) at (0,0) {Raw Data};
+\node[box] (missing) at (4,0) {Handle Missing};
+\node[box] (outliers) at (8,0) {Handle Outliers};
+\node[box] (dummy) at (0,-2) {Create Dummies};
+\node[box] (transform) at (4,-2) {Transform};
+\node[box] (interact) at (8,-2) {Interactions};
+\node[box] (ready) at (4,-4) {Model-Ready Data};
+
+\draw[->,thick] (raw) -- (missing);
+\draw[->,thick] (missing) -- (outliers);
+\draw[->,thick] (outliers) -- (dummy);
+\draw[->,thick] (dummy) -- (transform);
+\draw[->,thick] (transform) -- (interact);
+\draw[->,thick] (interact) -- (ready);
+
+\end{tikzpicture}
+\end{center}
+
+Each step prepares data for better model performance!
+
+---
+
+## Common Pitfalls to Avoid
+
+**Mistake 1:** Forgetting to drop one dummy category
+
+- Creates multicollinearity
+- Model fails to converge
+
+**Mistake 2:** Taking log of zero
+
+- Returns -Inf
+- Use `log1p()` or add small constant
+
+**Mistake 3:** Not documenting imputation choices
+
+- Can't reproduce results
+- Don't remember why you chose median vs. mean
+
+**Mistake 4:** Creating too many interactions
+
+- 10 variables → 45 pairwise interactions!
+- Use domain knowledge to select meaningful ones
+
+**Mistake 5:** Transforming the target variable
+
+- Makes interpretation difficult
+- Only transform predictors, not the outcome
+
+---
+
+## Next Steps: Ready for Modeling
+
+With preprocessed features, you can now:
+
+1. **Split data** into training and testing sets
+2. **Build models** using clean, numeric features
+3. **Evaluate performance** without data quality issues
+4. **Interpret results** using meaningful transformations
+
+**Coming up next:**
+
+- Model selection and training
+- Cross-validation strategies
+- Performance evaluation metrics
+- Model interpretation and deployment
+
+\vspace{2em}
+
+\begin{center}
+\Large{\textcolor{datablue}{\textbf{Questions?}}}
+\end{center}
+
+
+
+# Part 7: Scaling and Normalization
+
+## Why Scale Features?
+
+**Problem:** Different features have vastly different scales.
+
+Consider a logistic regression model predicting donations:
+
+| Feature | Range | Coefficient | Scaled Impact |
+|---------|-------|-------------|---------------|
+| Age | 18-90 years | 0.02 | 0.02 × 72 = 1.44 |
+| Income | €20,000-€200,000 | 0.00001 | 0.00001 × 180,000 = 1.8 |
+| Days since last gift | 1-3,650 days | 0.001 | 0.001 × 3,649 = 3.65 |
+
+**Issue:** The coefficient magnitudes don't reflect true importance!
+
+**Solution:** Standardize all features to comparable scales.
+
+## Method 1: Min-Max Scaling
+
+**Concept:** Transform values to range [0, 1].
+
+$$x_{\text{scaled}} = \frac{x - \min(x)}{\max(x) - \min(x)}$$
+```{r eval=FALSE}
+# Min-max scaling function
+min_max_scale <- function(x) {
+  (x - min(x, na.rm = TRUE)) / 
+    (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+}
+
+# Apply to age variable
+basetable$age_scaled <- min_max_scale(basetable$age)
+
+# Result: All values between 0 and 1
+# Original: 18, 25, 45, 90
+# Scaled:   0.00, 0.10, 0.38, 1.00
+```
+
+**Advantage:** Bounded output, preserves zero.
+
+**Disadvantage:** Sensitive to outliers.
+
+## Min-Max Scaling Example
+```{r}
+# Example data
+age_original <- c(18, 25, 35, 45, 60, 90)
+age_scaled <- (age_original - min(age_original)) / 
+              (max(age_original) - min(age_original))
+
+example_data <- tibble(
+  donor_id = 1:6,
+  age_original = age_original,
+  age_scaled = round(age_scaled, 3)
+)
+
+kable(example_data)
+```
+
+**Interpretation:** Donor 1 (age 18) gets 0.000, Donor 6 (age 90) gets 1.000.
+
+## Method 2: Standardization (Z-score)
+
+**Concept:** Transform to mean = 0, standard deviation = 1.
+
+$$x_{\text{standardized}} = \frac{x - \mu}{\sigma}$$
+```{r eval=FALSE}
+# Standardization function
+standardize <- function(x) {
+  (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
+}
+
+# Apply to donation amounts
+basetable$mean_donation_std <- standardize(basetable$mean_donation)
+
+# Result: Values centered at 0
+# Original: 50, 100, 150, 200
+# Std:     -1.16, -0.39, 0.39, 1.16
+```
+
+**Advantage:** Not bounded, interpretable units.
+
+**Disadvantage:** No fixed range.
+
+## Standardization Example
+```{r}
+# Example data
+donation <- c(50, 100, 150, 200, 250, 1000)
+donation_std <- (donation - mean(donation)) / sd(donation)
+
+std_example <- tibble(
+  donor_id = 1:6,
+  donation_original = donation,
+  donation_std = round(donation_std, 2)
+)
+
+kable(std_example)
+```
+
+**Interpretation:** Donor 6 (outlier) is 2.20 standard deviations above mean.
+
+## Min-Max vs. Standardization: When to Use
+
+**Use Min-Max Scaling when:**
+
+- Need bounded output [0, 1]
+- Working with neural networks
+- Features have known, fixed ranges
+- Preserving exact zero is important
+
+**Use Standardization when:**
+
+- Working with SVM, logistic regression
+- Data contains outliers
+- Want interpretable units (standard deviations)
+- Using regularization (L1/L2)
+
+**Rule of thumb:** Standardization is default for most models.
+
+## Scaling Multiple Features in R
+```{r eval=FALSE}
+# Identify numeric columns to scale
+numeric_cols <- c("age", "mean_donation", "donation_count", 
+                  "days_since_last")
+
+# Method 1: Using base R scale()
+basetable[paste0(numeric_cols, "_std")] <- 
+  scale(basetable[numeric_cols])
+
+# Method 2: Using dplyr
+basetable <- basetable %>%
+  mutate(across(
+    all_of(numeric_cols),
+    ~scale(.)[,1],
+    .names = "{.col}_std"
+  ))
+
+# Method 3: Using recipes package
+library(recipes)
+
+scaling_recipe <- recipe(target ~ ., data = basetable) %>%
+  step_normalize(all_numeric(), -all_outcomes())
+
+prepped_recipe <- prep(scaling_recipe, training = basetable)
+basetable_scaled <- bake(prepped_recipe, new_data = basetable)
+```
+
+## Critical: Save Scaling Parameters!
+
+**Problem:** Must use SAME scaling parameters for test data.
+```{r eval=FALSE}
+# WRONG: Scale test data independently
+test_scaled_wrong <- scale(test_data)  # Uses test mean/sd!
+
+# RIGHT: Use training parameters
+train_mean <- mean(train_data$age, na.rm = TRUE)
+train_sd <- sd(train_data$age, na.rm = TRUE)
+
+test_data$age_std <- (test_data$age - train_mean) / train_sd
+
+# Better: Save parameters explicitly
+scaling_params <- list(
+  age_mean = mean(basetable$age, na.rm = TRUE),
+  age_sd = sd(basetable$age, na.rm = TRUE),
+  donation_mean = mean(basetable$mean_donation, na.rm = TRUE),
+  donation_sd = sd(basetable$mean_donation, na.rm = TRUE)
+)
+
+saveRDS(scaling_params, "scaling_parameters.rds")
+```
+
+**Why this matters:** Test data scaled with test statistics leaks information!
+
+## Robust Scaling: Handling Outliers
+
+**Problem:** Standard scaling uses mean/sd (sensitive to outliers).
+
+**Solution:** Use median and IQR instead.
+
+$$x_{\text{robust}} = \frac{x - \text{median}(x)}{\text{IQR}(x)}$$
+```{r eval=FALSE}
+# Robust scaling function
+robust_scale <- function(x) {
+  med <- median(x, na.rm = TRUE)
+  iqr <- IQR(x, na.rm = TRUE)
+  (x - med) / iqr
+}
+
+# Apply to donation amounts
+basetable$mean_donation_robust <- robust_scale(
+  basetable$mean_donation
+)
+
+# Compare to standard scaling
+basetable$mean_donation_std <- standardize(
+  basetable$mean_donation
+)
+```
+
+**When to use:** Extreme outliers you want to preserve (not cap).
+
+## Scaling Visualization
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8]
+% Original data
+\draw[->] (0,0) -- (10,0) node[right] {Original};
+\foreach \x in {1,2,8,9} {
+  \fill[datablue] (\x,0) circle (2pt);
+}
+\fill[datared] (9.5,0) circle (3pt);
+\node at (0,0) [below] {10};
+\node at (10,0) [below] {1000};
+
+% Min-max scaled
+\draw[->] (0,-1.5) -- (10,-1.5) node[right] {Min-Max};
+\foreach \x/\val in {0.1/0, 0.2/0.1, 0.8/0.8, 0.9/0.9, 1.0/1.0} {
+  \fill[datablue] (\x*10,-1.5) circle (2pt);
+}
+\node at (0,-1.5) [below] {0.0};
+\node at (10,-1.5) [below] {1.0};
+
+% Standardized
+\draw[->] (0,-3) -- (10,-3) node[right] {Standardized};
+\foreach \x/\val in {3/-1.5, 3.5/-1.2, 6/0, 6.5/0.3, 7/2.5} {
+  \fill[datablue] (\x,-3) circle (2pt);
+}
+\node at (0,-3) [below] {$-2\sigma$};
+\node at (5,-3) [below] {$0$};
+\node at (10,-3) [below] {$+2\sigma$};
+\end{tikzpicture}
+\end{center}
+
+# Part 8: Feature Engineering Best Practices
+
+## The Feature Engineering Checklist
+
+Before finalizing your feature set:
+
+\begin{enumerate}
+\item \textcolor{datablue}{\textbf{Timeline compliance}} \\
+  $\square$ All features use only past data \\
+  $\square$ No data leakage from target period
+
+\item \textcolor{datablue}{\textbf{Data quality}} \\
+  $\square$ Missing values handled appropriately \\
+  $\square$ Outliers addressed or documented \\
+  $\square$ No infinite or undefined values
+
+\item \textcolor{datablue}{\textbf{Encoding}} \\
+  $\square$ Categorical variables converted to dummies \\
+  $\square$ Reference categories documented
+
+\item \textcolor{datablue}{\textbf{Transformations}} \\
+  $\square$ Skewed variables transformed \\
+  $\square$ Variables scaled appropriately
+\end{enumerate}
+
+## Feature Engineering Checklist (cont.)
+
+\begin{enumerate}
+\setcounter{enumi}{4}
+\item \textcolor{datablue}{\textbf{Feature creation}} \\
+  $\square$ Interaction terms included \\
+  $\square$ Domain-specific features created \\
+  $\square$ Temporal patterns captured
+
+\item \textcolor{datablue}{\textbf{Documentation}} \\
+  $\square$ Feature catalog created \\
+  $\square$ Calculation formulas documented \\
+  $\square$ Scaling parameters saved
+
+\item \textcolor{datablue}{\textbf{Validation}} \\
+  $\square$ Distributions examined \\
+  $\square$ Correlations checked \\
+  $\square$ Feature importance assessed
+\end{enumerate}
+
+## Common Feature Engineering Mistakes
+
+**Mistake 1: Data Leakage**
+```{r eval=FALSE}
+# WRONG: Using target period data
+basetable$donations_total <- sum_all_donations()  # Includes future!
+
+# RIGHT: Use only historical data
+basetable$donations_historical <- sum_donations_before(obs_date)
+```
+
+**Mistake 2: Forgetting to Save Parameters**
+```{r eval=FALSE}
+# WRONG: No way to reproduce scaling
+train_scaled <- scale(train_data)
+
+# RIGHT: Save and reuse parameters
+scaling_params <- list(mean = mean(train_data$age), 
+                      sd = sd(train_data$age))
+saveRDS(scaling_params, "params.rds")
+```
+
+**Mistake 3: Overfitting on Training Data**
+```{r eval=FALSE}
+# WRONG: 100 interaction terms, 50 observations
+basetable <- create_all_possible_interactions()  # Overfitting!
+
+# RIGHT: Select meaningful interactions
+basetable$key_interaction <- recency * frequency
+```
+
+## Feature Engineering Anti-Patterns
+
+**Anti-pattern 1: "Let's add everything!"**
+
+- Creates overfitting
+- Makes model uninterpretable
+- Increases computational cost
+
+**Anti-pattern 2: "Let's drop everything with missing values!"**
+
+- Loses valuable information
+- Reduces sample size unnecessarily
+- May introduce bias
+
+**Anti-pattern 3: "Let's use the same features for every problem!"**
+
+- Ignores domain specifics
+- Misses important signals
+- Reduces model performance
+
+## Feature Quality Metrics
+```{r eval=FALSE}
+# 1. Correlation with target
+correlations <- cor(basetable[numeric_cols], 
+                    basetable$target, 
+                    use = "complete.obs")
+print(sort(abs(correlations), decreasing = TRUE))
+
+# 2. Information value (IV)
+library(Information)
+IV <- create_infotables(data = basetable, 
+                        y = "target",
+                        bins = 10)
+print(IV$Summary)  # IV > 0.1 is useful
+
+# 3. Variance inflation factor (VIF)
+library(car)
+vif_values <- vif(lm(target ~ ., data = basetable))
+print(vif_values[vif_values > 5])  # VIF > 5 = collinearity
+```
+
+## Feature Correlation Matrix
+```{r eval=FALSE}
+library(corrplot)
+
+# Select numeric features
+numeric_features <- basetable %>% 
+  select(where(is.numeric), -donor_id)
+
+# Compute correlation matrix
+cor_matrix <- cor(numeric_features, use = "complete.obs")
+
+# Visualize
+corrplot(cor_matrix, 
+         method = "color",
+         type = "upper",
+         tl.col = "black",
+         tl.srt = 45,
+         addCoef.col = "black",
+         number.cex = 0.7)
+
+# Flag high correlations (|r| > 0.9)
+high_cor <- which(abs(cor_matrix) > 0.9 & cor_matrix != 1, 
+                  arr.ind = TRUE)
+```
+
+# Part 9: Production Pipeline
+
+## From Development to Production
+
+**Development:** Ad-hoc feature engineering in notebook
+
+**Production:** Reproducible, maintainable pipeline
+
+\begin{center}
+\begin{tikzpicture}[scale=0.7,
+  box/.style={rectangle, draw, thick, text width=2.5cm, align=center, 
+              minimum height=1cm}]
+
+\node[box, fill=datared!20] (raw) at (0,0) {Raw Data};
+\node[box, fill=datablue!20] (clean) at (3.5,0) {Clean Data};
+\node[box, fill=datagreen!20] (features) at (7,0) {Features};
+\node[box, fill=datapurple!20] (scaled) at (10.5,0) {Scaled};
+\node[box, fill=datacyan!20] (model) at (10.5,-2) {Model};
+
+\draw[->,thick] (raw) -- (clean) node[midway,above] {\tiny handle NA};
+\draw[->,thick] (clean) -- (features) node[midway,above] {\tiny engineer};
+\draw[->,thick] (features) -- (scaled) node[midway,above] {\tiny scale};
+\draw[->,thick] (scaled) -- (model) node[midway,right] {\tiny predict};
+
+\end{tikzpicture}
+\end{center}
+
+## Creating a Feature Engineering Function
+```{r eval=FALSE}
+engineer_features <- function(data, reference_date, params = NULL) {
+  # Step 1: Handle missing values
+  data <- data %>%
+    mutate(
+      age = replace_na(age, median(age, na.rm = TRUE)),
+      donations_last_year = replace_na(donations_last_year, 0),
+      missing_email = as.integer(is.na(email))
+    )
+  
+  # Step 2: Create time-based features
+  data <- data %>%
+    mutate(
+      days_since_last = as.numeric(reference_date - last_donation_date)
+    )
+  
+  # Step 3: Create RFM features
+  data <- data %>%
+    mutate(
+      rfm_score = (1 / (days_since_last + 1)) * 
+                  donation_count * mean_donation
+    )
+  
+  # Step 4: Create interactions
+  data <- data %>%
+    mutate(
+      freq_recency = donation_count * (1 / (days_since_last + 1))
+    )
+  
+  return(data)
+}
+```
+
+## Parameterizing the Pipeline
+```{r eval=FALSE}
+# Save configuration
+feature_config <- list(
+  reference_date = as.Date("2024-01-01"),
+  missing_strategy = list(
+    age = "median",
+    donations_last_year = "zero",
+    email = "indicator"
+  ),
+  outlier_method = "winsorize",
+  outlier_probs = c(0.05, 0.95),
+  scaling_method = "standardize",
+  dummy_variables = c("segment", "country"),
+  interaction_terms = list(
+    c("donation_count", "days_since_last"),
+    c("mean_donation", "donation_count")
+  )
+)
+
+# Save configuration
+saveRDS(feature_config, "feature_config.rds")
+
+# Use in pipeline
+config <- readRDS("feature_config.rds")
+basetable_features <- engineer_features(
+  basetable, 
+  reference_date = config$reference_date
+)
+```
+
+## Building a Recipes Pipeline
+```{r eval=FALSE}
+library(recipes)
+
+# Define preprocessing recipe
+preprocessing_recipe <- recipe(target ~ ., data = basetable) %>%
+  
+  # Step 1: Remove ID variables
+  step_rm(donor_id) %>%
+  
+  # Step 2: Create dummy variables
+  step_dummy(all_nominal(), -all_outcomes(), 
+             one_hot = FALSE) %>%
+  
+  # Step 3: Impute missing values
+  step_impute_median(all_numeric(), -all_outcomes()) %>%
+  
+  # Step 4: Remove zero variance features
+  step_zv(all_predictors()) %>%
+  
+  # Step 5: Normalize numeric features
+  step_normalize(all_numeric(), -all_outcomes()) %>%
+  
+  # Step 6: Create interactions
+  step_interact(~ days_since_last:donation_count) %>%
+  
+  # Step 7: Remove highly correlated features
+  step_corr(all_numeric(), threshold = 0.9)
+```
+
+## Using the Recipe
+```{r eval=FALSE}
+# Prepare recipe on training data
+prepped_recipe <- prep(preprocessing_recipe, 
+                       training = train_data)
+
+# Apply to training data
+train_processed <- bake(prepped_recipe, 
+                        new_data = train_data)
+
+# Apply to test data (uses training parameters!)
+test_processed <- bake(prepped_recipe, 
+                       new_data = test_data)
+
+# Apply to new scoring data
+new_data_processed <- bake(prepped_recipe, 
+                           new_data = new_donors)
+
+# Save recipe for production
+saveRDS(prepped_recipe, "preprocessing_recipe.rds")
+
+# Load in production
+recipe <- readRDS("preprocessing_recipe.rds")
+scored_data <- bake(recipe, new_data = incoming_data)
+```
+
+## Unit Testing Your Features
+```{r eval=FALSE}
+library(testthat)
+
+test_that("Timeline compliance is maintained", {
+  # Create test data with known dates
+  test_data <- tibble(
+    donor_id = 1,
+    donation_date = as.Date(c("2023-01-01", "2024-06-01")),
+    amount = c(100, 50)
+  )
+  
+  ref_date <- as.Date("2024-01-01")
+  
+  # Process features
+  features <- engineer_features(test_data, ref_date)
+  
+  # Assert: Only Jan 2023 donation should count
+  expect_equal(features$donations_historical[1], 100)
+  expect_equal(features$donation_count[1], 1)
+})
+
+test_that("Missing value handling works correctly", {
+  test_data <- tibble(age = c(25, NA, 35))
+  
+  # Process
+  processed <- handle_missing(test_data, method = "median")
+  
+  # Assert: No NA values remain
+  expect_true(all(!is.na(processed$age)))
+  expect_equal(processed$age[2], 30)
+})
+```
+
+## Monitoring Feature Drift
+```{r eval=FALSE}
+monitor_drift <- function(new_data, baseline_data) {
+  
+  numeric_features <- names(baseline_data)[
+    sapply(baseline_data, is.numeric)
+  ]
+  
+  drift_report <- map_df(numeric_features, function(feat) {
+    
+    # Kolmogorov-Smirnov test
+    ks_result <- ks.test(baseline_data[[feat]], 
+                         new_data[[feat]])
+    
+    # Calculate distribution statistics
+    baseline_mean <- mean(baseline_data[[feat]], na.rm = TRUE)
+    current_mean <- mean(new_data[[feat]], na.rm = TRUE)
+    
+    tibble(
+      feature = feat,
+      ks_statistic = ks_result$statistic,
+      ks_pvalue = ks_result$p.value,
+      drift_detected = ks_result$p.value < 0.05,
+      baseline_mean = baseline_mean,
+      current_mean = current_mean,
+      mean_change_pct = (current_mean - baseline_mean) / 
+                        baseline_mean * 100
+    )
+  })
+  
+  return(drift_report)
+}
+```
+
+## Drift Detection Example
+```{r eval=FALSE}
+# Load baseline (training) data
+baseline <- readRDS("training_data_jan2024.rds")
+
+# New data from production
+new_batch <- readRDS("production_data_nov2024.rds")
+
+# Check for drift
+drift_analysis <- monitor_drift(new_batch, baseline)
+
+# Flag significant drifts
+drift_analysis %>%
+  filter(drift_detected == TRUE) %>%
+  arrange(ks_pvalue) %>%
+  select(feature, ks_statistic, ks_pvalue, mean_change_pct)
+```
+
+# Part 10: Advanced Topics
+
+## Feature Selection Methods
+```{r eval=FALSE}
+# Method 1: Correlation-based
+cor_with_target <- cor(basetable[numeric_cols], 
+                        basetable$target)
+top_features <- names(sort(abs(cor_with_target), 
+                          decreasing = TRUE)[1:20])
+
+# Method 2: Chi-square for categorical
+library(FSelector)
+chi_scores <- chi.squared(target ~ ., data = basetable)
+top_categorical <- cutoff.k(chi_scores, k = 10)
+```
+
+## Recursive Feature Elimination
+```{r eval=FALSE}
+library(caret)
+
+# Define control
+ctrl <- rfeControl(
+  functions = rfFuncs,
+  method = "cv",
+  number = 5
+)
+
+# Run RFE
+rfe_results <- rfe(
+  x = basetable %>% select(-target, -donor_id),
+  y = basetable$target,
+  sizes = c(5, 10, 15, 20, 25),
+  rfeControl = ctrl
+)
+
+# Optimal features
+print(rfe_results$optVariables)
+
+# Plot
+plot(rfe_results, type = c("g", "o"))
+```
+
+## LASSO Regularization
+```{r eval=FALSE}
+library(glmnet)
+
+# Prepare matrix
+X <- model.matrix(target ~ . - donor_id, data = basetable)[,-1]
+y <- basetable$target
+
+# Fit LASSO
+lasso_model <- cv.glmnet(X, y, 
+                         family = "binomial", 
+                         alpha = 1,
+                         nfolds = 5)
+
+# Extract non-zero coefficients
+lasso_coefs <- coef(lasso_model, s = "lambda.min")
+selected_features <- rownames(lasso_coefs)[lasso_coefs[,1] != 0]
+
+print(selected_features)
+
+# Visualize
+plot(lasso_model)
+```
+
+## Polynomial Features
+```{r eval=FALSE}
+# Create polynomial features
+basetable <- basetable %>%
+  mutate(
+    # Quadratic terms
+    age_squared = age^2,
+    donation_squared = mean_donation^2,
+    
+    # Cubic terms
+    age_cubed = age^3,
+    
+    # Square root
+    age_sqrt = sqrt(age),
+    
+    # Ratio
+    age_to_donation_ratio = age / (mean_donation + 1)
+  )
+
+# Automated polynomial creation
+library(recipes)
+
+poly_recipe <- recipe(target ~ ., data = basetable) %>%
+  step_poly(age, degree = 2) %>%
+  step_poly(mean_donation, degree = 2)
+
+poly_data <- prep(poly_recipe) %>% bake(new_data = basetable)
+```
+
+## Time-Based Features
+```{r eval=FALSE}
+# Extract temporal patterns
+basetable <- basetable %>%
+  mutate(
+    # Day of week
+    donation_day_of_week = wday(last_donation_date),
+    
+    # Month
+    donation_month = month(last_donation_date),
+    
+    # Quarter
+    donation_quarter = quarter(last_donation_date),
+    
+    # Is weekend?
+    is_weekend = wday(last_donation_date) %in% c(1, 7),
+    
+    # Is December?
+    is_december = month(last_donation_date) == 12,
+    
+    # Days until year end
+    days_to_year_end = as.numeric(
+      ceiling_date(last_donation_date, "year") - 
+      last_donation_date
+    )
+  )
+```
+
+## Lag Features
+```{r eval=FALSE}
+# Calculate donations by month
+monthly_donations <- gifts %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(donor_id, month) %>%
+  summarize(monthly_total = sum(amount), .groups = "drop")
+
+# Create lag features
+monthly_donations <- monthly_donations %>%
+  group_by(donor_id) %>%
+  arrange(month) %>%
+  mutate(
+    donation_lag1 = lag(monthly_total, 1),
+    donation_lag2 = lag(monthly_total, 2),
+    donation_lag3 = lag(monthly_total, 3),
+    
+    # Rolling average
+    donation_ma3 = (donation_lag1 + donation_lag2 + 
+                    donation_lag3) / 3,
+    
+    # Change from last month
+    donation_change = monthly_total - donation_lag1,
+    donation_change_pct = (monthly_total - donation_lag1) / 
+                          (donation_lag1 + 1) * 100
+  ) %>%
+  ungroup()
+```
+
+## Target Encoding
+```{r eval=FALSE}
+# Calculate target rate by country
+country_encoding <- basetable %>%
+  group_by(country) %>%
+  summarize(
+    target_rate = mean(target, na.rm = TRUE),
+    n = n()
+  )
+
+# Add smoothing
+overall_rate <- mean(basetable$target, na.rm = TRUE)
+smoothing_factor <- 10
+
+country_encoding <- country_encoding %>%
+  mutate(
+    target_rate_smoothed = (target_rate * n + 
+                           overall_rate * smoothing_factor) / 
+                           (n + smoothing_factor)
+  )
+
+# Join back
+basetable <- basetable %>%
+  left_join(country_encoding %>% 
+            select(country, target_rate_smoothed),
+            by = "country")
+```
+
+## Feature Hashing
+```{r eval=FALSE}
+library(FeatureHashing)
+
+# Hash country into buckets
+hashed_features <- hashed.model.matrix(
+  ~ country,
+  data = basetable,
+  hash.size = 2^10,  # 1024 buckets
+  signed.hash = FALSE
+)
+
+# Add to basetable
+basetable <- cbind(basetable, as.data.frame(hashed_features))
+```
+
+# Part 11: Complete Case Study
+
+## Business Problem
+
+**Organization:** International nonprofit
+
+**Goal:** Predict €50+ donations in next 3 months
+
+**Data:** 5 years history, 100,000 donors
+
+**Timeline:** Build model January 2024
+
+## Step 1: Define Timeline
+```{r eval=FALSE}
+# Observation date
+observation_date <- as.Date("2024-01-01")
+
+# Target period
+target_start <- observation_date
+target_end <- observation_date + months(3)
+
+# Historical window
+history_start <- observation_date - years(2)
+history_end <- observation_date
+
+# Partition data
+gifts_historical <- gifts %>%
+  filter(date >= history_start & date < history_end)
+
+gifts_target <- gifts %>%
+  filter(date >= target_start & date < target_end)
+```
+
+## Step 2: Define Population
+```{r eval=FALSE}
+# Eligible donors
+donors_with_history <- gifts_historical %>%
+  distinct(donor_id)
+
+# Exclude buffer period
+buffer_start <- observation_date - months(1)
+buffer_donations <- gifts %>%
+  filter(date >= buffer_start & date < observation_date) %>%
+  distinct(donor_id)
+
+# Final population
+population <- setdiff(
+  donors_with_history$donor_id,
+  buffer_donations$donor_id
+)
+
+# Create basetable
+basetable <- tibble(donor_id = population)
+```
+
+## Step 3: Calculate Target
+```{r eval=FALSE}
+# Aggregate target
+target_donations <- gifts_target %>%
+  group_by(donor_id) %>%
+  summarize(target_amount = sum(amount), .groups = "drop")
+
+# Join and create binary target
+basetable <- basetable %>%
+  left_join(target_donations, by = "donor_id") %>%
+  mutate(
+    target_amount = replace_na(target_amount, 0),
+    target = as.integer(target_amount >= 50)
+  )
+
+# Check distribution
+table(basetable$target)
+```
+
+## Step 4: Engineer Features - RFM
+```{r eval=FALSE}
+# RFM features
+rfm_features <- gifts_historical %>%
+  group_by(donor_id) %>%
+  summarize(
+    # Recency
+    days_since_last = as.numeric(observation_date - max(date)),
+    
+    # Frequency
+    donation_count = n(),
+    unique_months = n_distinct(floor_date(date, "month")),
+    
+    # Monetary
+    total_donated = sum(amount),
+    mean_donation = mean(amount),
+    median_donation = median(amount),
+    max_donation = max(amount),
+    min_donation = min(amount),
+    cv_donation = sd(amount) / mean(amount),
+    
+    .groups = "drop"
+  )
+
+basetable <- basetable %>%
+  left_join(rfm_features, by = "donor_id")
+```
+
+## Step 5: Trend Features
+```{r eval=FALSE}
+# Recent vs previous
+recent_3m <- gifts_historical %>%
+  filter(date >= observation_date - months(3)) %>%
+  group_by(donor_id) %>%
+  summarize(donations_3m = sum(amount), .groups = "drop")
+
+previous_3m <- gifts_historical %>%
+  filter(date >= observation_date - months(6),
+         date < observation_date - months(3)) %>%
+  group_by(donor_id) %>%
+  summarize(donations_prev3m = sum(amount), .groups = "drop")
+
+trend_features <- recent_3m %>%
+  full_join(previous_3m, by = "donor_id") %>%
+  mutate(
+    donations_3m = replace_na(donations_3m, 0),
+    donations_prev3m = replace_na(donations_prev3m, 0),
+    trend_absolute = donations_3m - donations_prev3m,
+    trend_percent = (donations_3m - donations_prev3m) / 
+                    (donations_prev3m + 1) * 100
+  )
+
+basetable <- basetable %>%
+  left_join(trend_features, by = "donor_id")
+```
+
+## Step 6: Demographics
+```{r eval=FALSE}
+# Load demographics
+demographics <- read_csv("donor_demographics.csv")
+
+# Calculate age
+demographics <- demographics %>%
+  mutate(
+    age = year(observation_date) - year(birth_date),
+    tenure_days = as.numeric(observation_date - first_donation_date)
+  )
+
+# Join
+basetable <- basetable %>%
+  left_join(
+    demographics %>% select(donor_id, age, gender, 
+                           country, tenure_days),
+    by = "donor_id"
+  )
+```
+
+## Step 7: Data Cleaning
+```{r eval=FALSE}
+# Handle missing values
+basetable <- basetable %>%
+  mutate(
+    # Impute age
+    age = replace_na(age, median(age, na.rm = TRUE)),
+    
+    # Zero for donations
+    across(starts_with("donations_"), 
+           ~replace_na(., 0)),
+    
+    # Missing indicators
+    missing_gender = as.integer(is.na(gender)),
+    missing_country = as.integer(is.na(country))
+  )
+
+# Handle outliers
+basetable <- basetable %>%
+  mutate(
+    mean_donation_capped = pmin(mean_donation, 
+                                quantile(mean_donation, 0.95, 
+                                       na.rm = TRUE)),
+    max_donation_capped = pmin(max_donation,
+                              quantile(max_donation, 0.95, 
+                                     na.rm = TRUE))
+  )
+```
+
+## Step 8: Transformations
+```{r eval=FALSE}
+# Log transformations
+basetable <- basetable %>%
+  mutate(
+    log_mean_donation = log1p(mean_donation_capped),
+    log_total_donated = log1p(total_donated),
+    log_tenure = log1p(tenure_days)
+  )
+
+# Interactions
+basetable <- basetable %>%
+  mutate(
+    rfm_score = (1 / (days_since_last + 1)) * 
+                donation_count * mean_donation,
+    freq_recency = donation_count / (days_since_last + 1),
+    trend_strength = abs(trend_percent) * total_donated
+  )
+
+# Dummies
+library(fastDummies)
+basetable <- dummy_cols(basetable,
+                       select_columns = c("gender", "country"),
+                       remove_first_dummy = TRUE,
+                       remove_selected_columns = TRUE)
+```
+
+## Step 9: Train-Test Split
+```{r eval=FALSE}
+library(caret)
+
+# Stratified split
+set.seed(42)
+train_index <- createDataPartition(
+  basetable$target,
+  p = 0.7,
+  list = FALSE
+)
+
+train_data <- basetable[train_index, ]
+test_data <- basetable[-train_index, ]
+
+# Verify split
+table(train_data$target) / nrow(train_data)
+table(test_data$target) / nrow(test_data)
+```
+
+## Step 10: Feature Scaling
+```{r eval=FALSE}
+# Numeric features
+numeric_features <- c(
+  "days_since_last", "donation_count", "total_donated",
+  "mean_donation_capped", "log_mean_donation", "rfm_score",
+  "age", "tenure_days", "trend_percent"
+)
+
+# Calculate parameters
+scaling_params <- train_data %>%
+  summarize(across(all_of(numeric_features),
+                  list(mean = ~mean(., na.rm = TRUE),
+                       sd = ~sd(., na.rm = TRUE))))
+
+saveRDS(scaling_params, "scaling_params.rds")
+
+# Apply to train
+train_scaled <- train_data
+for (feat in numeric_features) {
+  mean_col <- paste0(feat, "_mean")
+  sd_col <- paste0(feat, "_sd")
+  train_scaled[[feat]] <- (train_data[[feat]] - 
+                          scaling_params[[mean_col]]) /
+                          scaling_params[[sd_col]]
+}
+
+# Apply to test
+test_scaled <- test_data
+for (feat in numeric_features) {
+  mean_col <- paste0(feat, "_mean")
+  sd_col <- paste0(feat, "_sd")
+  test_scaled[[feat]] <- (test_data[[feat]] - 
+                         scaling_params[[mean_col]]) /
+                         scaling_params[[sd_col]]
+}
+```
+
+## Step 11: Model Training
+```{r eval=FALSE}
+library(glmnet)
+
+# Prepare matrices
+X_train <- model.matrix(target ~ . - donor_id - target_amount, 
+                        data = train_scaled)[,-1]
+y_train <- train_scaled$target
+
+X_test <- model.matrix(target ~ . - donor_id - target_amount, 
+                       data = test_scaled)[,-1]
+y_test <- test_scaled$target
+
+# Train LASSO
+cv_model <- cv.glmnet(X_train, y_train,
+                      family = "binomial",
+                      alpha = 1,
+                      nfolds = 5,
+                      type.measure = "auc")
+
+# Best lambda
+best_lambda <- cv_model$lambda.min
+
+# Final model
+final_model <- glmnet(X_train, y_train,
+                      family = "binomial",
+                      alpha = 1,
+                      lambda = best_lambda)
+```
+
+## Step 12: Evaluation
+```{r eval=FALSE}
+library(pROC)
+
+# Predictions
+test_predictions <- predict(final_model, 
+                           newx = X_test, 
+                           type = "response")[,1]
+
+# ROC curve
+roc_obj <- roc(y_test, test_predictions)
+auc_value <- auc(roc_obj)
+
+print(paste("Test AUC:", round(auc_value, 3)))
+
+# Plot
+plot(roc_obj, main = "ROC Curve",
+     col = "blue", lwd = 2)
+abline(a = 0, b = 1, lty = 2, col = "red")
+
+# Confusion matrix
+conf_matrix <- table(
+  Predicted = as.integer(test_predictions > 0.5),
+  Actual = y_test
+)
+print(conf_matrix)
+```
+
+## Step 13: Feature Importance
+```{r eval=FALSE}
+# Extract coefficients
+coefficients <- coef(final_model)
+coef_df <- data.frame(
+  feature = rownames(coefficients),
+  coefficient = as.vector(coefficients)
+) %>%
+  filter(coefficient != 0, feature != "(Intercept)") %>%
+  arrange(desc(abs(coefficient)))
+
+# Top 10
+head(coef_df, 10)
+```
+
+## Step 14: Deployment
+```{r eval=FALSE}
+# Save artifacts
+saveRDS(final_model, "donor_prediction_model.rds")
+saveRDS(scaling_params, "scaling_parameters.rds")
+
+# Scoring function
+score_new_donors <- function(new_data, 
+                             model_file = "donor_prediction_model.rds",
+                             scaling_file = "scaling_parameters.rds") {
+  # Load
+  model <- readRDS(model_file)
+  scaling <- readRDS(scaling_file)
+  
+  # Engineer features
+  new_data <- engineer_features(new_data, Sys.Date())
+  
+  # Scale
+  new_data_scaled <- scale_features(new_data, scaling)
+  
+  # Prepare matrix
+  X_new <- model.matrix(~ . - donor_id, 
+                       data = new_data_scaled)[,-1]
+  
+  # Score
+  predictions <- predict(model, newx = X_new, 
+                        type = "response")[,1]
+  
+  return(tibble(donor_id = new_data$donor_id, 
+                prediction = predictions))
+}
+```
+
+## Step 15: Monitoring
+```{r eval=FALSE}
+# Monitor predictions
+monitor_predictions <- function(scored_data, baseline_stats) {
+  current_mean <- mean(scored_data$prediction)
+  current_sd <- sd(scored_data$prediction)
+  
+  alert <- FALSE
+  
+  # Check distribution shift
+  if (abs(current_mean - baseline_stats$mean) > 0.1) {
+    warning("Prediction mean shifted!")
+    alert <- TRUE
+  }
+  
+  if (abs(current_sd - baseline_stats$sd) / 
+      baseline_stats$sd > 0.3) {
+    warning("Prediction variance changed >30%!")
+    alert <- TRUE
+  }
+  
+  # Log
+  log_entry <- tibble(
+    timestamp = Sys.time(),
+    mean_prediction = current_mean,
+    sd_prediction = current_sd,
+    alert_triggered = alert
+  )
+  
+  write_csv(log_entry, "monitoring_log.csv", append = TRUE)
+  
+  return(log_entry)
+}
+```
+
+# Summary
+
+## Key Takeaways
+
+\begin{block}{Remember}
+\begin{enumerate}
+  \item \textbf{Timeline integrity} is non-negotiable
+  \item \textbf{RFM + Trends} capture 80\% of predictive power
+  \item \textbf{Feature quality} > Feature quantity
+  \item \textbf{Document everything}
+  \item \textbf{Test systematically}
+  \item \textbf{Monitor continuously}
+\end{enumerate}
+\end{block}
+
+\begin{center}
+\Large{\textcolor{datablue}{\textbf{Better features make better models!}}}
+\end{center}
+
+## Resources
+
+**Books:**
+
+- *Feature Engineering for Machine Learning* by Zheng & Casari
+- *Feature Engineering and Selection* by Kuhn & Johnson
+- *Data Science for Business* by Provost & Fawcett
+
+**R Packages:**
+
+- `recipes`: Production-ready feature engineering
+- `caret`: Machine learning framework
+- `tidyverse`: Data manipulation
+
+## Next Lecture
+
+**Topic:** Model Selection and Evaluation
+
+- Logistic regression in depth
+- Tree-based models
+- Cross-validation strategies
+- Performance metrics
+- Model interpretation
+
+\begin{center}
+\Huge{\textcolor{datablue}{\textbf{Thank You!}}}
+
+\Large{Questions?}
+\end{center}
