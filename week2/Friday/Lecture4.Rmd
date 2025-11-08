@@ -1,766 +1,3885 @@
 ---
-title: "Deep Learning in R"
-subtitle: "From Forward Propagation to Fine-Tuning"
-author: |
-  | Prof. Asc. Endri Raco, Ph.D.
-  | Polytechnic University of Tirana
+title: "Deep Learning Introduction and Explainable AI"
+subtitle: "Lecture 4: From Non-Linearity to Interpretability"
+author: "Prof. Asc. Endri Raco"
 date: "November 2025"
 output:
   beamer_presentation:
-    theme: "Madrid"
-    colortheme: "default"
-    fonttheme: "professionalfonts"
+    theme: Madrid
+    colortheme: default
+    fonttheme: professionalfonts
     slide_level: 2
+    toc: false
+    fig_width: 6
+    fig_height: 4
+    fig_caption: true
+    latex_engine: xelatex
 header-includes:
-  - \usepackage{tikz}
   - \usepackage{amsmath}
-  - \definecolor{upcblue}{RGB}{0,51,102}
-  - \setbeamercolor{structure}{fg=upcblue}
+  - \usepackage{amssymb}
+  - \usepackage{booktabs}
+  - \usepackage{graphicx}
+  - \usepackage{tikz}
+  - \definecolor{darkblue}{RGB}{0,51,102}
+  - \setbeamercolor{structure}{fg=darkblue}
+  - \setbeamertemplate{navigation symbols}{}
+  - \setbeamertemplate{footline}[frame number]
 ---
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-library(keras)
-library(tidyverse)
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = 'center',
+  out.width = '80%',
+  cache = FALSE
+)
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(gridExtra)
+library(viridis)
+
+# Set random seed for reproducibility
+set.seed(123)
+
+# Set ggplot theme
+theme_set(theme_minimal(base_size = 10))
+
+# NOTE: Keras/TensorFlow sections are set to eval=FALSE
+# Uncomment below and run once to install:
+# library(keras)
+# install_keras()
+```
+
+# Introduction and Motivation
+
+## Slide 1: Course Overview
+
+**Lecture Progression:**
+
+- L1-L2: Logistic Regression (Interpretable, Linear)
+- L3: Ensemble Methods (Tree-based, Partially Interpretable)
+- **L4: Neural Networks (Powerful, Opaque)** $\leftarrow$ We are here
+
+\vspace{0.5cm}
+
+**Central Question:** 
+
+How do we build models that are both **powerful** AND **understandable**?
+
+## Slide 2: Why Deep Learning Now?
+
+**Three Converging Forces:**
+
+1. **Data Availability**
+   - ImageNet: 14M labeled images
+   - Text corpora: Trillions of tokens
+   
+2. **Computational Power**
+   - GPUs: 100x faster for matrix operations
+   - Distributed training infrastructure
+   
+3. **Algorithmic Innovation**
+   - ReLU activation (2011)
+   - Batch Normalization (2015)
+   - Adam optimizer (2014)
+
+## Slide 3: Historical Milestones
+```{r timeline, echo=FALSE, fig.height=3.5}
+timeline_data <- data.frame(
+  Year = c(1958, 1986, 1998, 2006, 2012, 2014, 2017, 2020),
+  Event = c("Perceptron", "Backprop Revival", "LeNet-5", 
+            "Deep Belief Nets", "AlexNet", "GANs", 
+            "Transformers", "GPT-3"),
+  Impact = c(3, 5, 4, 6, 9, 7, 10, 10)
+)
+
+ggplot(timeline_data, aes(x = Year, y = Impact)) +
+  geom_line(color = "darkblue", size = 1) +
+  geom_point(size = 4, color = "darkblue") +
+  geom_text(aes(label = Event), vjust = -0.5, size = 3) +
+  labs(x = "Year", y = "Impact on Field", 
+       title = "Deep Learning Evolution") +
+  theme_minimal() +
+  ylim(0, 11)
+```
+
+## Slide 4: The Interpretability-Accuracy Tradeoff
+```{r tradeoff, echo=FALSE, fig.height=3.5}
+models <- data.frame(
+  Model = c("Linear Reg", "Decision Tree", "Random Forest", 
+            "XGBoost", "Neural Net", "Deep NN"),
+  Accuracy = c(65, 70, 80, 85, 88, 95),
+  Interpretability = c(95, 85, 60, 50, 30, 15)
+)
+
+ggplot(models, aes(x = Interpretability, y = Accuracy)) +
+  geom_point(size = 4, color = "darkblue") +
+  geom_text(aes(label = Model), vjust = -0.8, size = 3) +
+  geom_smooth(method = "loess", se = FALSE, 
+              color = "red", linetype = "dashed") +
+  labs(x = "Interpretability Score", 
+       y = "Accuracy Score",
+       title = "Model Complexity Tradeoff") +
+  theme_minimal() +
+  xlim(0, 100) + ylim(60, 100)
+```
+
+## Slide 5: From Logistic Regression to Neural Networks
+
+**Logistic Regression (Review):**
+
+$$P(y=1|\mathbf{x}) = \sigma(\mathbf{w}^T \mathbf{x} + b) = \frac{1}{1 + e^{-(\mathbf{w}^T \mathbf{x} + b)}}$$
+
+\vspace{0.5cm}
+
+**What if we:**
+
+1. Stack multiple logistic units in layers?
+2. Allow non-linear transformations between layers?
+3. Learn hierarchical features automatically?
+
+\vspace{0.3cm}
+
+$\Rightarrow$ **Neural Networks**
+
+# The Perceptron: Building Block
+
+## Slide 6: Biological Inspiration
+
+**Natural Neuron Components:**
+
+- **Dendrites:** Input receivers ($x_1, x_2, \ldots, x_n$)
+- **Cell Body:** Integration (weighted sum + activation)
+- **Axon:** Output transmission
+- **Synapses:** Connection weights ($w_1, w_2, \ldots, w_n$)
+
+\vspace{0.5cm}
+
+**Key Insight:** Neurons fire when cumulative input exceeds threshold
+
+\vspace{0.3cm}
+
+\textcolor{red}{\textbf{Warning:}} Useful metaphor, not biological accuracy!
+
+## Slide 7: The Mathematical Perceptron
+
+**Definition:** A computational unit that:
+
+1. Receives inputs $\mathbf{x} = (x_1, x_2, \ldots, x_n)$
+2. Computes weighted sum: $z = \sum_{i=1}^{n} w_i x_i + b$
+3. Applies activation: $a = f(z)$
+
+\vspace{0.5cm}
+
+**Compact Notation:**
+
+$$a = f(\mathbf{w}^T \mathbf{x} + b)$$
+
+where $\mathbf{w} = (w_1, \ldots, w_n)^T$
+
+## Slide 8: Perceptron Visualization
+```{r perceptron-viz, echo=FALSE, fig.height=4}
+# Create simple perceptron diagram with base R
+par(mar = c(1, 1, 2, 1))
+plot(0, 0, type = "n", xlim = c(0, 6), ylim = c(0, 5),
+     axes = FALSE, xlab = "", ylab = "", 
+     main = "Perceptron Structure")
+
+# Input nodes
+n_inputs <- 4
+input_y <- seq(4, 1, length.out = n_inputs)
+for (i in 1:n_inputs) {
+  symbols(1, input_y[i], circles = 0.2, add = TRUE, 
+          inches = FALSE, bg = "lightblue")
+  text(1, input_y[i], paste0("x", i), cex = 0.8)
+}
+
+# Summation node
+symbols(3.5, 2.5, circles = 0.3, add = TRUE, 
+        inches = FALSE, bg = "darkblue")
+text(3.5, 2.5, "Sum", col = "white", cex = 0.9)
+
+# Output node
+symbols(5.5, 2.5, circles = 0.2, add = TRUE, 
+        inches = FALSE, bg = "lightgreen")
+text(5.5, 2.5, "a", cex = 0.8)
+
+# Connections
+for (i in 1:n_inputs) {
+  arrows(1.2, input_y[i], 3.2, 2.5, length = 0.1, lwd = 1.5)
+  text(2, input_y[i] - 0.2, paste0("w", i), cex = 0.7)
+}
+
+arrows(3.8, 2.5, 5.3, 2.5, length = 0.15, lwd = 2)
+text(4.5, 2.7, "f(z)", cex = 0.8)
+```
+## Slide 9: Simple Perceptron in R
+```{r perceptron-code, echo=TRUE}
+# Perceptron function
+perceptron <- function(x, w, b, activation = "step") {
+  z <- sum(w * x) + b
+  
+  if (activation == "step") {
+    return(ifelse(z >= 0, 1, 0))
+  } else if (activation == "sigmoid") {
+    return(1 / (1 + exp(-z)))
+  }
+}
+
+# Example: AND gate
+x1 <- c(0, 0, 1, 1)
+x2 <- c(0, 1, 0, 1)
+w <- c(1, 1)
+b <- -1.5
+
+for (i in 1:4) {
+  output <- perceptron(c(x1[i], x2[i]), w, b)
+  cat(sprintf("x1=%d, x2=%d -> output=%d\n", 
+              x1[i], x2[i], output))
+}
+```
+
+## Slide 10: Perceptron Limitations
+
+**The XOR Problem (Minsky & Papert, 1969):**
+```{r xor-problem, echo=FALSE, fig.height=3}
+xor_data <- data.frame(
+  x1 = c(0, 0, 1, 1),
+  x2 = c(0, 1, 0, 1),
+  y = factor(c(0, 1, 1, 0))
+)
+
+ggplot(xor_data, aes(x = x1, y = x2, color = y, shape = y)) +
+  geom_point(size = 6) +
+  scale_color_manual(values = c("red", "blue")) +
+  labs(title = "XOR: Not Linearly Separable",
+       x = "Input 1", y = "Input 2") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Solution:** Multiple layers (Multi-Layer Perceptron)
+
+# Activation Functions
+
+## Slide 11: Why Non-Linear Activations?
+
+**Theorem:** Without non-linear activations, a deep network collapses to a single linear transformation.
+
+\vspace{0.3cm}
+
+**Proof sketch:**
+
+$$h_1 = W_1 x, \quad h_2 = W_2 h_1 = W_2 W_1 x = W_{combined} x$$
+
+\vspace{0.3cm}
+
+**Key Point:** Non-linearity enables learning complex decision boundaries
+
+## Slide 12: Step Function (Historical)
+
+**Definition:**
+
+$$f(z) = \begin{cases} 
+1 & \text{if } z \geq 0 \\
+0 & \text{if } z < 0
+\end{cases}$$
+
+\vspace{0.3cm}
+```{r step-function, echo=FALSE, fig.height=2.5}
+z <- seq(-5, 5, length.out = 1000)
+step_fn <- ifelse(z >= 0, 1, 0)
+
+ggplot(data.frame(z, y = step_fn), aes(x = z, y = y)) +
+  geom_line(size = 1, color = "darkblue") +
+  labs(title = "Step Function", x = "z", y = "f(z)") +
+  theme_minimal()
+```
+
+**Problem:** Derivative is zero almost everywhere (cannot use gradient descent)
+
+## Slide 13: Sigmoid Activation
+
+**Definition:**
+
+$$\sigma(z) = \frac{1}{1 + e^{-z}}$$
+
+**Derivative:**
+
+$$\sigma'(z) = \sigma(z)(1 - \sigma(z))$$
+
+\vspace{0.3cm}
+
+**Properties:**
+
+- Output range: $(0, 1)$
+- Smooth and differentiable
+- Interpretable as probability
+
+## Slide 14: Sigmoid Visualization
+```{r sigmoid-viz, echo=FALSE, fig.height=3}
+z <- seq(-6, 6, length.out = 1000)
+sigmoid <- 1 / (1 + exp(-z))
+sigmoid_deriv <- sigmoid * (1 - sigmoid)
+
+df_sigmoid <- data.frame(
+  z = rep(z, 2),
+  value = c(sigmoid, sigmoid_deriv),
+  type = rep(c("Function", "Derivative"), each = 1000)
+)
+
+ggplot(df_sigmoid, aes(x = z, y = value, color = type)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("darkblue", "red")) +
+  labs(title = "Sigmoid and Its Derivative",
+       x = "z", y = "Value") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 15: Sigmoid Problems - Vanishing Gradient
+```{r vanishing-gradient, echo=FALSE, fig.height=3}
+z <- seq(-10, 10, length.out = 1000)
+sigmoid_grad <- (1/(1 + exp(-z))) * (1 - (1/(1 + exp(-z))))
+
+ggplot(data.frame(z, grad = sigmoid_grad), aes(x = z, y = grad)) +
+  geom_line(size = 1, color = "darkred") +
+  geom_hline(yintercept = 0.25, linetype = "dashed", color = "blue") +
+  annotate("text", x = 5, y = 0.27, 
+           label = "Max gradient = 0.25", color = "blue") +
+  labs(title = "Sigmoid Derivative: Vanishing Gradient",
+       x = "z", y = "Gradient") +
+  theme_minimal()
+```
+
+**Issue:** For $|z| > 5$, gradient $\approx 0$ (slow learning)
+
+## Slide 16: Hyperbolic Tangent (tanh)
+
+**Definition:**
+
+$$\tanh(z) = \frac{e^z - e^{-z}}{e^z + e^{-z}}$$
+
+**Derivative:**
+
+$$\tanh'(z) = 1 - \tanh^2(z)$$
+
+\vspace{0.3cm}
+
+**Advantages over Sigmoid:**
+
+- Zero-centered: output range $(-1, 1)$
+- Stronger gradients (max derivative = 1)
+
+## Slide 17: Tanh Visualization
+````{r tanh-viz, echo=FALSE, fig.height=3}
+z <- seq(-4, 4, length.out = 1000)
+tanh_val <- (exp(z) - exp(-z)) / (exp(z) + exp(-z))
+tanh_deriv <- 1 - tanh_val^2
+
+df_tanh <- data.frame(
+  z = rep(z, 2),
+  value = c(tanh_val, tanh_deriv),
+  type = rep(c("Function", "Derivative"), each = 1000)
+)
+
+ggplot(df_tanh, aes(x = z, y = value, color = type)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("darkblue", "red")) +
+  labs(title = "tanh and Its Derivative",
+       x = "z", y = "Value") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+````
+
+## Slide 18: ReLU - The Modern Standard
+
+**Rectified Linear Unit (ReLU):**
+
+$$\text{ReLU}(z) = \max(0, z) = \begin{cases} 
+z & \text{if } z > 0 \\
+0 & \text{if } z \leq 0
+\end{cases}$$
+
+**Derivative:**
+
+$$\text{ReLU}'(z) = \begin{cases} 
+1 & \text{if } z > 0 \\
+0 & \text{if } z \leq 0
+\end{cases}$$
+
+\vspace{0.3cm}
+
+**Introduced:** Nair & Hinton (2010)
+
+## Slide 19: ReLU Advantages
+```{r relu-viz, echo=FALSE, fig.height=3}
+z <- seq(-3, 3, length.out = 1000)
+relu <- pmax(0, z)
+relu_deriv <- ifelse(z > 0, 1, 0)
+
+df_relu <- data.frame(
+  z = rep(z, 2),
+  value = c(relu, relu_deriv),
+  type = rep(c("Function", "Derivative"), each = 1000)
+)
+
+ggplot(df_relu, aes(x = z, y = value, color = type)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("darkblue", "red")) +
+  labs(title = "ReLU and Its Derivative",
+       x = "z", y = "Value") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Benefits:**
+
+1. No vanishing gradient for $z > 0$
+2. Computationally efficient
+3. Sparsity (many neurons output zero)
+
+## Slide 20: ReLU Variants
+
+**Leaky ReLU:**
+
+$$f(z) = \begin{cases} 
+z & \text{if } z > 0 \\
+\alpha z & \text{if } z \leq 0
+\end{cases}, \quad \alpha = 0.01$$
+
+**Parametric ReLU (PReLU):**
+
+- $\alpha$ is learned during training
+
+**ELU (Exponential Linear Unit):**
+
+$$f(z) = \begin{cases} 
+z & \text{if } z > 0 \\
+\alpha(e^z - 1) & \text{if } z \leq 0
+\end{cases}$$
+
+## Slide 21: Activation Comparison
+```{r activation-comparison, echo=FALSE, fig.height=3.5}
+z <- seq(-5, 5, length.out = 1000)
+
+activations <- data.frame(
+  z = rep(z, 4),
+  value = c(
+    1 / (1 + exp(-z)),
+    tanh(z),
+    pmax(0, z),
+    pmax(0.01 * z, z)
+  ),
+  Activation = rep(
+    c("Sigmoid", "tanh", "ReLU", "Leaky ReLU"), 
+    each = 1000
+  )
+)
+
+ggplot(activations, aes(x = z, y = value, color = Activation)) +
+  geom_line(size = 1) +
+  scale_color_viridis_d() +
+  labs(title = "Common Activation Functions",
+       x = "Input (z)", y = "Output") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 22: Implementing Activations in R
+```{r activations-r, echo=TRUE}
+# Define activation functions
+sigmoid <- function(z) 1 / (1 + exp(-z))
+tanh_act <- function(z) tanh(z)
+relu <- function(z) pmax(0, z)
+leaky_relu <- function(z, alpha = 0.01) pmax(alpha * z, z)
+
+# Test on sample data
+z_test <- c(-2, -1, 0, 1, 2)
+
+cat("Input:", z_test, "\n")
+cat("Sigmoid:", round(sigmoid(z_test), 3), "\n")
+cat("tanh:", round(tanh_act(z_test), 3), "\n")
+cat("ReLU:", relu(z_test), "\n")
+cat("Leaky ReLU:", leaky_relu(z_test), "\n")
+```
+
+# Feedforward Neural Networks
+
+## Slide 23: Multi-Layer Perceptron (MLP) Architecture
+
+**Architecture Components:**
+
+1. **Input Layer:** Raw features $\mathbf{x} \in \mathbb{R}^n$
+2. **Hidden Layers:** $L$ layers with neurons
+3. **Output Layer:** Predictions $\hat{y}$
+
+\vspace{0.5cm}
+
+**Forward Pass (Layer $l$):**
+
+$$\mathbf{z}^{(l)} = \mathbf{W}^{(l)} \mathbf{a}^{(l-1)} + \mathbf{b}^{(l)}$$
+
+$$\mathbf{a}^{(l)} = f(\mathbf{z}^{(l)})$$
+
+## Slide 24: Network Architecture Visualization
+```{r network-architecture, echo=FALSE, fig.height=4}
+library(igraph)
+
+# Create a simple 3-layer network visualization
 set.seed(42)
-```
 
-# Introduction
-
-## What You Will Master Today
-
-**Conceptual Understanding**
-
-- Neural network architecture
-- Forward and backward propagation  
-- Loss functions and optimization
-- Model validation strategies
-
-**Implementation Skills**
-
-- Build networks in R with keras
-- Train and validate models
-- Tune hyperparameters
-- Diagnose training problems
-
-**Critical:** Theory meets practice throughout
-
----
-
-## Course Structure
-
-First two chapters focus on conceptual knowledge
-
-- Debug and tune deep learning models on conventional prediction problems
-- Lay the foundation for progressing towards modern applications
-
-This will pay off in the third and fourth chapters
-
----
-
-## Why Deep Learning?
-
-**The Power of Interactions**
-
-Neural networks account for interactions really well
-
-Deep learning uses especially powerful neural networks
-
-Applications:
-
-- Text
-- Images  
-- Videos
-- Audio
-- Structured data
-
----
-
-## Traditional ML vs Neural Networks
-
-**Traditional Models:**
-
-- Manually specify interactions
-- Test hundreds of feature combinations
-- Requires domain expertise
-
-**Neural Networks:**
-
-- Automatically discover patterns
-- Learn hierarchical representations
-- No manual feature engineering
-
-Example: Customer churn = usage decline + support contact + competitor promo
-
----
-
-# Chapter 1: Forward Propagation
-
-## What is Forward Propagation?
-
-**Definition:** The process of computing predictions from inputs through the network
-
-\begin{center}
-\begin{tikzpicture}[scale=0.8]
-\node[circle,draw,fill=green!30,minimum size=1cm] (i1) at (0,2) {2};
-\node[circle,draw,fill=green!30,minimum size=1cm] (i2) at (0,0) {3};
-\node[circle,draw,fill=blue!30,minimum size=1cm] (h1) at (3,2.5) {};
-\node[circle,draw,fill=blue!30,minimum size=1cm] (h2) at (3,0.5) {};
-\node[circle,draw,fill=blue!30,minimum size=1cm] (o) at (6,1.5) {};
-
-\draw[->,thick] (i1) -- node[above] {$w_1$} (h1);
-\draw[->,thick] (i1) -- (h2);
-\draw[->,thick] (i2) -- (h1);
-\draw[->,thick] (i2) -- node[below] {$w_2$} (h2);
-\draw[->,thick] (h1) -- (o);
-\draw[->,thick] (h2) -- (o);
-
-\node at (0,-1) {Input};
-\node at (3,-1) {Hidden};
-\node at (6,-1) {Output};
-\end{tikzpicture}
-\end{center}
-
-Information flows left to right
-
----
-
-## A Simple Example
-
-\begin{center}
-\begin{tikzpicture}[scale=0.9]
-\node[circle,draw,fill=green!30,minimum size=1cm] (i1) at (0,2) {2};
-\node[circle,draw,fill=green!30,minimum size=1cm] (i2) at (0,0) {3};
-\node[circle,draw,fill=blue!30,minimum size=1cm] (h1) at (3,2.5) {5};
-\node[circle,draw,fill=blue!30,minimum size=1cm] (h2) at (3,0.5) {1};
-\node[circle,draw,fill=blue!30,minimum size=1cm] (o) at (6,1.5) {9};
-
-\draw[->,thick] (i1) -- node[above,sloped] {1} (h1);
-\draw[->,thick] (i1) -- node[above,sloped] {-1} (h2);
-\draw[->,thick] (i2) -- node[below,sloped] {1} (h1);
-\draw[->,thick] (i2) -- node[below,sloped] {1} (h2);
-\draw[->,thick] (h1) -- node[above,sloped] {2} (o);
-\draw[->,thick] (h2) -- node[below,sloped] {-1} (o);
-
-\node at (0,-1) {Input};
-\node at (3,-1) {Hidden Layer};
-\node at (6,-1) {Output};
-\end{tikzpicture}
-\end{center}
-
-Let's compute this step by step!
-
----
-
-## Step 1: Compute Hidden Node 0
-
-**Input values:** 2, 3
-
-**Weights to node 0:** 1, 1
-
-**Computation:**
-
-$$\text{node}_0 = (2 \times 1) + (3 \times 1) = 5$$
-
-Simple weighted sum!
-
----
-
-## Step 2: Compute Hidden Node 1
-
-**Input values:** 2, 3
-
-**Weights to node 1:** -1, 1
-
-**Computation:**
-
-$$\text{node}_1 = (2 \times -1) + (3 \times 1) = 1$$
-
-Each node does the same operation
-
----
-
-## Step 3: Compute Output
-
-**Hidden layer values:** 5, 1
-
-**Weights to output:** 2, -1
-
-**Computation:**
-
-$$\text{output} = (5 \times 2) + (1 \times -1) = 9$$
-
-Final prediction!
-
----
-
-## Forward Propagation in R - Setup
-```{r}
-# Input data
-input_data <- c(2, 3)
-
-# Define weight matrices
-weights <- list(
-  node_0 = c(1, 1),
-  node_1 = c(-1, 1),
-  output = c(2, -1)
-)
-```
-
----
-
-## Forward Propagation in R - Hidden Layer
-```{r}
-# Compute hidden layer values
-node_0_value <- sum(input_data * weights$node_0)
-node_1_value <- sum(input_data * weights$node_1)
-
-# Show results
-hidden_layer <- c(node_0_value, node_1_value)
-print(hidden_layer)
-```
-
----
-
-## Forward Propagation in R - Output
-```{r}
-# Compute output
-output <- sum(hidden_layer * weights$output)
-print(output)
-```
-
-That's forward propagation!
-
----
-
-## Why Do We Need Activation Functions?
-
-**Without activation:** Network reduces to linear model
-
-$$f(f(x)) = \text{still linear}$$
-
-**With activation:** Network can represent complex patterns
-
-$$f(\text{ReLU}(x)) = \text{nonlinear}$$
-
-Activation functions introduce nonlinearity
-
----
-
-## Common Activation Functions
-
-**ReLU (Rectified Linear Unit):**
-
-$$\text{ReLU}(x) = \max(0, x)$$
-
-**Tanh (Hyperbolic Tangent):**
-
-$$\text{tanh}(x) = \frac{e^x - e^{-x}}{e^x + e^{-x}}$$
-
-**Sigmoid:**
-
-$$\sigma(x) = \frac{1}{1 + e^{-x}}$$
-
----
-
-## ReLU Activation
-
-\begin{center}
-\begin{tikzpicture}[scale=0.7]
-\draw[->] (-3,0) -- (3,0) node[right] {$x$};
-\draw[->] (0,-1) -- (0,3) node[above] {$\text{ReLU}(x)$};
-\draw[thick,blue] (-3,0) -- (0,0);
-\draw[thick,blue] (0,0) -- (2.5,2.5);
-\node at (0,-1.5) {Output = max(0, input)};
-\end{tikzpicture}
-\end{center}
-
-**Properties:**
-
-- Simple and fast
-- Avoids vanishing gradients
-- Most popular choice
-
----
-
-## Tanh Activation
-
-\begin{center}
-\begin{tikzpicture}[scale=0.7]
-\draw[->] (-3,0) -- (3,0) node[right] {$x$};
-\draw[->] (0,-2) -- (0,2) node[above] {$\text{tanh}(x)$};
-\draw[thick,blue,domain=-3:3,samples=100] plot (\x,{tanh(\x)});
-\draw[dashed] (-3,-1) -- (3,-1);
-\draw[dashed] (-3,1) -- (3,1);
-\node at (0,-2.5) {Output range: [-1, 1]};
-\end{tikzpicture}
-\end{center}
-
-**Properties:**
-
-- Zero-centered
-- Smooth gradient
-
----
-
-## Forward Propagation with Activation
-```{r}
-# Input and weights
-input_data <- c(-1, 2)
-weights <- list(
-  node_0 = c(3, 3),
-  node_1 = c(1, 5),
-  output = c(2, -1)
-)
-```
-
----
-
-## Compute Hidden Layer with Tanh
-```{r}
-# Compute with activation
-node_0_input <- sum(input_data * weights$node_0)
-node_0_output <- tanh(node_0_input)
-
-node_1_input <- sum(input_data * weights$node_1)
-node_1_output <- tanh(node_1_input)
-
-hidden_outputs <- c(node_0_output, node_1_output)
-print(hidden_outputs)
-```
-
----
-
-## Final Output
-```{r}
-# Compute final output
-output <- sum(hidden_outputs * weights$output)
-print(output)
-```
-
-Compare this to output without activation!
-
----
-
-## Multiple Observations
-
-**Reality:** We predict for many data points at once
-
-**Solution:** Use matrices instead of vectors
-
-- Each row = one observation
-- Matrix multiplication handles all at once
-- Much faster than loops
-
----
-
-## Matrix Representation
-```{r}
-# Multiple observations (3 customers, 2 features)
-input_data <- matrix(c(2, 3,
-                       1, 4,
-                       3, 2), 
-                     nrow = 3, byrow = TRUE)
-
-print(input_data)
-```
-
----
-
-## Matrix Forward Propagation - Setup
-```{r}
-# Weight matrix for hidden layer (2 inputs, 2 hidden)
-W_hidden <- matrix(c(1, 1,
-                     -1, 1), 
-                   nrow = 2, byrow = FALSE)
-
-# Weight vector for output (2 hidden, 1 output)
-W_output <- c(2, -1)
-```
-
----
-
-## Matrix Forward Propagation - Compute
-```{r}
-# Hidden layer (with ReLU)
-hidden <- pmax(0, input_data %*% W_hidden)
-print(hidden)
-
-# Output layer
-output <- hidden %*% W_output
-print(output)
-```
-
----
-
-## Deep Networks
-
-**Definition:** Networks with multiple hidden layers
-
-\begin{center}
-\begin{tikzpicture}[scale=0.6]
-\foreach \y in {1,2,3} {
-  \node[circle,draw,fill=green!30] at (0,\y) {};
+# Define layer sizes
+layers <- c(3, 4, 2)
+
+# Create coordinate data for nodes
+nodes_data <- data.frame()
+node_id <- 1
+
+for (layer in 1:length(layers)) {
+  n_nodes <- layers[layer]
+  y_positions <- seq(1, n_nodes)
+  
+  for (i in 1:n_nodes) {
+    nodes_data <- rbind(nodes_data, data.frame(
+      id = node_id,
+      layer = layer,
+      y = y_positions[i],
+      label = ""
+    ))
+    node_id <- node_id + 1
+  }
 }
-\foreach \y in {0.5,1.5,2.5,3.5} {
-  \node[circle,draw,fill=blue!30] at (2,\y) {};
+
+# Create edges between layers
+edges_data <- data.frame()
+current_node <- 1
+
+for (layer in 1:(length(layers) - 1)) {
+  from_nodes <- current_node:(current_node + layers[layer] - 1)
+  to_nodes <- (current_node + layers[layer]):(current_node + layers[layer] + layers[layer + 1] - 1)
+  
+  for (from in from_nodes) {
+    for (to in to_nodes) {
+      edges_data <- rbind(edges_data, data.frame(from = from, to = to))
+    }
+  }
+  
+  current_node <- current_node + layers[layer]
 }
-\foreach \y in {0.5,1.5,2.5,3.5} {
-  \node[circle,draw,fill=blue!30] at (4,\y) {};
-}
-\foreach \y in {1.5,2.5} {
-  \node[circle,draw,fill=blue!30] at (6,\y) {};
-}
-\node[circle,draw,fill=red!30] at (8,2) {};
 
-\node at (0,-0.5) {Input};
-\node at (2,-0.5) {Hidden 1};
-\node at (4,-0.5) {Hidden 2};
-\node at (6,-0.5) {Hidden 3};
-\node at (8,-0.5) {Output};
-\end{tikzpicture}
-\end{center}
+# Plot using ggplot
+ggplot() +
+  geom_segment(data = edges_data, 
+               aes(x = nodes_data$layer[from], 
+                   y = nodes_data$y[from],
+                   xend = nodes_data$layer[to], 
+                   yend = nodes_data$y[to]),
+               alpha = 0.3, color = "darkblue") +
+  geom_point(data = nodes_data, 
+             aes(x = layer, y = y), 
+             size = 8, color = "darkblue") +
+  scale_x_continuous(breaks = 1:3, 
+                     labels = c("Input\nLayer", 
+                                "Hidden\nLayer", 
+                                "Output\nLayer")) +
+  theme_void() +
+  theme(axis.text.x = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5)) +
+  labs(title = "3-Layer Neural Network (3-4-2)")
+```
 
-More layers = more complex patterns
+## Slide 25: Matrix Notation for Forward Pass
 
----
+**Single Sample ($\mathbf{x}$ is a column vector):**
 
-## Why Go Deep?
+$$\mathbf{a}^{(1)} = f(\mathbf{W}^{(1)} \mathbf{x} + \mathbf{b}^{(1)})$$
 
-**Hierarchical Learning:**
+$$\mathbf{a}^{(2)} = f(\mathbf{W}^{(2)} \mathbf{a}^{(1)} + \mathbf{b}^{(2)})$$
 
-- Layer 1: Simple patterns
-- Layer 2: Combinations
-- Layer 3: Complex concepts
-- Output: Final decision
+$$\hat{y} = \mathbf{a}^{(L)}$$
 
-Example: Image recognition
+\vspace{0.5cm}
 
-- Edges → Shapes → Objects → Classification
+**Batch Processing ($\mathbf{X}$ is a matrix with samples as rows):**
 
----
+$$\mathbf{A}^{(l)} = f(\mathbf{A}^{(l-1)} \mathbf{W}^{(l)T} + \mathbf{b}^{(l)})$$
 
-## Building a Deep Network in R
-```{r, eval=FALSE}
-# Load keras
+## Slide 26: Building MLP in Keras (R)
+```{r keras-mlp, echo=TRUE, eval=FALSE}
 library(keras)
 
 # Define network architecture
 model <- keras_model_sequential() %>%
-  layer_dense(units = 10, activation = 'relu', 
-              input_shape = 2) %>%
-  layer_dense(units = 10, activation = 'relu') %>%
-  layer_dense(units = 10, activation = 'relu') %>%
-  layer_dense(units = 1)
-```
+  layer_dense(units = 128, activation = "relu", 
+              input_shape = c(784)) %>%
+  layer_dropout(rate = 0.2) %>%
+  layer_dense(units = 64, activation = "relu") %>%
+  layer_dropout(rate = 0.2) %>%
+  layer_dense(units = 10, activation = "softmax")
 
-Three hidden layers of 10 nodes each
+# Compile model
+model %>% compile(
+  optimizer = "adam",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
 
----
-
-## Model Summary
-```{r, eval=FALSE}
+# View architecture
 summary(model)
 ```
-```
-_____________________________________________
-Layer (type)        Output Shape     Param #
-=============================================
-dense_1 (Dense)     (None, 10)       30
-dense_2 (Dense)     (None, 10)       110
-dense_3 (Dense)     (None, 10)       110
-dense_4 (Dense)     (None, 1)        11
-=============================================
-Total params: 261
-Trainable params: 261
-```
 
----
-
-## Counting Parameters
-
-**First hidden layer:** 
-
-- Inputs: 2
-- Nodes: 10
-- Parameters: (2 × 10) + 10 = 30
-
-**Second hidden layer:**
-
-- Inputs: 10  
-- Nodes: 10
-- Parameters: (10 × 10) + 10 = 110
-
-Weights + biases for each node
-
----
-
-## Network Representation Power
-
-**Universal Approximation Theorem:**
-
-A neural network with:
-
-- One hidden layer
-- Sufficient nodes  
-- Nonlinear activation
-
-Can approximate any continuous function
-
-But deeper networks learn more efficiently!
-
----
-
-## Practical Considerations
-
-**Too shallow:**
-
-- Cannot capture complex patterns
-- Underfitting
-
-**Too deep:**
-
-- May overfit
-- Harder to train
-- Vanishing gradients
-
-Start simple, add depth as needed
-
----
-
-## Forward Propagation: Complete Example
-```{r, eval=FALSE}
-# Generate sample data
-X <- matrix(rnorm(1000 * 3), ncol = 3)
-y <- rowSums(X^2) + rnorm(1000, sd = 0.1)
-
-# Build model
-model <- keras_model_sequential() %>%
-  layer_dense(units = 32, activation = 'relu', 
-              input_shape = 3) %>%
-  layer_dense(units = 16, activation = 'relu') %>%
-  layer_dense(units = 1)
-```
-
----
-
-## Make Predictions (Forward Pass)
-```{r, eval=FALSE}
-# Random initial predictions
-predictions <- model %>% predict(X[1:5, ])
-print(predictions)
-```
-```
-     [,1]
-[1,] -0.234
-[2,]  0.891
-[3,] -0.567
-[4,]  0.123
-[5,] -0.345
-```
-
-These are bad - network not trained yet!
-
----
-
-## Key Concepts Summary
-
-**Forward propagation:**
-
-- Multiply inputs by weights
-- Add bias terms
-- Apply activation function
-- Repeat for each layer
-
-**Matrix operations:**
-
-- Handle multiple observations efficiently
-- Standard linear algebra
-
-**Deep networks:**
-
-- Stack multiple layers
-- Each adds representation power
-
----
-
-# Chapter 2: Optimization & Backpropagation
-
-## The Learning Problem
-
-**Question:** How do we find good weights?
-
-**Answer:** Optimization!
-
-1. Define a loss function (how wrong are we?)
-2. Compute gradients (which direction improves?)
-3. Update weights (take a step)
-4. Repeat
-
----
-
-## Loss Functions
-
-**Regression:** Mean Squared Error
-
-$$\text{MSE} = \frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{y}_i)^2$$
-
-**Classification:** Categorical Crossentropy
-
-$$\text{CCE} = -\sum_{i=1}^{n}\sum_{j=1}^{C} y_{ij} \log(\hat{y}_{ij})$$
-
-Lower loss = better predictions
-
----
-
-## Mean Squared Error Example
-```{r}
-# True values
-y_true <- c(2.5, 3.0, 4.5)
-
-# Predicted values
-y_pred <- c(2.3, 3.2, 4.1)
-
-# Compute MSE
-mse <- mean((y_true - y_pred)^2)
-print(mse)
-```
-
----
-
-## Why Minimize Loss?
-
-\begin{center}
-\begin{tikzpicture}[scale=0.8]
-\draw[->] (0,0) -- (5,0) node[right] {Weight};
-\draw[->] (0,0) -- (0,4) node[above] {Loss};
-\draw[thick,blue,domain=0:4.5] plot (\x,{0.3*(\x-2.5)^2 + 0.5});
-\node[circle,fill=red,inner sep=2pt] at (2.5,0.5) {};
-\node at (2.5,-0.5) {Optimal};
-\end{tikzpicture}
-\end{center}
-
-Find the bottom of the bowl!
-
----
-
-## Gradient Descent
-
-**Idea:** Move in direction of steepest descent
-
-$$w_{\text{new}} = w_{\text{old}} - \eta \frac{\partial L}{\partial w}$$
-
-where:
-
-- $\eta$ = learning rate
-- $\frac{\partial L}{\partial w}$ = gradient
-
----
-
-## Learning Rate Matters
-
-\begin{center}
-\begin{tikzpicture}[scale=0.7]
-\draw[->] (0,0) -- (6,0) node[right] {Weight};
-\draw[->] (0,0) -- (0,4) node[above] {Loss};
-\draw[thick,blue,domain=0:5.5] plot (\x,{0.3*(\x-3)^2 + 0.5});
-
-% Too large
-\draw[->,red,very thick] (1,2.2) -- (5,3.5);
-\node[red] at (3,4) {Too large: Overshoots};
-
-% Just right
-\draw[->,green,thick] (1,2.2) -- (1.5,1.7);
-\draw[->,green,thick] (1.5,1.7) -- (2,1.3);
-\node[green] at (1,1) {Just right};
-\end{tikzpicture}
-\end{center}
-
----
-
-## Backpropagation: The Idea
-
-**Problem:** Network has thousands of weights
-
-**Solution:** Chain rule of calculus!
-
-$$\frac{\partial L}{\partial w_1} = \frac{\partial L}{\partial \hat{y}} \cdot \frac{\partial \hat{y}}{\partial h} \cdot \frac{\partial h}{\partial w_1}$$
-
-Work backwards through the network
-
----
-
-## Backpropagation Visualization
-
-\begin{center}
-\begin{tikzpicture}[scale=0.8]
-\node[circle,draw] (i) at (0,0) {$x$};
-\node[circle,draw] (h) at (2,0) {$h$};
-\node[circle,draw] (o) at (4,0) {$\hat{y}$};
-\node[circle,draw] (l) at (6,0) {$L$};
-
-\draw[->,thick] (i) -- node[above] {$w_1$} (h);
-\draw[->,thick] (h) -- node[above] {$w_2$} (o);
-\draw[->,thick] (o) -- (l);
-
-\draw[->,red,thick,dashed] (l) -- node[below] {$\frac{\partial L}{\partial \hat{y}}$} (o);
-\draw[->,red,thick,dashed] (o) -- node[below] {$\frac{\partial \hat{y}}{\partial h}$} (h);
-\draw[->,red,thick,dashed] (h) -- node[below] {$\frac{\partial h}{\partial w_1}$} (i);
-\end{tikzpicture}
-\end{center}
-
-Forward: compute predictions → Backward: compute gradients
-
----
-
-## What is Fitting a Model?
-
-**Fitting = Training = Learning**
-
-Applying backpropagation and gradient descent with your data to update the weights
-
-Process:
-
-1. Forward pass: compute predictions
-2. Compute loss
-3. Backward pass: compute gradients  
-4. Update weights
-5. Repeat
-
----
-
-## Compiling a Model in R
-```{r, eval=FALSE}
-# Build model
-model <- keras_model_sequential() %>%
-  layer_dense(units = 100, activation = 'relu', 
-              input_shape = 10) %>%
-  layer_dense(units = 100, activation = 'relu') %>%
-  layer_dense(units = 1)
-
-# Compile: specify optimizer and loss
-model %>% compile(
-  optimizer = 'adam',
-  loss = 'mean_squared_error'
+## Slide 27: Complete MLP Example - MNIST
+```{r mnist-example, echo=TRUE, eval=FALSE}
+# Load MNIST dataset
+mnist <- dataset_mnist()
+x_train <- mnist$train$x
+y_train <- mnist$train$y
+x_test <- mnist$test$x
+y_test <- mnist$test$y
+
+# Preprocess
+x_train <- array_reshape(x_train, c(nrow(x_train), 784))
+x_test <- array_reshape(x_test, c(nrow(x_test), 784))
+x_train <- x_train / 255
+x_test <- x_test / 255
+
+y_train <- to_categorical(y_train, 10)
+y_test <- to_categorical(y_test, 10)
+
+# Train model
+history <- model %>% fit(
+  x_train, y_train,
+  epochs = 10,
+  batch_size = 128,
+  validation_split = 0.2,
+  verbose = 1
 )
 ```
 
+## Slide 28: Universal Approximation Theorem
+
+**Theorem (Cybenko, 1989; Hornik et al., 1989):**
+
+A feedforward network with:
+- One hidden layer
+- Finite number of neurons  
+- Non-polynomial activation function
+
+can approximate **any continuous function** on compact subsets of $\mathbb{R}^n$ to arbitrary accuracy.
+
+\vspace{0.5cm}
+
+**Implication:** Neural networks are *universal function approximators*
+
+**Caveat:** Theorem says nothing about:
+- How many neurons needed
+- How to find the weights (training)
+
+## Slide 29: Depth vs. Width
+
+**Empirical Findings:**
+
+1. **Shallow & Wide:** Harder to train, requires more parameters
+2. **Deep & Narrow:** More efficient representation, better generalization
+
+\vspace{0.5cm}
+
+**Intuition:** Deep networks learn hierarchical features
+
+- Layer 1: Edges, textures
+- Layer 2: Parts, shapes
+- Layer 3: Objects, concepts
+
+\vspace{0.3cm}
+
+**Example:** ImageNet with ResNet-50 (50 layers) vs. single hidden layer (infeasible)
+
+## Slide 30: The Interpretability Challenge
+
+**From L3 (Random Forest) to L4 (Neural Networks):**
+
+| Model | Interpretability Method |
+|-------|------------------------|
+| Random Forest | Feature importance (Gini, permutation) |
+| Neural Network | ??? |
+
+\vspace{0.5cm}
+
+**Why NNs are Hard to Interpret:**
+
+1. **Non-linear transformations** across multiple layers
+2. **Millions of parameters** (distributed representations)
+3. **No direct feature-to-output mapping**
+
+\vspace{0.3cm}
+
+$\Rightarrow$ **Need for Explainable AI (XAI)** methods
+
 ---
 
-## Why Compile?
 
-**Specify the optimizer:**
+# Training Neural Networks
 
-- Many options and mathematically complex
-- "Adam" is usually a good choice
-- Adaptive learning rates
+## Slide 31: The Learning Problem
 
-**Specify loss function:**
+**Goal:** Find weights $\mathbf{W}$ and biases $\mathbf{b}$ that minimize prediction error
 
-- `mean_squared_error` for regression
-- `categorical_crossentropy` for classification
+\vspace{0.5cm}
 
-Compilation prepares model for training
+**The Process:**
+
+1. **Forward Pass:** Compute predictions $\hat{y}$
+2. **Calculate Loss:** How wrong are we? $L(\hat{y}, y)$
+3. **Backward Pass:** Calculate gradients (which direction to adjust weights?)
+4. **Update Weights:** Take a small step in the right direction
+
+\vspace{0.3cm}
+
+**Analogy:** Walking down a foggy mountain—you feel the slope under your feet and take small steps downhill.
+
+## Slide 32: Loss Functions - Measuring Error
+
+**For Regression (continuous output):**
+
+$$\text{MSE} = \frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{y}_i)^2$$
+
+**For Binary Classification:**
+
+$$\text{Binary Cross-Entropy} = -\frac{1}{n}\sum_{i=1}^{n}[y_i \log(\hat{y}_i) + (1-y_i)\log(1-\hat{y}_i)]$$
+
+**For Multi-Class Classification:**
+
+$$\text{Categorical Cross-Entropy} = -\sum_{i=1}^{n}\sum_{j=1}^{C} y_{ij} \log(\hat{y}_{ij})$$
+
+## Slide 33: Visualizing Loss Functions
+```{r loss-viz, echo=FALSE, fig.height=3.5}
+# Generate predictions
+y_true <- 1
+y_pred <- seq(0.01, 0.99, length.out = 100)
+
+# Calculate losses
+mse <- (y_true - y_pred)^2
+bce <- -(y_true * log(y_pred) + (1 - y_true) * log(1 - y_pred))
+
+loss_data <- data.frame(
+  Prediction = rep(y_pred, 2),
+  Loss = c(mse, bce),
+  Type = rep(c("MSE", "Binary Cross-Entropy"), each = 100)
+)
+
+ggplot(loss_data, aes(x = Prediction, y = Loss, color = Type)) +
+  geom_line(size = 1.2) +
+  geom_vline(xintercept = y_true, linetype = "dashed", 
+             color = "black", alpha = 0.5) +
+  annotate("text", x = 0.85, y = 3, label = "True value = 1") +
+  scale_color_manual(values = c("darkblue", "darkred")) +
+  labs(title = "Loss Functions (True Value = 1)",
+       x = "Predicted Probability", y = "Loss") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 34: Loss Functions in R
+```{r loss-functions-r, echo=TRUE}
+# Mean Squared Error
+mse_loss <- function(y_true, y_pred) {
+  mean((y_true - y_pred)^2)
+}
+
+# Binary Cross-Entropy (with numerical stability)
+bce_loss <- function(y_true, y_pred) {
+  epsilon <- 1e-7  # Prevent log(0)
+  y_pred <- pmax(pmin(y_pred, 1 - epsilon), epsilon)
+  -mean(y_true * log(y_pred) + 
+        (1 - y_true) * log(1 - y_pred))
+}
+
+# Example
+y_true <- c(0, 1, 1, 0, 1)
+y_pred <- c(0.1, 0.9, 0.7, 0.2, 0.8)
+
+cat("MSE Loss:", mse_loss(y_true, y_pred), "\n")
+cat("BCE Loss:", bce_loss(y_true, y_pred), "\n")
+```
+
+## Slide 35: Gradient Descent - The Core Idea
+
+**Question:** If loss = $f(\mathbf{w})$, how do we find the best $\mathbf{w}$?
+
+\vspace{0.5cm}
+
+**Gradient Descent Rule:**
+
+$$\mathbf{w}_{new} = \mathbf{w}_{old} - \eta \frac{\partial L}{\partial \mathbf{w}}$$
+
+where $\eta$ is the **learning rate**
+
+\vspace{0.5cm}
+
+**Intuition:**
+
+- Gradient $\frac{\partial L}{\partial \mathbf{w}}$ points **uphill** (direction of steepest increase)
+- We move in the **opposite direction** (downhill)
+- $\eta$ controls step size
+
+## Slide 36: Gradient Descent Visualization
+```{r gradient-descent-viz, echo=FALSE, fig.height=3.5}
+# Simple 1D loss function
+w <- seq(-2, 4, length.out = 200)
+loss <- (w - 1)^2 + 0.5
+
+# Simulate gradient descent
+w_history <- numeric(20)
+w_history[1] <- -1.5
+learning_rate <- 0.3
+
+for (i in 2:20) {
+  gradient <- 2 * (w_history[i-1] - 1)
+  w_history[i] <- w_history[i-1] - learning_rate * gradient
+}
+
+loss_history <- (w_history - 1)^2 + 0.5
+
+# Plot
+ggplot() +
+  geom_line(data = data.frame(w, loss), 
+            aes(x = w, y = loss), 
+            size = 1, color = "darkblue") +
+  geom_point(data = data.frame(w = w_history, loss = loss_history),
+             aes(x = w, y = loss), 
+             color = "red", size = 2) +
+  geom_path(data = data.frame(w = w_history, loss = loss_history),
+            aes(x = w, y = loss), 
+            color = "red", alpha = 0.4, 
+            arrow = arrow(length = unit(0.2, "cm"))) +
+  labs(title = "Gradient Descent: Finding the Minimum",
+       x = "Weight (w)", y = "Loss") +
+  theme_minimal() +
+  annotate("text", x = 1, y = 2.5, 
+           label = "Optimal weight", color = "darkgreen")
+```
+
+## Slide 37: Learning Rate Impact
+```{r learning-rate-impact, echo=FALSE, fig.height=3.5}
+# Function to run gradient descent
+run_gd <- function(learning_rate, n_steps = 50) {
+  w <- -1.5
+  history <- numeric(n_steps)
+  
+  for (i in 1:n_steps) {
+    gradient <- 2 * (w - 1)
+    w <- w - learning_rate * gradient
+    history[i] <- (w - 1)^2 + 0.5
+    if (is.nan(w) || abs(w) > 100) break
+  }
+  
+  data.frame(
+    step = 1:length(history),
+    loss = history,
+    lr = paste("LR =", learning_rate)
+  )
+}
+
+# Test different learning rates
+lr_data <- rbind(
+  run_gd(0.1),
+  run_gd(0.5),
+  run_gd(0.9)
+)
+
+ggplot(lr_data, aes(x = step, y = loss, color = lr)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("darkgreen", "darkblue", "darkred")) +
+  labs(title = "Learning Rate Effects on Convergence",
+       x = "Training Step", y = "Loss",
+       color = "Learning Rate") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Key Takeaway:** Too small = slow, too large = unstable!
+
+## Slide 38: Backpropagation - The Chain Rule
+
+**The Challenge:** Network has many layers. How do we compute $\frac{\partial L}{\partial \mathbf{w}^{(1)}}$ for the first layer?
+
+\vspace{0.5cm}
+
+**Solution:** Use the **chain rule** from calculus!
+
+\vspace{0.3cm}
+
+**Example (2-layer network):**
+
+$$\frac{\partial L}{\partial w^{(1)}} = \frac{\partial L}{\partial a^{(2)}} \cdot \frac{\partial a^{(2)}}{\partial z^{(2)}} \cdot \frac{\partial z^{(2)}}{\partial a^{(1)}} \cdot \frac{\partial a^{(1)}}{\partial z^{(1)}} \cdot \frac{\partial z^{(1)}}{\partial w^{(1)}}$$
+
+\vspace{0.3cm}
+
+**Intuition:** How does changing $w^{(1)}$ ripple through the network to affect final loss?
+
+## Slide 39: Backpropagation Visual Flow
+```{r backprop-flow, echo=FALSE, fig.height=3.5}
+par(mar = c(2, 2, 3, 2))
+plot(0, 0, type = "n", xlim = c(0, 10), ylim = c(0, 6),
+     axes = FALSE, xlab = "", ylab = "",
+     main = "Forward and Backward Pass")
+
+# Forward pass (blue)
+rect(1, 4, 2, 5, col = "lightblue", border = "darkblue", lwd = 2)
+text(1.5, 4.5, "Input\nx", cex = 0.8)
+
+rect(3.5, 4, 4.5, 5, col = "lightblue", border = "darkblue", lwd = 2)
+text(4, 4.5, "Hidden\nh", cex = 0.8)
+
+rect(6, 4, 7, 5, col = "lightblue", border = "darkblue", lwd = 2)
+text(6.5, 4.5, "Output\ny_hat", cex = 0.8)
+
+rect(8.5, 4, 9.5, 5, col = "lightcoral", border = "darkred", lwd = 2)
+text(9, 4.5, "Loss\nL", cex = 0.8)
+
+# Forward arrows
+arrows(2, 4.5, 3.5, 4.5, length = 0.1, lwd = 2, col = "darkblue")
+arrows(4.5, 4.5, 6, 4.5, length = 0.1, lwd = 2, col = "darkblue")
+arrows(7, 4.5, 8.5, 4.5, length = 0.1, lwd = 2, col = "darkblue")
+
+# Backward pass (red)
+rect(8.5, 1, 9.5, 2, col = "lightyellow", border = "darkgoldenrod", lwd = 2)
+text(9, 1.5, "dL/dy", cex = 0.7)
+
+rect(6, 1, 7, 2, col = "lightyellow", border = "darkgoldenrod", lwd = 2)
+text(6.5, 1.5, "dL/dh", cex = 0.7)
+
+rect(3.5, 1, 4.5, 2, col = "lightyellow", border = "darkgoldenrod", lwd = 2)
+text(4, 1.5, "dL/dW", cex = 0.7)
+
+# Backward arrows
+arrows(8.5, 1.5, 7, 1.5, length = 0.1, lwd = 2, col = "darkred")
+arrows(6, 1.5, 4.5, 1.5, length = 0.1, lwd = 2, col = "darkred")
+
+text(2.5, 5.5, "Forward Pass", col = "darkblue", cex = 0.9, font = 2)
+text(7, 0.5, "Backward Pass (Chain Rule)", col = "darkred", cex = 0.9, font = 2)
+```
+## Slide 40: Simple Backpropagation Example
+```{r backprop-example, echo=TRUE}
+# Tiny network: x -> w1 -> h -> w2 -> y_hat
+# Loss: (y - y_hat)^2
+
+# Forward pass
+x <- 2.0
+y <- 5.0
+w1 <- 0.5
+w2 <- 1.0
+
+h <- w1 * x              # h = 1.0
+y_hat <- w2 * h          # y_hat = 1.0
+loss <- (y - y_hat)^2    # loss = 16.0
+
+cat("Forward Pass:\n")
+cat("h =", h, ", y_hat =", y_hat, ", Loss =", loss, "\n\n")
+
+# Backward pass (gradients)
+d_loss_d_yhat <- -2 * (y - y_hat)  # = -8
+d_yhat_d_w2 <- h                    # = 1
+d_loss_d_w2 <- d_loss_d_yhat * d_yhat_d_w2  # = -8
+
+d_yhat_d_h <- w2                    # = 1
+d_h_d_w1 <- x                       # = 2
+d_loss_d_w1 <- d_loss_d_yhat * d_yhat_d_h * d_h_d_w1  # = -16
+
+cat("Backward Pass (Gradients):\n")
+cat("dL/dw2 =", d_loss_d_w2, "\n")
+cat("dL/dw1 =", d_loss_d_w1, "\n")
+```
+
+## Slide 41: Gradient Descent Update
+```{r gradient-update, echo=TRUE}
+# Update weights using gradients
+learning_rate <- 0.1
+
+w1_new <- w1 - learning_rate * d_loss_d_w1
+w2_new <- w2 - learning_rate * d_loss_d_w2
+
+cat("Weight Updates:\n")
+cat("w1:", w1, "->", w1_new, "\n")
+cat("w2:", w2, "->", w2_new, "\n\n")
+
+# Check new loss
+h_new <- w1_new * x
+y_hat_new <- w2_new * h_new
+loss_new <- (y - y_hat_new)^2
+
+cat("Loss improved:", loss, "->", loss_new, "\n")
+```
+
+**Notice:** Loss decreased! Gradient descent is working.
+
+## Slide 42: Batch vs. Stochastic Gradient Descent
+
+**Three Variants:**
+
+1. **Batch GD:** Use ALL training data to compute gradient
+   - Accurate but slow for large datasets
+
+2. **Stochastic GD (SGD):** Use ONE random sample
+   - Fast but noisy updates
+
+3. **Mini-Batch GD:** Use a small batch (e.g., 32 samples)
+   - **Best trade-off** (default in practice)
+
+\vspace{0.5cm}
+
+**Update Rule (Mini-Batch):**
+
+$$\mathbf{w} \leftarrow \mathbf{w} - \eta \frac{1}{B}\sum_{i \in \text{Batch}} \nabla_{\mathbf{w}} L_i$$
+
+## Slide 43: SGD Variants Comparison
+```{r sgd-variants, echo=FALSE, fig.height=3.5}
+# Simulate different gradient descent variants
+set.seed(42)
+
+# True function: quadratic with noise
+true_w <- 1.5
+n_samples <- 100
+X <- runif(n_samples, -2, 2)
+y <- true_w * X^2 + rnorm(n_samples, 0, 0.5)
+
+# Batch GD
+batch_gd <- function(n_epochs = 20) {
+  w <- 0
+  history <- numeric(n_epochs)
+  
+  for (epoch in 1:n_epochs) {
+    grad <- mean(2 * (w * X^2 - y) * X^2)
+    w <- w - 0.01 * grad
+    history[epoch] <- mean((w * X^2 - y)^2)
+  }
+  
+  data.frame(epoch = 1:n_epochs, loss = history, 
+             method = "Batch GD")
+}
+
+# Stochastic GD
+sgd <- function(n_epochs = 20) {
+  w <- 0
+  history <- numeric(n_epochs * n_samples)
+  idx <- 1
+  
+  for (epoch in 1:n_epochs) {
+    for (i in sample(n_samples)) {
+      grad <- 2 * (w * X[i]^2 - y[i]) * X[i]^2
+      w <- w - 0.01 * grad
+      history[idx] <- mean((w * X^2 - y)^2)
+      idx <- idx + 1
+    }
+  }
+  
+  data.frame(epoch = seq(0, n_epochs, length.out = length(history)),
+             loss = history, method = "SGD")
+}
+
+# Mini-batch GD
+minibatch_gd <- function(n_epochs = 20, batch_size = 10) {
+  w <- 0
+  n_batches <- ceiling(n_samples / batch_size)
+  history <- numeric(n_epochs * n_batches)
+  idx <- 1
+  
+  for (epoch in 1:n_epochs) {
+    shuffled <- sample(n_samples)
+    for (b in 1:n_batches) {
+      batch_idx <- shuffled[((b-1)*batch_size + 1):min(b*batch_size, n_samples)]
+      grad <- mean(2 * (w * X[batch_idx]^2 - y[batch_idx]) * X[batch_idx]^2)
+      w <- w - 0.01 * grad
+      history[idx] <- mean((w * X^2 - y)^2)
+      idx <- idx + 1
+    }
+  }
+  
+  data.frame(epoch = seq(0, n_epochs, length.out = length(history)),
+             loss = history, method = "Mini-Batch GD")
+}
+
+comparison_data <- rbind(
+  batch_gd(),
+  head(sgd(), 200),
+  head(minibatch_gd(), 200)
+)
+
+ggplot(comparison_data, aes(x = epoch, y = loss, color = method)) +
+  geom_line(size = 0.8, alpha = 0.7) +
+  scale_color_manual(values = c("darkblue", "darkred", "darkgreen")) +
+  labs(title = "Gradient Descent Variants",
+       x = "Epoch", y = "Loss", color = "Method") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 44: Advanced Optimizers - Momentum
+
+**Problem with SGD:** Can oscillate in ravines (steep in one direction, shallow in another)
+
+\vspace{0.3cm}
+
+**SGD with Momentum:**
+
+$$\mathbf{v}_t = \beta \mathbf{v}_{t-1} + \nabla_{\mathbf{w}} L$$
+
+$$\mathbf{w}_t = \mathbf{w}_{t-1} - \eta \mathbf{v}_t$$
+
+\vspace{0.3cm}
+
+**Intuition:** Rolling ball gains momentum—dampens oscillations, accelerates in consistent directions
+
+**Typical value:** $\beta = 0.9$
+
+## Slide 45: Momentum Visualization
+```{r momentum-viz, echo=FALSE, fig.height=3.5}
+# Compare SGD vs Momentum on 2D surface
+rosenbrock <- function(x, y) {
+  (1 - x)^2 + 100 * (y - x^2)^2
+}
+
+# SGD
+sgd_path <- function(n_steps = 50, lr = 0.001) {
+  x <- -0.5
+  y <- 1.0
+  path <- data.frame(x = numeric(n_steps), y = numeric(n_steps))
+  
+  for (i in 1:n_steps) {
+    dx <- -2 * (1 - x) - 400 * x * (y - x^2)
+    dy <- 200 * (y - x^2)
+    
+    x <- x - lr * dx
+    y <- y - lr * dy
+    path[i, ] <- c(x, y)
+  }
+  
+  path$method <- "SGD"
+  return(path)
+}
+
+# Momentum
+momentum_path <- function(n_steps = 50, lr = 0.001, beta = 0.9) {
+  x <- -0.5
+  y <- 1.0
+  vx <- 0
+  vy <- 0
+  path <- data.frame(x = numeric(n_steps), y = numeric(n_steps))
+  
+  for (i in 1:n_steps) {
+    dx <- -2 * (1 - x) - 400 * x * (y - x^2)
+    dy <- 200 * (y - x^2)
+    
+    vx <- beta * vx + dx
+    vy <- beta * vy + dy
+    
+    x <- x - lr * vx
+    y <- y - lr * vy
+    path[i, ] <- c(x, y)
+  }
+  
+  path$method <- "Momentum"
+  return(path)
+}
+
+paths <- rbind(sgd_path(), momentum_path())
+
+ggplot(paths, aes(x = x, y = y, color = method)) +
+  geom_path(size = 1, alpha = 0.7) +
+  geom_point(size = 2, alpha = 0.5) +
+  scale_color_manual(values = c("darkred", "darkblue")) +
+  labs(title = "SGD vs Momentum Optimization Paths",
+       x = "Parameter 1", y = "Parameter 2") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 46: Adam Optimizer - The Modern Standard
+
+**Adam (Adaptive Moment Estimation):**
+
+Combines:
+1. **Momentum** (moving average of gradients)
+2. **RMSprop** (adaptive learning rates per parameter)
+
+\vspace{0.3cm}
+
+**Update Rules:**
+
+$$m_t = \beta_1 m_{t-1} + (1-\beta_1)\nabla L$$
+
+$$v_t = \beta_2 v_{t-1} + (1-\beta_2)(\nabla L)^2$$
+
+$$\mathbf{w}_t = \mathbf{w}_{t-1} - \eta \frac{m_t}{\sqrt{v_t} + \epsilon}$$
+
+\vspace{0.3cm}
+
+**Default values:** $\beta_1=0.9$, $\beta_2=0.999$, $\eta=0.001$
+
+## Slide 47: Optimizer Comparison in Practice
+```{r optimizer-comparison, echo=TRUE, eval=FALSE}
+library(keras)
+
+# Define simple model
+model <- keras_model_sequential() %>%
+  layer_dense(units = 64, activation = "relu", 
+              input_shape = c(10)) %>%
+  layer_dense(units = 1)
+
+# Try different optimizers
+optimizers <- list(
+  "SGD" = optimizer_sgd(learning_rate = 0.01),
+  "SGD+Momentum" = optimizer_sgd(learning_rate = 0.01, 
+                                  momentum = 0.9),
+  "Adam" = optimizer_adam(learning_rate = 0.001)
+)
+
+# Compile with each optimizer
+model %>% compile(
+  optimizer = optimizers$Adam,
+  loss = "mse"
+)
+```
+
+## Slide 48: Weight Initialization - Why It Matters
+
+**Problem:** Bad initialization can cause:
+
+1. **Vanishing gradients** (weights too small)
+2. **Exploding gradients** (weights too large)
+3. **Dead neurons** (ReLU outputs always zero)
+
+\vspace{0.5cm}
+
+**Example - All Zeros:**
+
+If $\mathbf{W} = 0$, all neurons in a layer compute the same function! (Symmetry problem)
+
+## Slide 49: Initialization Strategies
+
+**Xavier/Glorot Initialization (for sigmoid/tanh):**
+
+$$W \sim \mathcal{N}\left(0, \frac{2}{n_{in} + n_{out}}\right)$$
+
+**He Initialization (for ReLU):**
+
+$$W \sim \mathcal{N}\left(0, \frac{2}{n_{in}}\right)$$
+
+\vspace{0.3cm}
+
+**Intuition:** Scale variance based on layer size to maintain signal flow
+
+## Slide 50: Initialization Impact
+```{r initialization-impact, echo=FALSE, fig.height=3.5}
+set.seed(42)
+
+# Simulate forward pass with different initializations
+n_layers <- 10
+layer_size <- 100
+x <- matrix(rnorm(layer_size), ncol = 1)
+
+simulate_forward <- function(init_type) {
+  activations <- numeric(n_layers)
+  a <- x
+  
+  for (i in 1:n_layers) {
+    if (init_type == "zeros") {
+      W <- matrix(0, layer_size, layer_size)
+    } else if (init_type == "large") {
+      W <- matrix(rnorm(layer_size^2, 0, 1), layer_size, layer_size)
+    } else if (init_type == "xavier") {
+      W <- matrix(rnorm(layer_size^2, 0, sqrt(2/layer_size)), 
+                  layer_size, layer_size)
+    }
+    
+    a <- pmax(0, W %*% a)  # ReLU
+    activations[i] <- mean(abs(a))
+  }
+  
+  data.frame(layer = 1:n_layers, 
+             activation = activations,
+             init = init_type)
+}
+
+init_data <- rbind(
+  simulate_forward("large"),
+  simulate_forward("xavier")
+)
+
+ggplot(init_data, aes(x = layer, y = activation, color = init)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("darkred", "darkgreen"),
+                     labels = c("Large Random", "Xavier")) +
+  labs(title = "Activation Magnitude Across Layers",
+       x = "Layer Depth", y = "Mean Activation",
+       color = "Initialization") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Green (Xavier):** Stable signal propagation!
+
+## Slide 51: Overfitting in Neural Networks
+
+**The Problem:** Deep networks have millions of parameters—can memorize training data!
+```{r overfitting-demo, echo=FALSE, fig.height=3}
+set.seed(123)
+epochs <- 1:50
+train_loss <- 2 * exp(-0.1 * epochs) + rnorm(50, 0, 0.05)
+val_loss <- 2 * exp(-0.05 * epochs) + 0.2 + rnorm(50, 0, 0.08)
+val_loss[30:50] <- val_loss[30:50] + seq(0, 0.4, length.out = 21)
+
+overfit_data <- data.frame(
+  epoch = rep(epochs, 2),
+  loss = c(train_loss, val_loss),
+  type = rep(c("Training Loss", "Validation Loss"), each = 50)
+)
+
+ggplot(overfit_data, aes(x = epoch, y = loss, color = type)) +
+  geom_line(size = 1.2) +
+  geom_vline(xintercept = 30, linetype = "dashed", alpha = 0.5) +
+  annotate("text", x = 32, y = 1.8, label = "Overfitting\nstarts here",
+           hjust = 0) +
+  scale_color_manual(values = c("darkblue", "darkred")) +
+  labs(title = "Training vs Validation Loss",
+       x = "Epoch", y = "Loss", color = "") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 52: Regularization - L2 (Weight Decay)
+
+**Add penalty to loss function:**
+
+$$L_{total} = L_{data} + \lambda \sum_{l} \|\mathbf{W}^{(l)}\|^2$$
+
+\vspace{0.3cm}
+
+**Effect:** Encourages smaller weights (simpler models)
+
+**In R/Keras:**
+```{r l2-regularization, echo=TRUE, eval=FALSE}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 128, activation = "relu",
+              kernel_regularizer = regularizer_l2(0.01)) %>%
+  layer_dense(units = 10, activation = "softmax")
+```
+
+## Slide 53: Dropout - Randomly Drop Neurons
+
+**During Training:** Randomly set neuron outputs to zero with probability $p$
+
+**During Testing:** Use all neurons (scaled appropriately)
+
+\vspace{0.5cm}
+
+**Intuition:** Forces network to learn robust features (can't rely on any single neuron)
+
+**Typical value:** $p = 0.2$ to $0.5$
+
+## Slide 54: Dropout Visualization
+```{r dropout-viz, echo=FALSE, fig.height=3.5}
+set.seed(42)
+par(mfrow = c(1, 2), mar = c(2, 2, 3, 1))
+
+# Network without dropout
+plot(0, 0, type = "n", xlim = c(0, 4), ylim = c(0, 5),
+     axes = FALSE, xlab = "", ylab = "",
+     main = "Without Dropout")
+
+layers <- c(3, 4, 3)
+for (layer in 1:length(layers)) {
+  n_nodes <- layers[layer]
+  y_pos <- seq(1, 4, length.out = n_nodes)
+  for (i in 1:n_nodes) {
+    symbols(layer, y_pos[i], circles = 0.15, add = TRUE,
+            inches = FALSE, bg = "darkblue")
+  }
+}
+
+# Network with dropout
+plot(0, 0, type = "n", xlim = c(0, 4), ylim = c(0, 5),
+     axes = FALSE, xlab = "", ylab = "",
+     main = "With Dropout (30%)")
+
+set.seed(42)
+for (layer in 1:length(layers)) {
+  n_nodes <- layers[layer]
+  y_pos <- seq(1, 4, length.out = n_nodes)
+  for (i in 1:n_nodes) {
+    dropped <- (layer == 2 && runif(1) < 0.3)
+    col <- ifelse(dropped, "gray80", "darkblue")
+    symbols(layer, y_pos[i], circles = 0.15, add = TRUE,
+            inches = FALSE, bg = col)
+  }
+}
+
+text(2, 0.3, "Gray = Dropped Neurons", cex = 0.8)
+```
+## Slide 55: Dropout in R/Keras
+```{r dropout-code, echo=TRUE, eval=FALSE}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 128, activation = "relu", 
+              input_shape = c(784)) %>%
+  layer_dropout(rate = 0.3) %>%  # Drop 30% of neurons
+  layer_dense(units = 64, activation = "relu") %>%
+  layer_dropout(rate = 0.3) %>%
+  layer_dense(units = 10, activation = "softmax")
+
+# Note: Dropout automatically disabled during prediction!
+```
+
+## Slide 56: Early Stopping
+
+**Strategy:** Stop training when validation loss stops improving
+
+\vspace{0.5cm}
+
+**Implementation:**
+
+1. Monitor validation loss every epoch
+2. If no improvement for $n$ epochs (patience), stop
+3. Restore weights from best epoch
+```{r early-stopping, echo=TRUE, eval=FALSE}
+early_stop <- callback_early_stopping(
+  monitor = "val_loss",
+  patience = 10,
+  restore_best_weights = TRUE
+)
+
+history <- model %>% fit(
+  x_train, y_train,
+  validation_split = 0.2,
+  epochs = 100,
+  callbacks = list(early_stop)
+)
+```
+
+## Slide 57: Batch Normalization
+
+**Problem:** Internal covariate shift (layer inputs change as previous layers update)
+
+**Solution:** Normalize activations within each mini-batch
+
+\vspace{0.3cm}
+
+$$\hat{z} = \frac{z - \mu_{batch}}{\sqrt{\sigma^2_{batch} + \epsilon}}$$
+
+$$\text{BN}(z) = \gamma \hat{z} + \beta$$
+
+\vspace{0.3cm}
+
+**Benefits:**
+
+- Faster training (can use higher learning rates)
+- Reduces need for dropout
+- Acts as regularization
+
+## Slide 58: Batch Normalization in Practice
+```{r batch-norm, echo=TRUE, eval=FALSE}
+model <- keras_model_sequential() %>%
+  layer_dense(units = 128, input_shape = c(784)) %>%
+  layer_batch_normalization() %>%  # Add BN here
+  layer_activation("relu") %>%
+  layer_dense(units = 64) %>%
+  layer_batch_normalization() %>%
+  layer_activation("relu") %>%
+  layer_dense(units = 10, activation = "softmax")
+```
+
+**Best Practice:** Place BN before or after activation (debate ongoing!)
+
+## Slide 59: Complete Training Pipeline
+```{r complete-pipeline, echo=TRUE, eval=FALSE}
+# 1. Build model with regularization
+model <- keras_model_sequential() %>%
+  layer_dense(units = 256, activation = "relu",
+              kernel_regularizer = regularizer_l2(0.001),
+              input_shape = c(784)) %>%
+  layer_batch_normalization() %>%
+  layer_dropout(0.3) %>%
+  layer_dense(units = 128, activation = "relu",
+              kernel_regularizer = regularizer_l2(0.001)) %>%
+  layer_dropout(0.3) %>%
+  layer_dense(units = 10, activation = "softmax")
+
+# 2. Compile with Adam optimizer
+model %>% compile(
+  optimizer = optimizer_adam(learning_rate = 0.001),
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+# 3. Set up callbacks
+callbacks <- list(
+  callback_early_stopping(patience = 10, 
+                          restore_best_weights = TRUE),
+  callback_reduce_lr_on_plateau(patience = 5, factor = 0.5)
+)
+
+# 4. Train with validation
+history <- model %>% fit(
+  x_train, y_train,
+  epochs = 100,
+  batch_size = 128,
+  validation_split = 0.2,
+  callbacks = callbacks,
+  verbose = 1
+)
+```
+
+## Slide 60: Training Diagnostics
+```{r training-diagnostics, echo=FALSE, fig.height=3.5}
+# Simulate realistic training history
+set.seed(42)
+epochs <- 1:50
+
+train_acc <- 0.6 + 0.35 * (1 - exp(-0.1 * epochs)) + rnorm(50, 0, 0.01)
+val_acc <- 0.6 + 0.3 * (1 - exp(-0.08 * epochs)) + rnorm(50, 0, 0.02)
+
+train_loss <- 1.2 * exp(-0.08 * epochs) + 0.1 + rnorm(50, 0, 0.02)
+val_loss <- 1.2 * exp(-0.06 * epochs) + 0.15 + rnorm(50, 0, 0.03)
+
+history_data <- data.frame(
+  epoch = rep(epochs, 4),
+  value = c(train_acc, val_acc, train_loss, val_loss),
+  metric = rep(c("Accuracy", "Accuracy", "Loss", "Loss"), each = 50),
+  dataset = rep(c("Train", "Validation", "Train", "Validation"), each = 50)
+)
+
+ggplot(history_data, aes(x = epoch, y = value, 
+                         color = dataset, linetype = dataset)) +
+  geom_line(size = 1) +
+  facet_wrap(~metric, scales = "free_y", ncol = 2) +
+  scale_color_manual(values = c("darkblue", "darkred")) +
+  labs(title = "Training History: Good Convergence",
+       x = "Epoch", y = "Value", color = "", linetype = "") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Signs of healthy training:** Both metrics improving, no large gap between train/validation
 
 ---
+# Convolutional Neural Networks (CNNs)
 
-I'll continue with the next batch. Should I proceed with slides 61-120 covering the rest of Chapter 2 and beginning Chapter 3?
+## Slide 61: From Fully Connected to Convolutional
+
+**Problem with Fully Connected Networks for Images:**
+
+- MNIST image: 28×28 = 784 pixels
+- First hidden layer (128 neurons): 784 × 128 = **100,352 parameters**
+- ImageNet image: 224×224×3 = 150,528 pixels
+- First hidden layer (1000 neurons): **150 million parameters!**
+
+\vspace{0.5cm}
+
+**Issues:**
+
+1. Too many parameters (overfitting, memory)
+2. Loses spatial structure (treats pixels as independent)
+3. Not translation invariant (cat in top-left ≠ cat in bottom-right)
+
+## Slide 62: The Convolutional Solution
+
+**Key Ideas:**
+
+1. **Local Connectivity:** Each neuron connects to small region (receptive field)
+2. **Parameter Sharing:** Same weights (filter) used across entire image
+3. **Spatial Hierarchy:** Build from edges → shapes → objects
+
+\vspace{0.5cm}
+
+**Result:** Dramatically fewer parameters, preserves spatial structure
+
+## Slide 63: Convolution Operation - Visual Intuition
+```{r conv-operation, echo=FALSE, fig.height=3.5}
+# Create a simple image and filter visualization
+library(reshape2)
+
+# Simple 5x5 image
+image_matrix <- matrix(c(
+  0, 0, 0, 0, 0,
+  0, 1, 1, 1, 0,
+  0, 1, 1, 1, 0,
+  0, 1, 1, 1, 0,
+  0, 0, 0, 0, 0
+), nrow = 5, byrow = TRUE)
+
+# 3x3 filter (edge detector)
+filter_matrix <- matrix(c(
+  -1, -1, -1,
+  -1,  8, -1,
+  -1, -1, -1
+), nrow = 3, byrow = TRUE)
+
+# Plot image
+image_df <- melt(image_matrix)
+colnames(image_df) <- c("y", "x", "value")
+
+p1 <- ggplot(image_df, aes(x = x, y = 6 - y, fill = value)) +
+  geom_tile(color = "white", size = 1) +
+  scale_fill_gradient(low = "white", high = "darkblue") +
+  coord_equal() +
+  labs(title = "Input Image (5x5)", x = "", y = "") +
+  theme_void() +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5))
+
+# Plot filter
+filter_df <- melt(filter_matrix)
+colnames(filter_df) <- c("y", "x", "value")
+
+p2 <- ggplot(filter_df, aes(x = x, y = 4 - y, fill = value)) +
+  geom_tile(color = "white", size = 1) +
+  geom_text(aes(label = value), color = "white", size = 4) +
+  scale_fill_gradient2(low = "red", mid = "white", high = "blue", 
+                       midpoint = 0) +
+  coord_equal() +
+  labs(title = "Filter (3x3)", x = "", y = "") +
+  theme_void() +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5))
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
+**Convolution:** Slide filter over image, compute dot product at each position
+
+## Slide 64: Convolution Mathematics
+
+**2D Convolution:**
+
+$$(I * K)(i, j) = \sum_{m}\sum_{n} I(i+m, j+n) \cdot K(m, n)$$
+
+where:
+- $I$ = Input image
+- $K$ = Kernel (filter)
+- $(i, j)$ = Output position
+
+\vspace{0.5cm}
+
+**Intuition:** Filter "scans" image, activating when it finds matching patterns
+
+## Slide 65: Convolution in R - Step by Step
+```{r convolution-r, echo=TRUE}
+# Simple 2D convolution function
+conv2d <- function(image, kernel) {
+  img_rows <- nrow(image)
+  img_cols <- ncol(image)
+  ker_rows <- nrow(kernel)
+  ker_cols <- ncol(kernel)
+  
+  # Output dimensions
+  out_rows <- img_rows - ker_rows + 1
+  out_cols <- img_cols - ker_cols + 1
+  
+  output <- matrix(0, out_rows, out_cols)
+  
+  for (i in 1:out_rows) {
+    for (j in 1:out_cols) {
+      # Extract patch
+      patch <- image[i:(i+ker_rows-1), j:(j+ker_cols-1)]
+      # Compute dot product
+      output[i, j] <- sum(patch * kernel)
+    }
+  }
+  
+  return(output)
+}
+```
+
+## Slide 66: Edge Detection Example
+```{r edge-detection, echo=TRUE, fig.height=3}
+# Create simple image with vertical edge
+image <- matrix(c(
+  rep(0, 15),
+  rep(1, 15)
+), nrow = 6, byrow = FALSE)
+
+# Vertical edge detector
+vertical_filter <- matrix(c(
+  -1, 0, 1,
+  -1, 0, 1,
+  -1, 0, 1
+), nrow = 3, byrow = TRUE)
+
+# Apply convolution
+result <- conv2d(image, vertical_filter)
+
+# Visualize
+par(mfrow = c(1, 3))
+image(t(image[nrow(image):1,]), col = gray.colors(10),
+      main = "Original", axes = FALSE)
+image(t(vertical_filter[nrow(vertical_filter):1,]), 
+      col = gray.colors(10),
+      main = "Filter", axes = FALSE)
+image(t(result[nrow(result):1,]), col = gray.colors(10),
+      main = "Output", axes = FALSE)
+```
+
+## Slide 67: Multiple Filters = Multiple Features
+
+**In Practice:**
+
+- Layer 1: 32 filters (3×3) → Detect 32 different patterns
+- Layer 2: 64 filters (3×3) → Combine patterns into 64 features
+- Layer 3: 128 filters (3×3) → Higher-level features
+
+\vspace{0.5cm}
+
+**Each filter learns different features:**
+
+- Filter 1: Horizontal edges
+- Filter 2: Vertical edges
+- Filter 3: Corners
+- Filter 4: Textures
+- ... and so on
+
+## Slide 68: Padding and Stride
+
+**Padding:** Add border of zeros to preserve spatial dimensions
+
+- **Valid:** No padding (output shrinks)
+- **Same:** Pad so output = input size
+
+**Stride:** Step size when moving filter
+
+- Stride = 1: Move 1 pixel at a time
+- Stride = 2: Move 2 pixels (output half size)
+
+\vspace{0.3cm}
+
+**Output size formula:**
+
+$$\text{Output} = \frac{\text{Input} - \text{Filter} + 2 \times \text{Padding}}{\text{Stride}} + 1$$
+
+## Slide 69: Padding and Stride Visualization
+```{r padding-stride, echo=FALSE, fig.height=3.5}
+# Visualize different padding and stride combinations
+set.seed(42)
+image_size <- 6
+filter_size <- 3
+
+create_conv_grid <- function(stride, padding, title) {
+  padded_size <- image_size + 2 * padding
+  output_size <- floor((padded_size - filter_size) / stride) + 1
+  
+  # Create grid
+  grid_data <- expand.grid(
+    x = 1:padded_size,
+    y = 1:padded_size
+  )
+  grid_data$type <- "image"
+  
+  if (padding > 0) {
+    grid_data$type[grid_data$x <= padding | 
+                   grid_data$x > (image_size + padding) |
+                   grid_data$y <= padding | 
+                   grid_data$y > (image_size + padding)] <- "padding"
+  }
+  
+  # Mark filter positions
+  positions <- expand.grid(
+    fx = seq(1, padded_size - filter_size + 1, by = stride),
+    fy = seq(1, padded_size - filter_size + 1, by = stride)
+  )
+  
+  ggplot(grid_data, aes(x = x, y = y, fill = type)) +
+    geom_tile(color = "white", size = 0.5) +
+    geom_rect(data = positions,
+              aes(xmin = fx - 0.4, xmax = fx + filter_size - 0.6,
+                  ymin = fy - 0.4, ymax = fy + filter_size - 0.6),
+              fill = NA, color = "red", size = 1, inherit.aes = FALSE) +
+    scale_fill_manual(values = c("image" = "lightblue", 
+                                 "padding" = "gray90")) +
+    coord_equal() +
+    labs(title = title) +
+    theme_void() +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5, size = 10))
+}
+
+p1 <- create_conv_grid(1, 0, "Valid (no padding, stride=1)")
+p2 <- create_conv_grid(1, 1, "Same (padding=1, stride=1)")
+p3 <- create_conv_grid(2, 1, "Stride=2, padding=1")
+
+gridExtra::grid.arrange(p1, p2, p3, ncol = 3)
+```
+
+Red boxes = filter positions
+
+## Slide 70: Pooling Layers
+
+**Purpose:** Reduce spatial dimensions (downsample)
+
+\vspace{0.3cm}
+
+**Max Pooling (most common):**
+
+- Take maximum value in each region
+- Typical: 2×2 window, stride 2 (halves dimensions)
+
+**Average Pooling:**
+
+- Take average value in each region
+
+\vspace{0.3cm}
+
+**Benefits:**
+
+- Reduces parameters
+- Adds translation invariance
+- Reduces overfitting
+
+## Slide 71: Max Pooling Visualization
+```{r max-pooling, echo=TRUE, fig.height=3}
+# Max pooling function
+max_pool <- function(image, pool_size = 2, stride = 2) {
+  rows <- nrow(image)
+  cols <- ncol(image)
+  
+  out_rows <- floor((rows - pool_size) / stride) + 1
+  out_cols <- floor((cols - pool_size) / stride) + 1
+  
+  output <- matrix(0, out_rows, out_cols)
+  
+  for (i in 1:out_rows) {
+    for (j in 1:out_cols) {
+      r_start <- (i - 1) * stride + 1
+      c_start <- (j - 1) * stride + 1
+      patch <- image[r_start:(r_start + pool_size - 1),
+                     c_start:(c_start + pool_size - 1)]
+      output[i, j] <- max(patch)
+    }
+  }
+  
+  return(output)
+}
+
+# Example
+input <- matrix(c(1, 3, 2, 4,
+                  5, 6, 1, 2,
+                  3, 2, 4, 8,
+                  1, 0, 3, 7), nrow = 4, byrow = TRUE)
+
+pooled <- max_pool(input)
+
+cat("Input (4x4):\n")
+print(input)
+cat("\nAfter 2x2 Max Pooling (2x2):\n")
+print(pooled)
+```
+
+## Slide 72: CNN Architecture Pattern
+
+**Standard CNN Structure:**
+
+1. **Convolutional Block:**
+   - Conv Layer (with ReLU)
+   - Optional: Batch Normalization
+   - Pooling Layer
+   
+2. **Repeat 3-5 times** (increasing filter depth)
+
+3. **Flatten** (convert 3D to 1D)
+
+4. **Fully Connected Layers** (classification)
+
+\vspace{0.3cm}
+
+**Example:** Conv(32) → Pool → Conv(64) → Pool → Conv(128) → Pool → Flatten → Dense(128) → Dense(10)
+
+## Slide 73: Classic CNN Architecture - LeNet-5
+```{r lenet-architecture, echo=FALSE, fig.height=3.5}
+# Visualize LeNet-5 architecture
+arch_data <- data.frame(
+  layer = 1:7,
+  name = c("Input\n32x32", "Conv\n28x28x6", "Pool\n14x14x6",
+           "Conv\n10x10x16", "Pool\n5x5x16", "FC\n120", "Output\n10"),
+  x = 1:7,
+  size = c(32, 28, 14, 10, 5, 3, 2),
+  type = c("input", "conv", "pool", "conv", "pool", "fc", "output")
+)
+
+ggplot(arch_data, aes(x = x, y = 5)) +
+  geom_rect(aes(xmin = x - 0.3, xmax = x + 0.3,
+                ymin = 5 - size/8, ymax = 5 + size/8,
+                fill = type),
+            color = "black", size = 1) +
+  geom_text(aes(label = name), size = 3, fontface = "bold") +
+  scale_fill_manual(values = c("input" = "lightblue",
+                               "conv" = "lightgreen",
+                               "pool" = "lightyellow",
+                               "fc" = "lightcoral",
+                               "output" = "lightpink")) +
+  geom_segment(aes(x = x + 0.35, xend = x + 0.65, 
+                   y = 5, yend = 5),
+               arrow = arrow(length = unit(0.2, "cm")),
+               data = arch_data[1:6, ]) +
+  labs(title = "LeNet-5 Architecture (LeCun et al., 1998)") +
+  theme_void() +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 12))
+```
+
+## Slide 74: Building CNN in Keras (R)
+```{r cnn-keras, echo=TRUE, eval=FALSE}
+library(keras)
+
+# Build CNN for MNIST
+model <- keras_model_sequential() %>%
+  
+  # First convolutional block
+  layer_conv_2d(filters = 32, kernel_size = c(3, 3),
+                activation = "relu",
+                input_shape = c(28, 28, 1)) %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  
+  # Second convolutional block
+  layer_conv_2d(filters = 64, kernel_size = c(3, 3),
+                activation = "relu") %>%
+  layer_max_pooling_2d(pool_size = c(2, 2)) %>%
+  
+  # Flatten and fully connected
+  layer_flatten() %>%
+  layer_dense(units = 128, activation = "relu") %>%
+  layer_dropout(0.5) %>%
+  layer_dense(units = 10, activation = "softmax")
+
+summary(model)
+```
+
+## Slide 75: CNN Summary Output
+```{r cnn-summary, echo=FALSE, eval=TRUE}
+# Display typical CNN summary as text
+cat("Model: sequential\n")
+cat("_____________________________________________________________\n")
+cat("Layer (type)              Output Shape         Param #\n")
+cat("=============================================================\n")
+cat("conv2d (Conv2D)           (None, 26, 26, 32)   320\n")
+cat("max_pooling2d (MaxPool2D) (None, 13, 13, 32)   0\n")
+cat("conv2d_1 (Conv2D)         (None, 11, 11, 64)   18,496\n")
+cat("max_pooling2d_1           (None, 5, 5, 64)     0\n")
+cat("flatten (Flatten)         (None, 1600)         0\n")
+cat("dense (Dense)             (None, 128)          204,928\n")
+cat("dropout (Dropout)         (None, 128)          0\n")
+cat("dense_1 (Dense)           (None, 10)           1,290\n")
+cat("=============================================================\n")
+cat("Total params: 225,034\n")
+cat("Trainable params: 225,034\n")
+cat("\n")
+cat("Compare to fully connected:\n")
+cat("28x28 = 784 inputs -> 128 hidden = 100,352 params (first layer alone!)\n")
+```
+
+**CNN uses 2x fewer parameters** for the entire network!
+
+## Slide 76: What Do CNN Filters Learn?
+
+**Hierarchical Feature Learning:**
+
+- **Layer 1:** Low-level features (edges, colors, textures)
+- **Layer 2:** Medium-level (corners, curves, simple shapes)
+- **Layer 3:** High-level (object parts, patterns)
+- **Final Layers:** Complete objects
+
+\vspace{0.3cm}
+
+**This hierarchy emerges automatically from training!**
+
+## Slide 77: Visualizing Learned Filters
+```{r visualize-filters, echo=TRUE, eval=FALSE}
+# Extract first convolutional layer weights
+layer1_weights <- get_weights(model$layers[[1]])
+filters <- layer1_weights[[1]]  # Shape: (3, 3, 1, 32)
+
+# Visualize first 16 filters
+par(mfrow = c(4, 4), mar = c(0.5, 0.5, 0.5, 0.5))
+for (i in 1:16) {
+  filter <- filters[, , 1, i]
+  image(t(filter[nrow(filter):1, ]), 
+        col = gray.colors(20),
+        axes = FALSE)
+}
+```
+
+**Typical patterns:** Edge detectors at various angles, blob detectors
+
+## Slide 78: Data Augmentation for CNNs
+
+**Problem:** Deep CNNs need lots of data
+
+**Solution:** Artificially expand dataset with transformations
+
+\vspace{0.3cm}
+
+**Common Augmentations:**
+
+- Random rotations (±15 degrees)
+- Random horizontal flips
+- Random crops and zooms
+- Brightness/contrast adjustments
+- Random shifts
+
+\vspace{0.3cm}
+
+**Benefit:** Network learns invariance to these transformations
+
+## Slide 79: Data Augmentation in Keras
+```{r data-augmentation, echo=TRUE, eval=FALSE}
+# Create data augmentation generator
+datagen <- image_data_generator(
+  rotation_range = 15,
+  width_shift_range = 0.1,
+  height_shift_range = 0.1,
+  horizontal_flip = TRUE,
+  zoom_range = 0.1,
+  fill_mode = "nearest"
+)
+
+# Fit generator to training data
+datagen %>% fit_image_data_generator(x_train)
+
+# Train with augmented data
+model %>% fit_generator(
+  datagen %>% flow_images_from_data(
+    x_train, y_train,
+    batch_size = 32
+  ),
+  steps_per_epoch = nrow(x_train) / 32,
+  epochs = 50,
+  validation_data = list(x_test, y_test)
+)
+```
+
+## Slide 80: Transfer Learning - Standing on Giants' Shoulders
+
+**Problem:** Training deep CNNs from scratch requires:
+- Millions of labeled images
+- Days/weeks of GPU time
+- Specialized expertise
+
+\vspace{0.3cm}
+
+**Solution: Transfer Learning**
+
+1. Take pre-trained model (trained on ImageNet)
+2. Remove final layer
+3. Add new layer for your task
+4. Fine-tune on your data
+
+\vspace{0.3cm}
+
+**Intuition:** Low-level features (edges, textures) are universal!
+
+## Slide 81: Transfer Learning Visualization
+```{r transfer-learning, echo=FALSE, fig.height=3.5}
+# Visualize transfer learning concept
+stages <- data.frame(
+  stage = factor(c("Pre-trained\nModel", "Remove\nTop", "Add New\nLayers", "Fine-tune"),
+                 levels = c("Pre-trained\nModel", "Remove\nTop", "Add New\nLayers", "Fine-tune")),
+  x = 1:4,
+  description = c("ImageNet\n(1000 classes)", "Keep feature\nextractor", 
+                  "Add classifier\nfor your task", "Train on\nyour data")
+)
+
+ggplot(stages, aes(x = x, y = 1)) +
+  geom_rect(aes(xmin = x - 0.35, xmax = x + 0.35,
+                ymin = 0.5, ymax = 1.5,
+                fill = stage),
+            color = "black", size = 1) +
+  geom_text(aes(label = stage), fontface = "bold", size = 3.5, vjust = -1.5) +
+  geom_text(aes(label = description), size = 3, vjust = 3) +
+  scale_fill_manual(values = c("lightblue", "lightyellow", 
+                               "lightgreen", "lightcoral")) +
+  geom_segment(aes(x = x + 0.4, xend = x + 0.6, y = 1, yend = 1),
+               arrow = arrow(length = unit(0.15, "cm")),
+               data = stages[1:3, ]) +
+  xlim(0.5, 4.5) + ylim(0, 2) +
+  labs(title = "Transfer Learning Workflow") +
+  theme_void() +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 12))
+```
+
+## Slide 82: Transfer Learning in R
+```{r transfer-learning-code, echo=TRUE, eval=FALSE}
+# Load pre-trained VGG16 (trained on ImageNet)
+base_model <- application_vgg16(
+  weights = "imagenet",
+  include_top = FALSE,  # Remove classification layer
+  input_shape = c(224, 224, 3)
+)
+
+# Freeze base model weights (don't retrain)
+freeze_weights(base_model)
+
+# Build new model
+model <- keras_model_sequential() %>%
+  base_model %>%
+  layer_flatten() %>%
+  layer_dense(units = 256, activation = "relu") %>%
+  layer_dropout(0.5) %>%
+  layer_dense(units = 5, activation = "softmax")  # 5 classes
+
+# Compile and train only new layers
+model %>% compile(
+  optimizer = optimizer_adam(learning_rate = 0.0001),
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+```
+
+
+# Introduction to Explainable AI (XAI)
+
+## Slide 83: The Black Box Problem
+
+**We've built powerful models, but...**
+
+\vspace{0.5cm}
+```{r black-box, echo=FALSE, fig.height=3}
+par(mar = c(2, 2, 2, 2))
+plot(0, 0, type = "n", xlim = c(0, 10), ylim = c(0, 6),
+     axes = FALSE, xlab = "", ylab = "",
+     main = "Deep Learning as a Black Box")
+
+# Input
+rect(0.5, 2, 2, 4, col = "lightblue", border = "darkblue", lwd = 2)
+text(1.25, 3, "Input\n(Image,\nText,\nData)", cex = 0.9)
+
+# Black box
+rect(3.5, 1.5, 6.5, 4.5, col = "black", border = "darkred", lwd = 3)
+text(5, 3, "???\nMillions of\nParameters\n??", col = "white", cex = 1.1, font = 2)
+
+# Output
+rect(8, 2, 9.5, 4, col = "lightgreen", border = "darkgreen", lwd = 2)
+text(8.75, 3, "Output\n(Prediction)", cex = 0.9)
+
+# Arrows
+arrows(2, 3, 3.5, 3, length = 0.15, lwd = 2)
+arrows(6.5, 3, 8, 3, length = 0.15, lwd = 2)
+
+# Question marks
+text(5, 5.5, "How did it decide?", cex = 1.2, col = "darkred", font = 2)
+text(5, 0.5, "Which features matter?", cex = 1.2, col = "darkred", font = 2)
+```
+
+## Slide 84: Why Do We Need XAI?
+
+**Critical Applications:**
+
+1. **Healthcare:** "Why did the model diagnose cancer?"
+2. **Finance:** "Why was the loan rejected?" (legal requirement)
+3. **Criminal Justice:** "Why higher recidivism risk?"
+4. **Autonomous Vehicles:** "Why did it brake suddenly?"
+
+\vspace{0.5cm}
+
+**Requirements:**
+
+- **Trust:** Users need to understand decisions
+- **Debugging:** Find model errors and biases
+- **Compliance:** Regulations (GDPR, etc.)
+- **Scientific Discovery:** Learn from model insights
+
+## Slide 85: The Interpretability Spectrum
+```{r interpretability-spectrum, echo=FALSE, fig.height=3.5}
+models <- data.frame(
+  model = c("Linear\nRegression", "Decision\nTree", "Random\nForest",
+            "Gradient\nBoosting", "Shallow\nNeural Net", "Deep\nNeural Net"),
+  interpretability = c(10, 9, 6, 5, 3, 1),
+  performance = c(5, 6, 8, 9, 9, 10),
+  x = 1:6
+)
+
+ggplot(models, aes(x = x)) +
+  geom_col(aes(y = interpretability), fill = "steelblue", alpha = 0.7) +
+  geom_line(aes(y = performance), color = "darkred", size = 1.5) +
+  geom_point(aes(y = performance), color = "darkred", size = 4) +
+  scale_x_continuous(breaks = 1:6, labels = models$model) +
+  scale_y_continuous(sec.axis = sec_axis(~., name = "Performance")) +
+  labs(title = "Interpretability vs Performance Trade-off",
+       x = "Model Type",
+       y = "Interpretability") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+        axis.title.y = element_text(color = "steelblue"),
+        axis.title.y.right = element_text(color = "darkred"))
+```
+
+Blue $=$ Interpretability, Red $=$ Performance
+
+
+
+## Slide 86: Two Types of Interpretability
+
+**1. Intrinsic (Model-Specific):**
+
+- Built into model architecture
+- Examples: Linear regression coefficients, decision tree rules
+- **Deep Learning:** Attention mechanisms, prototype networks
+
+\vspace{0.5cm}
+
+**2. Post-Hoc (Model-Agnostic):**
+
+- Applied after training
+- Works with any model
+- Examples: LIME, SHAP, Feature Importance
+- **Focus for Deep Learning**
+
+## Slide 87: Local vs Global Explanations
+
+**Global Explanations:**
+
+- "Overall, what does the model rely on?"
+- Feature importance across all predictions
+- Example: "Age is the most important feature"
+
+\vspace{0.5cm}
+
+**Local Explanations:**
+
+- "Why this specific prediction?"
+- Feature importance for one instance
+- Example: "For THIS patient, high blood pressure drove the diagnosis"
+
+\vspace{0.5cm}
+
+**Both are needed!**
+
+
+
+## Slide 88: Feature Importance - The Starting Point
+```{r feature-importance-concept, echo=FALSE, fig.height=3.5}
+set.seed(42)
+
+# Simulate feature importance
+features <- c("Age", "Blood\nPressure", "Cholesterol", 
+              "BMI", "Glucose", "Exercise")
+importance <- c(0.25, 0.22, 0.18, 0.15, 0.12, 0.08)
+
+importance_df <- data.frame(
+  feature = factor(features, levels = features),
+  importance = importance
+)
+
+ggplot(importance_df, aes(x = reorder(feature, importance), 
+                          y = importance)) +
+  geom_col(fill = "steelblue", alpha = 0.8) +
+  geom_text(aes(label = sprintf("%.2f", importance)), 
+            hjust = -0.2, size = 3.5) +
+  coord_flip() +
+  ylim(0, 0.3) +
+  labs(title = "Global Feature Importance",
+       subtitle = "Which features matter most overall?",
+       x = "", y = "Importance Score") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5, size = 9))
+```
+
+## Slide 89: Permutation Feature Importance
+
+**Algorithm:**
+
+1. Train model and measure baseline performance
+2. For each feature:
+   - Randomly shuffle that feature's values
+   - Measure new performance
+   - Importance = drop in performance
+3. Features causing big drops are important
+
+\vspace{0.3cm}
+
+**Advantages:**
+
+- Model-agnostic (works with any model)
+- Easy to understand
+- Captures non-linear relationships
+
+## Slide 90: Permutation Importance in R
+```{r permutation-importance, echo=TRUE}
+# Permutation importance function
+permutation_importance <- function(model, X, y, 
+                                   metric = "accuracy",
+                                   n_repeats = 10) {
+  # Baseline performance
+  baseline <- mean(predict(model, X) == y)
+  
+  importance <- numeric(ncol(X))
+  names(importance) <- colnames(X)
+  
+  for (feat in 1:ncol(X)) {
+    scores <- numeric(n_repeats)
+    
+    for (i in 1:n_repeats) {
+      # Shuffle feature
+      X_permuted <- X
+      X_permuted[, feat] <- sample(X_permuted[, feat])
+      
+      # Measure performance
+      scores[i] <- mean(predict(model, X_permuted) == y)
+    }
+    
+    # Importance = drop in performance
+    importance[feat] <- baseline - mean(scores)
+  }
+  
+  return(sort(importance, decreasing = TRUE))
+}
+
+# Note: Works with any model that has predict() method
+```
+
+
+
+# Advanced XAI Techniques
+
+## Slide 91: LIME - Local Interpretable Model-agnostic Explanations
+
+**Core Idea:** Explain individual predictions by approximating the complex model locally with a simple, interpretable model.
+
+\vspace{0.5cm}
+
+**The LIME Process:**
+
+1. **Select** an instance to explain
+2. **Perturb** the instance (create similar examples)
+3. **Get predictions** from black-box model on perturbed samples
+4. **Fit** a simple model (e.g., linear) weighted by proximity
+5. **Explain** using the simple model's coefficients
+
+\vspace{0.3cm}
+
+**Intuition:** Complex model may be linear in a small neighborhood around one instance
+
+## Slide 92: LIME Algorithm Visualization
+```{r lime-concept, echo=FALSE, fig.height=3.5}
+set.seed(42)
+
+# Create non-linear decision boundary
+x1 <- seq(-3, 3, length.out = 100)
+x2 <- seq(-3, 3, length.out = 100)
+grid <- expand.grid(x1 = x1, x2 = x2)
+grid$decision <- ifelse(grid$x1^2 + grid$x2^2 < 4, "Class A", "Class B")
+
+# Single instance to explain
+instance <- data.frame(x1 = 1.5, x2 = 1.2)
+
+# Perturbed samples around instance
+n_samples <- 30
+perturbed <- data.frame(
+  x1 = rnorm(n_samples, instance$x1, 0.5),
+  x2 = rnorm(n_samples, instance$x2, 0.5)
+)
+perturbed$decision <- ifelse(perturbed$x1^2 + perturbed$x2^2 < 4, 
+                              "Class A", "Class B")
+
+# Distance-based weights
+perturbed$distance <- sqrt((perturbed$x1 - instance$x1)^2 + 
+                            (perturbed$x2 - instance$x2)^2)
+perturbed$weight <- exp(-perturbed$distance^2 / 0.5)
+
+ggplot() +
+  geom_tile(data = grid, aes(x = x1, y = x2, fill = decision), 
+            alpha = 0.2) +
+  geom_point(data = perturbed, 
+             aes(x = x1, y = x2, color = decision, size = weight),
+             alpha = 0.6) +
+  geom_point(data = instance, aes(x = x1, y = x2), 
+             size = 6, shape = 17, color = "darkred") +
+  scale_fill_manual(values = c("lightblue", "lightcoral")) +
+  scale_color_manual(values = c("darkblue", "darkred")) +
+  labs(title = "LIME: Local Linear Approximation",
+       subtitle = "Red triangle = instance to explain",
+       x = "Feature 1", y = "Feature 2") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 93: LIME for Tabular Data in R
+```{r lime-tabular, echo=TRUE, eval=FALSE}
+library(lime)
+
+# Assuming you have a trained model and data
+# model <- trained_classification_model
+# x_train <- training_data
+# x_test <- test_data
+
+# Create explainer
+explainer <- lime(x_train, model)
+
+# Explain a single prediction
+explanation <- explain(
+  x_test[1, ],           # Instance to explain
+  explainer,
+  n_features = 5,        # Top 5 features
+  n_permutations = 1000  # Perturbed samples
+)
+
+# Visualize
+plot_features(explanation)
+```
+
+## Slide 94: LIME Results Interpretation
+```{r lime-example-viz, echo=FALSE, fig.height=3.5}
+# Simulate LIME explanation results
+lime_results <- data.frame(
+  feature = c("Age > 65", "Blood Pressure High", 
+              "Cholesterol Normal", "BMI < 25", "Exercise Regular"),
+  weight = c(0.35, 0.28, -0.15, -0.12, -0.08),
+  support = c("Supports", "Supports", "Contradicts", 
+              "Contradicts", "Contradicts")
+)
+
+ggplot(lime_results, aes(x = reorder(feature, weight), y = weight, 
+                         fill = support)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(values = c("Contradicts" = "darkred", 
+                                "Supports" = "darkgreen")) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "LIME Explanation: Heart Disease Prediction",
+       subtitle = "Predicted: High Risk (Probability = 0.82)",
+       x = "", y = "Feature Weight",
+       fill = "Effect") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Interpretation:** Age and blood pressure strongly support high-risk prediction
+
+## Slide 95: SHAP - SHapley Additive exPlanations
+
+**Foundation:** Game theory (Shapley values from cooperative games)
+
+\vspace{0.3cm}
+
+**Key Idea:** Each feature is a "player" contributing to the prediction. SHAP values = fair distribution of the prediction among features.
+
+\vspace{0.3cm}
+
+**SHAP Value Formula:**
+
+$$\phi_i = \sum_{S \subseteq F \backslash \{i\}} \frac{|S|!(|F|-|S|-1)!}{|F|!}[f(S \cup \{i\}) - f(S)]$$
+
+\vspace{0.3cm}
+
+**In plain English:** Average marginal contribution of feature $i$ across all possible feature combinations
+
+## Slide 96: SHAP Properties - Why It's Special
+
+**Desirable Properties (Axioms):**
+
+1. **Local Accuracy:** Explanations sum to actual prediction
+   $$f(x) = \phi_0 + \sum_{i=1}^{M} \phi_i$$
+
+2. **Missingness:** Missing features have zero impact
+   
+3. **Consistency:** If a feature's contribution increases, its SHAP value shouldn't decrease
+
+\vspace{0.3cm}
+
+**SHAP is the ONLY explanation method satisfying all three!**
+
+## Slide 97: SHAP in R - Basic Implementation
+```{r shap-basic, echo=TRUE, eval=FALSE}
+library(shapr)
+
+# Prepare data and model
+# model <- your_trained_model
+# x_train <- training_features
+# x_explain <- test_instance
+
+# Create explainer
+explainer <- shapr(x_train, model)
+
+# Compute SHAP values
+shap_values <- explain(
+  x_explain,
+  approach = "empirical",  # or "gaussian", "ctree"
+  explainer = explainer,
+  prediction_zero = mean(predictions_train)
+)
+
+# Plot
+plot(shap_values)
+```
+
+
+## Slide 98: SHAP Force Plot Concept
+```{r shap-force-plot, echo=FALSE, fig.height=3}
+# Simulate SHAP values for one prediction
+base_value <- 0.45  # Average prediction
+features <- c("Age", "Income", "Credit Score", 
+              "Debt Ratio", "Employment Years")
+shap_vals <- c(0.15, 0.08, -0.05, 0.12, -0.03)
+prediction <- base_value + sum(shap_vals)
+
+# Create cumulative sum for visualization
+cumsum_vals <- c(base_value, base_value + cumsum(shap_vals))
+
+# Plot data - now with 6 points (base + 5 features)
+plot_data <- data.frame(
+  x = 1:6,
+  y = cumsum_vals,
+  label = c("Base", features)
+)
+
+ggplot(plot_data, aes(x = x, y = y)) +
+  geom_line(size = 1.5, color = "darkblue") +
+  geom_point(size = 4, color = "darkred") +
+  geom_hline(yintercept = base_value, linetype = "dashed", 
+             color = "gray50") +
+  geom_hline(yintercept = prediction, linetype = "dashed", 
+             color = "darkgreen") +
+  scale_x_continuous(breaks = 1:6, labels = plot_data$label) +
+  annotate("text", x = 1, y = base_value + 0.03, 
+           label = "Base: 0.45", color = "gray50") +
+  annotate("text", x = 6, y = prediction + 0.03, 
+           label = sprintf("Final: %.2f", prediction), 
+           color = "darkgreen") +
+  labs(title = "SHAP Force Plot: Loan Approval Probability",
+       x = "", y = "Prediction") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+## Slide 99: SHAP Summary Plot - Global Importance
+```{r shap-summary, echo=FALSE, fig.height=3.5}
+set.seed(42)
+
+# Simulate SHAP values for multiple instances
+n_samples <- 100
+features <- c("Age", "Blood Pressure", "Cholesterol", 
+              "BMI", "Glucose")
+
+shap_data <- data.frame()
+for (feat in features) {
+  shap_data <- rbind(shap_data, data.frame(
+    feature = feat,
+    shap_value = rnorm(n_samples, 0, runif(1, 0.1, 0.3)),
+    feature_value = rnorm(n_samples, 50, 15)
+  ))
+}
+
+ggplot(shap_data, aes(x = shap_value, y = feature)) +
+  geom_point(aes(color = feature_value), 
+             alpha = 0.6, size = 2, position = position_jitter(height = 0.2)) +
+  scale_color_viridis_c() +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "SHAP Summary Plot: Global Feature Importance",
+       subtitle = "Distribution of SHAP values across all instances",
+       x = "SHAP Value (impact on prediction)", 
+       y = "",
+       color = "Feature\nValue") +
+  theme_minimal()
+```
+
+**Each point = one instance. Position = impact magnitude**
+
+## Slide 100: SHAP vs LIME Comparison
+
+| Aspect | LIME | SHAP |
+|--------|------|------|
+| **Theoretical Foundation** | Sparse linear model | Game theory (Shapley values) |
+| **Computation** | Faster | Slower (exact: exponential) |
+| **Consistency** | No guarantees | Mathematically consistent |
+| **Global + Local** | Local only | Both |
+| **Additivity** | Approximate | Exact |
+
+\vspace{0.3cm}
+
+**Recommendation:**
+- **LIME:** Quick exploration, high-dimensional data
+- **SHAP:** Rigorous analysis, when computational resources allow
+
+## Slide 101: Saliency Maps for Images
+
+**Goal:** Which pixels matter most for the prediction?
+
+\vspace{0.3cm}
+
+**Gradient-based Saliency (Simonyan et al., 2014):**
+
+$$S_c(x) = \left|\frac{\partial f_c(x)}{\partial x}\right|$$
+
+where $f_c(x)$ is the class score for class $c$
+
+\vspace{0.3cm}
+
+**Intuition:** If changing a pixel affects prediction a lot, that pixel is important
+
+## Slide 102: Computing Saliency Maps in R
+```{r saliency-map, echo=TRUE, eval=FALSE}
+library(keras)
+
+# Load pre-trained model
+model <- application_vgg16(weights = "imagenet")
+
+# Load and preprocess image
+img <- image_load("path/to/image.jpg", 
+                  target_size = c(224, 224))
+x <- image_to_array(img)
+x <- array_reshape(x, c(1, dim(x)))
+x <- imagenet_preprocess_input(x)
+
+# Get predicted class
+preds <- model %>% predict(x)
+class_idx <- which.max(preds[1, ])
+
+# Compute gradients
+with(tf$GradientTape() %as% tape, {
+  tape$watch(x_tensor)
+  predictions <- model(x_tensor)
+  target_class <- predictions[, class_idx]
+})
+
+gradients <- tape$gradient(target_class, x_tensor)
+
+# Saliency = absolute value of gradients
+saliency <- k_abs(gradients)
+```
+
+## Slide 103: Saliency Map Visualization Concept
+```{r saliency-concept, echo=FALSE, fig.height=3.5}
+# Simulate saliency map
+set.seed(42)
+n <- 20
+saliency_matrix <- matrix(0, n, n)
+
+# Create "important" regions
+saliency_matrix[8:12, 8:12] <- runif(25, 0.5, 1)
+saliency_matrix[5:7, 15:17] <- runif(9, 0.3, 0.7)
+
+# Add noise
+saliency_matrix <- saliency_matrix + matrix(runif(n^2, 0, 0.1), n, n)
+
+# Convert to long format for ggplot
+library(reshape2)
+saliency_df <- melt(saliency_matrix)
+colnames(saliency_df) <- c("y", "x", "importance")
+
+ggplot(saliency_df, aes(x = x, y = n - y + 1, fill = importance)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "darkred") +
+  coord_equal() +
+  labs(title = "Saliency Map: Which Pixels Matter?",
+       subtitle = "Brighter = More important for prediction",
+       x = "", y = "", fill = "Importance") +
+  theme_minimal() +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank())
+```
+
+## Slide 104: Grad-CAM - Class Activation Mapping
+
+**Improvement over basic saliency:** Shows class-discriminative regions
+
+\vspace{0.3cm}
+
+**Grad-CAM Formula:**
+
+$$L_{Grad-CAM}^c = ReLU\left(\sum_k \alpha_k^c A^k\right)$$
+
+where:
+- $A^k$ = activation maps from last conv layer
+- $\alpha_k^c$ = importance weights (from gradients)
+
+\vspace{0.3cm}
+
+**Advantage:** Produces visual explanations showing "where the model looks"
+
+## Slide 105: Grad-CAM Implementation in R
+```{r gradcam, echo=TRUE, eval=FALSE}
+# Grad-CAM implementation
+gradcam <- function(model, img_array, class_idx, 
+                    layer_name = "block5_conv3") {
+  
+  # Get last conv layer
+  grad_model <- keras_model(
+    inputs = model$input,
+    outputs = list(
+      model$get_layer(layer_name)$output,
+      model$output
+    )
+  )
+  
+  # Compute gradients
+  with(tf$GradientTape() %as% tape, {
+    conv_outputs <- grad_model(img_array)
+    predictions <- conv_outputs[[2]]
+    loss <- predictions[, class_idx]
+  })
+  
+  # Get gradients and pooled weights
+  grads <- tape$gradient(loss, conv_outputs[[1]])
+  pooled_grads <- k_mean(grads, axis = c(0, 1, 2))
+  
+  # Weight the channels by gradient importance
+  conv_output <- conv_outputs[[1]][1, , , ]
+  for (i in 1:dim(conv_output)[3]) {
+    conv_output[, , i] <- conv_output[, , i] * pooled_grads[i]
+  }
+  
+  # Average across channels and apply ReLU
+  heatmap <- k_mean(conv_output, axis = -1)
+  heatmap <- k_maximum(heatmap, 0)
+  heatmap <- heatmap / k_max(heatmap)
+  
+  return(heatmap)
+}
+```
+
+## Slide 106: Grad-CAM Visualization Example
+```{r gradcam-viz, echo=FALSE, fig.height=3.5}
+# Simulate Grad-CAM heatmap overlaid on image
+set.seed(42)
+n <- 30
+
+# Base "image"
+base_img <- matrix(runif(n^2, 0.3, 0.7), n, n)
+
+# Grad-CAM heatmap (focused region)
+heatmap <- matrix(0, n, n)
+center_x <- 15
+center_y <- 20
+
+for (i in 1:n) {
+  for (j in 1:n) {
+    dist <- sqrt((i - center_x)^2 + (j - center_y)^2)
+    heatmap[i, j] <- exp(-dist / 5)
+  }
+}
+
+# Combine
+combined <- base_img * 0.5 + heatmap * 0.5
+
+combined_df <- melt(combined)
+colnames(combined_df) <- c("y", "x", "value")
+
+ggplot(combined_df, aes(x = x, y = n - y + 1, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "yellow", 
+                       high = "red", midpoint = 0.5) +
+  coord_equal() +
+  labs(title = "Grad-CAM: Where the Model Looks",
+       subtitle = "Red = High attention for this prediction",
+       x = "", y = "") +
+  theme_minimal() +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "none")
+```
+
+## Slide 107: Integrated Gradients
+
+**Problem with basic gradients:** Can be noisy and miss important features
+
+\vspace{0.3cm}
+
+**Integrated Gradients (Sundararajan et al., 2017):**
+
+$$IG_i(x) = (x_i - x'_i) \times \int_{\alpha=0}^{1} \frac{\partial f(x' + \alpha(x - x'))}{\partial x_i} d\alpha$$
+
+\vspace{0.3cm}
+
+**Key Idea:** 
+- Start from baseline input $x'$ (e.g., all zeros)
+- Gradually interpolate to actual input $x$
+- Accumulate gradients along this path
+
+## Slide 108: Integrated Gradients Properties
+
+**Advantages:**
+
+1. **Completeness:** Attribution scores sum to difference from baseline
+   $$\sum_i IG_i(x) = f(x) - f(x')$$
+
+2. **Sensitivity:** Non-zero gradient when feature matters
+
+3. **Implementation Invariance:** Same results for functionally equivalent networks
+
+\vspace{0.3cm}
+
+**Use Case:** More reliable than vanilla gradients for feature attribution
+
+## Slide 109: Attention Mechanisms as Built-in XAI
+
+**Attention Weights = Interpretability**
+
+For Transformer models, attention scores show which parts of input the model focuses on.
+
+\vspace{0.3cm}
+
+**Self-Attention Formula:**
+
+$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V$$
+
+\vspace{0.3cm}
+
+**Attention weights** (from softmax) directly indicate importance!
+
+## Slide 110: Visualizing Attention Weights
+```{r attention-viz, echo=FALSE, fig.height=3.5}
+# Simulate attention matrix for text
+words <- c("The", "cat", "sat", "on", "the", "mat")
+n_words <- length(words)
+
+set.seed(42)
+# Create attention matrix
+attention_matrix <- matrix(runif(n_words^2), n_words, n_words)
+
+# Make it more interpretable (higher attention on related words)
+attention_matrix[2, 3] <- 0.8  # cat -> sat
+attention_matrix[3, 2] <- 0.8  # sat -> cat
+attention_matrix[6, 4] <- 0.7  # mat -> on
+attention_matrix[4, 6] <- 0.7  # on -> mat
+
+# Normalize rows
+attention_matrix <- t(apply(attention_matrix, 1, function(x) x / sum(x)))
+
+# Convert to long format
+attention_df <- melt(attention_matrix)
+colnames(attention_df) <- c("from", "to", "weight")
+attention_df$from_word <- words[attention_df$from]
+attention_df$to_word <- words[attention_df$to]
+
+ggplot(attention_df, aes(x = to, y = from, fill = weight)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "darkblue") +
+  scale_x_continuous(breaks = 1:n_words, labels = words) +
+  scale_y_reverse(breaks = 1:n_words, labels = words) +
+  labs(title = "Attention Weights: Which Words Attend to Which?",
+       x = "To", y = "From", fill = "Attention") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Slide 111: Partial Dependence Plots (PDP)
+
+**Goal:** Show marginal effect of one or two features on predictions
+
+\vspace{0.3cm}
+
+**PDP Formula:**
+
+$$\hat{f}_S(x_S) = E_{X_C}[\hat{f}(x_S, X_C)] = \frac{1}{n}\sum_{i=1}^{n}\hat{f}(x_S, x_C^{(i)})$$
+
+\vspace{0.3cm}
+
+**Process:**
+1. Choose feature(s) of interest
+2. For each value of feature, average predictions across all other feature combinations
+3. Plot the average prediction
+
+## Slide 112: Computing PDP in R
+```{r pdp-code, echo=TRUE, eval=FALSE}
+library(pdp)
+
+# Assuming you have a trained model
+# model <- your_trained_model
+# data <- your_training_data
+
+# Single feature PDP
+partial_age <- partial(
+  model, 
+  pred.var = "Age",
+  train = data,
+  plot = TRUE
+)
+
+# Two-feature interaction PDP
+partial_age_bp <- partial(
+  model,
+  pred.var = c("Age", "BloodPressure"),
+  train = data,
+  plot = TRUE,
+  chull = TRUE  # Show only convex hull
+)
+```
+
+## Slide 113: PDP Example Visualization
+```{r pdp-viz, echo=FALSE, fig.height=3.5}
+# Simulate PDP for age vs prediction
+age <- seq(20, 80, length.out = 50)
+# Non-linear relationship
+prediction <- 0.3 + 0.01 * age + 0.0003 * (age - 50)^2 + 
+              rnorm(50, 0, 0.02)
+
+pdp_data <- data.frame(Age = age, Prediction = prediction)
+
+ggplot(pdp_data, aes(x = Age, y = Prediction)) +
+  geom_line(size = 1.5, color = "darkblue") +
+  geom_ribbon(aes(ymin = Prediction - 0.05, 
+                  ymax = Prediction + 0.05),
+              alpha = 0.3, fill = "lightblue") +
+  labs(title = "Partial Dependence Plot: Age vs Risk",
+       subtitle = "Shows marginal effect of Age on prediction",
+       x = "Age (years)", 
+       y = "Predicted Risk Probability") +
+  theme_minimal()
+```
+
+**Interpretation:** Risk increases with age, especially after 50
+
+## Slide 114: Individual Conditional Expectation (ICE)
+
+**Problem with PDP:** Hides heterogeneous effects (different patterns for different instances)
+
+\vspace{0.3cm}
+
+**ICE Solution:** Plot prediction vs feature for EACH instance separately
+
+$$\hat{f}_i(x_S) = \hat{f}(x_S, x_C^{(i)})$$
+
+\vspace{0.3cm}
+
+**PDP = Average of all ICE curves**
+
+## Slide 115: ICE Plot Visualization
+```{r ice-plot, echo=FALSE, fig.height=3.5}
+set.seed(42)
+
+# Simulate ICE curves for multiple instances
+age <- seq(20, 80, length.out = 30)
+n_instances <- 20
+
+ice_data <- data.frame()
+for (i in 1:n_instances) {
+  # Each instance has different relationship with age
+  intercept <- runif(1, 0.2, 0.5)
+  slope <- runif(1, 0.005, 0.015)
+  
+  pred <- intercept + slope * age + rnorm(30, 0, 0.01)
+  
+  ice_data <- rbind(ice_data, data.frame(
+    Age = age,
+    Prediction = pred,
+    Instance = as.factor(i)
+  ))
+}
+
+# Compute PDP (average)
+pdp_avg <- aggregate(Prediction ~ Age, ice_data, mean)
+
+ggplot(ice_data, aes(x = Age, y = Prediction)) +
+  geom_line(aes(group = Instance), alpha = 0.3, color = "gray60") +
+  geom_line(data = pdp_avg, size = 2, color = "darkred") +
+  labs(title = "ICE Plot: Individual Conditional Expectation",
+       subtitle = "Gray = individual curves, Red = PDP (average)",
+       x = "Age (years)", 
+       y = "Predicted Probability") +
+  theme_minimal()
+```
+
+**Shows variation:** Some instances more sensitive to age than others
+
+## Slide 116: Counterfactual Explanations
+
+**Question:** "What is the smallest change to inputs that would flip the prediction?"
+
+\vspace{0.3cm}
+
+**Example:**
+- **Current:** Loan rejected (income=$45k, debt=$30k)
+- **Counterfactual:** Loan approved if income=$52k OR debt=$22k
+
+\vspace{0.3cm}
+
+**Value:** Actionable insights—tells users what to change
+
+## Slide 117: Finding Counterfactuals
+
+**Optimization Problem:**
+
+$$\min_{x'} \text{distance}(x, x') \quad \text{s.t.} \quad f(x') \neq f(x)$$
+
+\vspace{0.3cm}
+
+**Constraints:**
+- Feasible changes only (can't change age, race, etc.)
+- Realistic ranges
+- Sparse changes (modify few features)
+
+## Slide 118: Counterfactual Example in R
+```{r counterfactual-concept, echo=TRUE, eval=FALSE}
+# Conceptual counterfactual generation
+find_counterfactual <- function(model, instance, 
+                                target_class,
+                                mutable_features) {
+  
+  # Initialize with current instance
+  counterfactual <- instance
+  
+  # Iteratively adjust mutable features
+  for (iter in 1:100) {
+    prediction <- predict(model, counterfactual)
+    
+    if (prediction == target_class) {
+      return(counterfactual)
+    }
+    
+    # Adjust features toward target
+    # (simplified - real implementation uses gradients)
+    for (feat in mutable_features) {
+      counterfactual[[feat]] <- counterfactual[[feat]] + 
+                                small_change
+    }
+  }
+  
+  return(counterfactual)
+}
+```
+
+## Slide 119: Counterfactual Visualization
+```{r counterfactual-viz, echo=FALSE, fig.height=3.5}
+# Original vs counterfactual feature comparison
+features <- c("Income", "Debt", "Credit Score", 
+              "Employment Years", "Loan Amount")
+original <- c(45, 30, 650, 3, 250)
+counterfactual <- c(52, 30, 650, 3, 250)
+change <- counterfactual - original
+
+comparison_df <- data.frame(
+  Feature = rep(features, 2),
+  Value = c(original, counterfactual),
+  Type = rep(c("Original (Rejected)", "Counterfactual (Approved)"), 
+             each = 5)
+)
+
+ggplot(comparison_df, aes(x = Feature, y = Value, fill = Type)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("darkred", "darkgreen")) +
+  labs(title = "Counterfactual Explanation: Loan Application",
+       subtitle = "Increase income by $7k to get approval",
+       x = "", y = "Value", fill = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom")
+```
+
+## Slide 120: XAI Methods Summary and Selection Guide
+```{r xai-summary, echo=FALSE, fig.height=3.5}
+xai_methods <- data.frame(
+  Method = c("LIME", "SHAP", "Grad-CAM", "PDP", 
+             "ICE", "Counterfactuals"),
+  Scope = c("Local", "Both", "Local", "Global", "Local", "Local"),
+  DataType = c("Tabular", "Any", "Images", "Any", "Any", "Any"),
+  Speed = c(3, 2, 3, 2, 2, 2),
+  Rigor = c(2, 4, 3, 3, 3, 3)
+)
+
+# Create comparison table visualization
+library(gridExtra)
+library(grid)
+
+tt <- ttheme_default(
+  core = list(fg_params = list(cex = 0.8)),
+  colhead = list(fg_params = list(cex = 0.9, fontface = "bold"))
+)
+
+g <- tableGrob(xai_methods, rows = NULL, theme = tt)
+
+grid.arrange(g, top = textGrob("XAI Methods Comparison", 
+                                gp = gpar(fontsize = 14, fontface = "bold")),
+             bottom = textGrob("Speed & Rigor: 1=Low, 4=High", 
+                               gp = gpar(fontsize = 9)))
+```
+
+**Selection Guide:**
+- **Need guarantees?** → SHAP
+- **Fast exploration?** → LIME
+- **Images?** → Grad-CAM
+- **Global trends?** → PDP
+- **Actionable advice?** → Counterfactuals
+# Practical XAI Implementation
+
+## Slide 121: XAI Workflow - From Model to Explanation
+
+**Standard XAI Pipeline:**
+
+1. **Train Model:** Build and validate your deep learning model
+2. **Select XAI Method:** Based on task and requirements
+3. **Generate Explanations:** Apply chosen method(s)
+4. **Validate Explanations:** Do they make sense?
+5. **Communicate Results:** Present to stakeholders
+6. **Iterate:** Refine based on feedback
+
+\vspace{0.3cm}
+
+**Key Principle:** XAI is not one-time—it's an ongoing process
+
+## Slide 122: Complete XAI Example - Setup
+```{r xai-complete-setup, echo=TRUE, eval=FALSE}
+library(keras)
+library(lime)
+library(ggplot2)
+library(dplyr)
+
+# Load dataset (using iris as example)
+data(iris)
+set.seed(123)
+
+# Prepare data
+train_idx <- sample(1:nrow(iris), 0.8 * nrow(iris))
+x_train <- as.matrix(iris[train_idx, 1:4])
+y_train <- as.integer(iris[train_idx, 5]) - 1
+x_test <- as.matrix(iris[-train_idx, 1:4])
+y_test <- as.integer(iris[-train_idx, 5]) - 1
+
+# One-hot encode labels
+y_train_cat <- to_categorical(y_train, 3)
+y_test_cat <- to_categorical(y_test, 3)
+
+# Normalize features
+x_train <- scale(x_train)
+x_test <- scale(x_test, 
+                center = attr(x_train, "scaled:center"),
+                scale = attr(x_train, "scaled:scale"))
+```
+
+## Slide 123: Build and Train Model
+```{r xai-train-model, echo=TRUE, eval=FALSE}
+# Build neural network
+model <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", 
+              input_shape = c(4)) %>%
+  layer_dropout(0.2) %>%
+  layer_dense(units = 8, activation = "relu") %>%
+  layer_dense(units = 3, activation = "softmax")
+
+# Compile
+model %>% compile(
+  optimizer = "adam",
+  loss = "categorical_crossentropy",
+  metrics = c("accuracy")
+)
+
+# Train
+history <- model %>% fit(
+  x_train, y_train_cat,
+  epochs = 50,
+  batch_size = 16,
+  validation_split = 0.2,
+  verbose = 0
+)
+
+# Evaluate
+scores <- model %>% evaluate(x_test, y_test_cat, verbose = 0)
+cat("Test accuracy:", scores[2], "\n")
+```
+
+## Slide 124: Apply LIME Explanation
+```{r xai-apply-lime, echo=TRUE, eval=FALSE}
+# Create LIME explainer
+explainer <- lime(
+  x = as.data.frame(x_train),
+  model = model,
+  bin_continuous = TRUE,
+  n_bins = 4
+)
+
+# Explain a single prediction
+instance_to_explain <- 1
+explanation <- explain(
+  x = as.data.frame(x_test[instance_to_explain, , drop = FALSE]),
+  explainer = explainer,
+  n_labels = 1,
+  n_features = 4,
+  n_permutations = 1000
+)
+
+# Visualize
+plot_features(explanation) +
+  labs(title = "LIME Explanation for Iris Classification",
+       subtitle = paste("Instance:", instance_to_explain))
+```
+
+## Slide 125: Custom Feature Importance Function
+```{r custom-importance, echo=TRUE}
+# Compute feature importance by permutation
+compute_feature_importance <- function(model, X, y, 
+                                       n_repeats = 10) {
+  # Baseline accuracy
+  preds_baseline <- model %>% predict(X) %>% k_argmax() %>% 
+                    as.integer()
+  baseline_acc <- mean(preds_baseline == y)
+  
+  # Initialize importance scores
+  importance <- numeric(ncol(X))
+  names(importance) <- colnames(X)
+  
+  for (feat_idx in 1:ncol(X)) {
+    scores <- numeric(n_repeats)
+    
+    for (rep in 1:n_repeats) {
+      # Permute feature
+      X_perm <- X
+      X_perm[, feat_idx] <- sample(X_perm[, feat_idx])
+      
+      # Compute accuracy
+      preds <- model %>% predict(X_perm) %>% k_argmax() %>% 
+               as.integer()
+      scores[rep] <- mean(preds == y)
+    }
+    
+    # Importance = drop in accuracy
+    importance[feat_idx] <- baseline_acc - mean(scores)
+  }
+  
+  return(sort(importance, decreasing = TRUE))
+}
+```
+
+## Slide 126: Visualize Feature Importance
+```{r visualize-importance, echo=TRUE, eval=FALSE}
+# Compute importance
+importance_scores <- compute_feature_importance(
+  model, x_test, y_test, n_repeats = 20
+)
+
+# Create visualization
+importance_df <- data.frame(
+  Feature = names(importance_scores),
+  Importance = importance_scores
+)
+
+ggplot(importance_df, aes(x = reorder(Feature, Importance), 
+                          y = Importance)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Global Feature Importance",
+       subtitle = "Permutation-based importance scores",
+       x = "", y = "Importance (Accuracy Drop)") +
+  theme_minimal()
+```
+
+## Slide 127: Case Study 1 - Medical Diagnosis
+
+**Scenario:** Predicting diabetes risk from patient data
+
+**Dataset:** 768 patients, 8 features (glucose, BMI, age, etc.)
+
+**Model:** 3-layer neural network, 85% accuracy
+
+\vspace{0.3cm}
+
+**XAI Requirements:**
+- **Doctors need:** Feature importance for individual patients
+- **Compliance:** Explain rejected insurance claims
+- **Research:** Discover unexpected risk factors
+
+## Slide 128: Medical Diagnosis - Model Architecture
+```{r medical-model, echo=TRUE, eval=FALSE}
+# Load diabetes dataset
+# data <- read.csv("diabetes.csv")
+
+# Build medical diagnosis model
+medical_model <- keras_model_sequential() %>%
+  layer_dense(units = 32, activation = "relu", 
+              input_shape = c(8)) %>%
+  layer_batch_normalization() %>%
+  layer_dropout(0.3) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_batch_normalization() %>%
+  layer_dropout(0.3) %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+medical_model %>% compile(
+  optimizer = optimizer_adam(learning_rate = 0.001),
+  loss = "binary_crossentropy",
+  metrics = c("accuracy", "AUC")
+)
+```
+
+## Slide 129: Medical Diagnosis - SHAP Analysis
+```{r medical-shap-concept, echo=FALSE, fig.height=3.5}
+# Simulate SHAP values for medical diagnosis
+set.seed(42)
+features <- c("Glucose", "BMI", "Age", "Blood Pressure", 
+              "Insulin", "Pregnancies", "Diabetes Pedigree", "Skin Thickness")
+
+# Patient 1: High risk
+patient1_shap <- data.frame(
+  Feature = features,
+  SHAP = c(0.25, 0.18, 0.12, 0.08, -0.05, 0.15, 0.09, -0.02),
+  Patient = "Patient 1 (High Risk)"
+)
+
+# Patient 2: Low risk
+patient2_shap <- data.frame(
+  Feature = features,
+  SHAP = c(-0.15, -0.12, -0.08, -0.05, 0.03, -0.10, -0.06, 0.02),
+  Patient = "Patient 2 (Low Risk)"
+)
+
+shap_comparison <- rbind(patient1_shap, patient2_shap)
+
+ggplot(shap_comparison, aes(x = reorder(Feature, abs(SHAP)), 
+                            y = SHAP, fill = SHAP > 0)) +
+  geom_col() +
+  facet_wrap(~Patient, ncol = 1) +
+  coord_flip() +
+  scale_fill_manual(values = c("darkred", "darkgreen"),
+                    labels = c("Decreases Risk", "Increases Risk")) +
+  labs(title = "SHAP Analysis: Two Diabetes Patients",
+       x = "", y = "SHAP Value (Impact on Risk)",
+       fill = "Effect") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 130: Medical Diagnosis - Counterfactual Advice
+```{r medical-counterfactual, echo=FALSE, fig.height=3}
+# Show what patient needs to change
+current <- data.frame(
+  Metric = c("Glucose", "BMI", "Exercise"),
+  Current = c(180, 32, 0),
+  Target = c(140, 28, 3),
+  Status = c("Current", "Current", "Current")
+)
+
+target <- data.frame(
+  Metric = c("Glucose", "BMI", "Exercise"),
+  Current = c(140, 28, 3),
+  Target = c(140, 28, 3),
+  Status = c("Target", "Target", "Target")
+)
+
+combined <- rbind(current, target)
+
+ggplot(combined, aes(x = Metric, y = Current, fill = Status)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = Current), position = position_dodge(0.9), 
+            vjust = -0.5) +
+  scale_fill_manual(values = c("darkred", "darkgreen")) +
+  labs(title = "Counterfactual: How to Reduce Diabetes Risk",
+       subtitle = "Changes needed to move from High to Low risk category",
+       x = "", y = "Value", fill = "") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Actionable advice:** Lower glucose, reduce BMI, exercise 3x/week
+
+## Slide 131: Case Study 2 - Credit Scoring
+
+**Scenario:** Loan approval prediction
+
+**Challenges:**
+- **Legal requirement:** Explain rejections (Fair Credit Reporting Act)
+- **Bias detection:** Ensure no discrimination
+- **Customer trust:** Transparent decisions
+
+\vspace{0.3cm}
+
+**XAI Solution:** LIME + Counterfactuals for each rejected application
+
+## Slide 132: Credit Scoring - Bias Detection with XAI
+```{r credit-bias, echo=FALSE, fig.height=3.5}
+# Compare feature importance by demographic group
+set.seed(42)
+features <- c("Income", "Credit Score", "Debt Ratio", 
+              "Employment Years", "Age")
+
+# Group A importance
+group_a <- data.frame(
+  Feature = features,
+  Importance = c(0.35, 0.28, 0.20, 0.12, 0.05),
+  Group = "Group A"
+)
+
+# Group B importance (age inappropriately high)
+group_b <- data.frame(
+  Feature = features,
+  Importance = c(0.30, 0.25, 0.18, 0.10, 0.17),
+  Group = "Group B"
+)
+
+bias_data <- rbind(group_a, group_b)
+
+ggplot(bias_data, aes(x = Feature, y = Importance, fill = Group)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("steelblue", "coral")) +
+  geom_hline(yintercept = 0.15, linetype = "dashed", 
+             color = "red", size = 1) +
+  annotate("text", x = 4.5, y = 0.16, 
+           label = "Suspicious: Age too important in Group B", 
+           color = "red", size = 3) +
+  labs(title = "Bias Detection: Feature Importance by Group",
+       subtitle = "XAI reveals potential age discrimination",
+       x = "", y = "Importance Score") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Slide 133: Case Study 3 - Image Classification
+
+**Scenario:** Medical image analysis (X-ray classification)
+
+**Task:** Detect pneumonia from chest X-rays
+
+**XAI Methods:**
+- **Grad-CAM:** Show which regions indicate disease
+- **Saliency Maps:** Highlight important pixels
+- **Validation:** Radiologist reviews explanations
+
+## Slide 134: Image XAI - Grad-CAM for Pneumonia Detection
+```{r gradcam-medical, echo=FALSE, fig.height=3.5}
+# Simulate chest X-ray with Grad-CAM overlay
+set.seed(42)
+n <- 40
+
+# Base X-ray (simulated)
+xray <- matrix(runif(n^2, 0.2, 0.8), n, n)
+
+# Add lung regions (darker)
+xray[10:30, 8:15] <- xray[10:30, 8:15] * 0.7
+xray[10:30, 25:32] <- xray[10:30, 25:32] * 0.7
+
+# Grad-CAM heatmap (focus on left lung)
+heatmap <- matrix(0, n, n)
+for (i in 1:n) {
+  for (j in 1:n) {
+    # Higher activation in left lung area
+    if (i >= 15 && i <= 25 && j >= 10 && j <= 13) {
+      heatmap[i, j] <- 0.8
+    }
+  }
+}
+
+# Smooth heatmap
+library(reshape2)
+combined <- xray * 0.6 + heatmap * 0.4
+combined_df <- melt(combined)
+colnames(combined_df) <- c("y", "x", "value")
+
+ggplot(combined_df, aes(x = x, y = n - y + 1, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "black", mid = "gray50", 
+                       high = "red", midpoint = 0.5) +
+  coord_equal() +
+  labs(title = "Grad-CAM: Pneumonia Detection",
+       subtitle = "Red region = Model focuses here for diagnosis",
+       x = "", y = "") +
+  theme_void() +
+  theme(legend.position = "right",
+        plot.title = element_text(hjust = 0.5))
+```
+
+**Clinical validation:** Heatmap matches known infection location
+
+## Slide 135: Validating XAI Explanations
+
+**How do we know explanations are correct?**
+
+\vspace{0.3cm}
+
+**Validation Strategies:**
+
+1. **Sanity Checks:** Do explanations change when model changes?
+2. **Human Agreement:** Do experts agree with explanations?
+3. **Perturbation Tests:** Remove important features → prediction changes?
+4. **Known Ground Truth:** Test on synthetic data with known answers
+
+\vspace{0.3cm}
+
+**Warning:** XAI can be misleading if not validated!
+
+## Slide 136: Sanity Check - Model Randomization Test
+```{r sanity-check, echo=TRUE, eval=FALSE}
+# Sanity check: Explanations should change with random model
+sanity_check <- function(model, explainer, instance, 
+                         method = "lime") {
+  
+  # Get explanation from trained model
+  explanation_trained <- explain(instance, explainer)
+  importance_trained <- explanation_trained$feature_weight
+  
+  # Randomize model weights
+  model_random <- model
+  for (layer in model_random$layers) {
+    if (length(layer$get_weights()) > 0) {
+      weights <- layer$get_weights()
+      weights <- lapply(weights, function(w) {
+        array(rnorm(length(w)), dim = dim(w))
+      })
+      layer$set_weights(weights)
+    }
+  }
+  
+  # Get explanation from random model
+  explainer_random <- lime(x_train, model_random)
+  explanation_random <- explain(instance, explainer_random)
+  importance_random <- explanation_random$feature_weight
+  
+  # Compare
+  correlation <- cor(importance_trained, importance_random)
+  
+  cat("Correlation between explanations:", correlation, "\n")
+  cat("If high (>0.5), XAI method may be unreliable!\n")
+  
+  return(correlation)
+}
+```
+
+## Slide 137: Human Evaluation of Explanations
+```{r human-eval, echo=FALSE, fig.height=3.5}
+# Survey results: Expert agreement with XAI
+methods <- c("LIME", "SHAP", "Grad-CAM", "Attention", "Saliency")
+agreement_scores <- c(72, 85, 78, 81, 65)
+confidence_lower <- agreement_scores - c(8, 5, 7, 6, 10)
+confidence_upper <- agreement_scores + c(8, 5, 7, 6, 10)
+
+eval_data <- data.frame(
+  Method = factor(methods, levels = methods),
+  Agreement = agreement_scores,
+  Lower = confidence_lower,
+  Upper = confidence_upper
+)
+
+ggplot(eval_data, aes(x = Method, y = Agreement)) +
+  geom_col(fill = "steelblue", alpha = 0.7) +
+  geom_errorbar(aes(ymin = Lower, ymax = Upper), 
+                width = 0.3, size = 1) +
+  geom_hline(yintercept = 70, linetype = "dashed", 
+             color = "darkred") +
+  annotate("text", x = 4.5, y = 72, 
+           label = "Minimum acceptable: 70%", 
+           color = "darkred") +
+  labs(title = "Expert Agreement with XAI Methods",
+       subtitle = "Based on 50 radiologists evaluating 200 cases",
+       x = "", y = "Agreement Score (%)") +
+  ylim(0, 100) +
+  theme_minimal()
+```
+
+## Slide 138: Perturbation Test - Feature Removal
+```{r perturbation-test, echo=TRUE, eval=FALSE}
+# Test: Remove top features, prediction should change
+perturbation_test <- function(model, instance, 
+                              feature_importance) {
+  
+  # Get baseline prediction
+  pred_baseline <- model %>% predict(instance)
+  
+  # Sort features by importance
+  features_sorted <- names(sort(feature_importance, 
+                                 decreasing = TRUE))
+  
+  results <- data.frame(
+    n_removed = integer(),
+    prediction_change = numeric()
+  )
+  
+  # Progressively remove top features
+  for (n in 1:length(features_sorted)) {
+    instance_modified <- instance
+    
+    # Set top N features to mean (neutral value)
+    for (i in 1:n) {
+      feat <- features_sorted[i]
+      instance_modified[, feat] <- mean(x_train[, feat])
+    }
+    
+    # Measure prediction change
+    pred_modified <- model %>% predict(instance_modified)
+    change <- abs(pred_modified - pred_baseline)
+    
+    results <- rbind(results, 
+                     data.frame(n_removed = n, 
+                                prediction_change = change))
+  }
+  
+  return(results)
+}
+```
+
+## Slide 139: Perturbation Test Visualization
+```{r perturbation-viz, echo=FALSE, fig.height=3.5}
+# Simulate perturbation test results
+n_features <- 8
+n_removed <- 1:n_features
+
+# Good XAI: removing important features causes large changes
+pred_change_good <- cumsum(c(0.05, 0.08, 0.12, 0.10, 0.08, 0.05, 0.03, 0.02))
+
+# Bad XAI: changes are random
+set.seed(42)
+pred_change_bad <- cumsum(runif(n_features, 0.02, 0.08))
+
+perturbation_data <- data.frame(
+  n_removed = rep(n_removed, 2),
+  prediction_change = c(pred_change_good, pred_change_bad),
+  Quality = rep(c("Good XAI", "Bad XAI"), each = n_features)
+)
+
+ggplot(perturbation_data, aes(x = n_removed, y = prediction_change, 
+                               color = Quality)) +
+  geom_line(size = 1.5) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("darkred", "darkgreen")) +
+  labs(title = "Perturbation Test: Validating Feature Importance",
+       subtitle = "Good XAI: Large changes when removing top features",
+       x = "Number of Top Features Removed",
+       y = "Prediction Change (Absolute)") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 140: Debugging Models with XAI
+
+**XAI reveals model failures:**
+
+1. **Clever Hans:** Model uses spurious correlations
+2. **Shortcut Learning:** Relies on dataset artifacts
+3. **Bias:** Discriminates based on protected attributes
+4. **Brittleness:** Small input changes cause large output changes
+
+\vspace{0.3cm}
+
+**Example:** Image classifier using image borders instead of objects
+
+## Slide 141: Detecting Clever Hans Behavior
+```{r clever-hans, echo=FALSE, fig.height=3.5}
+# Simulate Clever Hans detection
+# Model predicting "horse" based on copyright watermark location
+
+set.seed(42)
+n <- 30
+
+# Two images: both horses, but different watermark positions
+image1 <- matrix(runif(n^2, 0.3, 0.7), n, n)
+image2 <- matrix(runif(n^2, 0.3, 0.7), n, n)
+
+# Add watermark to bottom-right of image1
+image1[25:28, 25:28] <- 0.9
+
+# Grad-CAM focuses on watermark instead of horse
+heatmap1 <- matrix(0, n, n)
+heatmap1[25:28, 25:28] <- 1  # Wrong! Should focus on horse
+
+heatmap2 <- matrix(0, n, n)
+heatmap2[10:20, 10:20] <- 0.6  # Correct: focuses on center
+
+combined1 <- image1 * 0.6 + heatmap1 * 0.4
+combined2 <- image2 * 0.6 + heatmap2 * 0.4
+
+combined1_df <- melt(combined1)
+combined2_df <- melt(combined2)
+colnames(combined1_df) <- colnames(combined2_df) <- c("y", "x", "value")
+combined1_df$Image <- "Predicted: Horse (High confidence)"
+combined2_df$Image <- "Predicted: NOT Horse (Low confidence)"
+
+all_data <- rbind(combined1_df, combined2_df)
+
+ggplot(all_data, aes(x = x, y = n - y + 1, fill = value)) +
+  geom_tile() +
+  facet_wrap(~Image) +
+  scale_fill_gradient2(low = "white", mid = "yellow", 
+                       high = "red", midpoint = 0.5) +
+  coord_equal() +
+  labs(title = "Clever Hans Detection: Model Uses Watermark!",
+       subtitle = "Red = Model attention. Should focus on center, not corner",
+       x = "", y = "") +
+  theme_void() +
+  theme(legend.position = "none",
+        strip.text = element_text(size = 9))
+```
+
+## Slide 142: XAI for Model Debugging - Action Plan
+
+**When XAI reveals problems:**
+
+1. **Identify issue:** What's the model learning?
+2. **Check data:** Is there a dataset bias?
+3. **Data augmentation:** Add examples without spurious features
+4. **Architecture change:** Add regularization, change receptive field
+5. **Re-validate:** Use XAI again to confirm fix
+
+\vspace{0.3cm}
+
+**Iterative process:** XAI → Debug → Retrain → XAI → ...
+
+## Slide 143: Communicating XAI to Non-Technical Stakeholders
+
+**Different audiences need different explanations:**
+
+| Audience | What They Need | Best Method |
+|----------|----------------|-------------|
+| **Data Scientists** | Technical details, metrics | SHAP values, equations |
+| **Domain Experts** | Feature relevance | Feature importance plots |
+| **Executives** | Business impact | Counterfactuals, summary stats |
+| **End Users** | Simple reason for decision | LIME with 2-3 features |
+| **Regulators** | Compliance proof | Audit trails, documentation |
+
+## Slide 144: Effective XAI Visualization Principles
+
+**Design Guidelines:**
+
+1. **Simplicity:** Show 3-5 most important features
+2. **Color:** Red = increases risk, Green = decreases risk
+3. **Context:** Include prediction confidence
+4. **Comparisons:** Show baseline or alternative scenarios
+5. **Actionability:** Highlight what can be changed
+
+\vspace{0.3cm}
+
+**Anti-pattern:** Overwhelming users with all features and technical jargon
+
+## Slide 145: XAI Dashboard Example
+```{r xai-dashboard, echo=FALSE, fig.height=3.5}
+# Simplified XAI dashboard layout
+library(gridExtra)
+library(grid)
+
+# Top features
+top_features <- data.frame(
+  Feature = c("Credit Score", "Income", "Debt Ratio"),
+  Impact = c("+15%", "+12%", "-8%"),
+  Value = c("720", "$65k", "0.42")
+)
+
+# Create text elements
+title <- textGrob("Loan Decision Dashboard", 
+                  gp = gpar(fontsize = 14, fontface = "bold"))
+
+decision <- textGrob("APPROVED", 
+                     gp = gpar(fontsize = 20, col = "darkgreen", 
+                               fontface = "bold"))
+
+confidence <- textGrob("Confidence: 87%", 
+                       gp = gpar(fontsize = 10))
+
+features_title <- textGrob("Key Factors:", 
+                           gp = gpar(fontsize = 11, fontface = "bold"))
+
+# Feature table
+tt <- ttheme_default(
+  core = list(fg_params = list(cex = 0.8)),
+  colhead = list(fg_params = list(cex = 0.9, fontface = "bold"))
+)
+features_table <- tableGrob(top_features, rows = NULL, theme = tt)
+
+# Counterfactual
+counterfactual_text <- textGrob(
+  "To improve approval odds:\n• Increase income by $5k\n• Reduce debt ratio to 0.35",
+  gp = gpar(fontsize = 9, col = "darkblue"),
+  just = "left"
+)
+
+# Arrange
+grid.arrange(
+  title, decision, confidence, 
+  features_title, features_table,
+  counterfactual_text,
+  ncol = 1,
+  heights = c(0.1, 0.15, 0.05, 0.05, 0.35, 0.3)
+)
+```
+
+## Slide 146: Ethical Considerations in XAI
+
+**Key Ethical Issues:**
+
+1. **Misleading Explanations:** XAI can give false confidence
+2. **Gaming the System:** Users manipulate features to change predictions
+3. **Privacy:** Explanations may reveal training data
+4. **Fairness:** Explanations don't guarantee fair decisions
+5. **Responsibility:** Who's accountable when XAI is wrong?
+
+\vspace{0.3cm}
+
+**Critical principle:** Explanations ≠ Justifications
+
+## Slide 147: XAI and Fairness
+```{r xai-fairness, echo=FALSE, fig.height=3.5}
+# Demonstrate that explainable doesn't mean fair
+scenarios <- data.frame(
+  Scenario = c("Model A", "Model B", "Model C"),
+  Accuracy = c(85, 85, 85),
+  Explainability = c(90, 90, 90),
+  Fairness = c(50, 70, 95)
+)
+
+scenarios_long <- tidyr::pivot_longer(
+  scenarios, 
+  cols = c(Accuracy, Explainability, Fairness),
+  names_to = "Metric",
+  values_to = "Score"
+)
+
+ggplot(scenarios_long, aes(x = Scenario, y = Score, fill = Metric)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("steelblue", "darkgreen", "coral")) +
+  geom_hline(yintercept = 80, linetype = "dashed", alpha = 0.5) +
+  labs(title = "XAI Does Not Guarantee Fairness",
+       subtitle = "All models equally accurate and explainable, but different fairness",
+       x = "", y = "Score (%)") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Lesson:** Always evaluate fairness separately from explainability
+
+## Slide 148: Best Practices for Responsible XAI
+
+**10 Best Practices:**
+
+1. **Multiple methods:** Use 2+ XAI techniques
+2. **Validation:** Always validate explanations
+3. **Documentation:** Record XAI methodology
+4. **Uncertainty:** Communicate confidence in explanations
+5. **Simplicity:** Prefer simpler explanations when possible
+6. **Human-in-loop:** Expert review of explanations
+7. **Bias testing:** Check for discrimination
+8. **Update regularly:** Re-explain as model changes
+9. **Privacy:** Protect sensitive information in explanations
+10. **Humility:** Acknowledge XAI limitations
+
+## Slide 149: XAI Limitations and Future Directions
+
+**Current Limitations:**
+
+- **Computational cost:** SHAP exponential in features
+- **Instability:** Small input changes → different explanations
+- **Local only:** Most methods explain one instance
+- **No guarantees:** Explanations may be misleading
+
+\vspace{0.3cm}
+
+**Future Research:**
+
+- Causal explanations (beyond correlations)
+- Interactive explanations (user can ask "what if")
+- Certified explanations (with guarantees)
+- Explanations for generation and RL
+
+## Slide 150: Putting It All Together - XAI Checklist
+
+**Before Deployment:**
+
+- [ ] Model trained and validated ✓
+- [ ] At least 2 XAI methods applied ✓
+- [ ] Explanations validated by domain experts ✓
+- [ ] Sanity checks passed ✓
+- [ ] Bias and fairness tested ✓
+- [ ] Documentation complete ✓
+- [ ] Stakeholder communication plan ✓
+- [ ] Monitoring system for ongoing explanations ✓
+
+\vspace{0.3cm}
+
+**Remember:** XAI is a journey, not a destination
+
