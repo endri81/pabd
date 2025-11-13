@@ -1,0 +1,19 @@
+25/11/09 09:52:41.341 nioEventLoopGroup-2-2 INFO HiveConf: Found configuration file file:/C:/Users/User/AppData/Local/spark/spark-3.5.0-bin-hadoop3/conf/hive-site.xml
+25/11/09 09:52:41.837 nioEventLoopGroup-2-2 INFO SparkContext: Running Spark version 3.5.0
+25/11/09 09:52:41.839 nioEventLoopGroup-2-2 INFO SparkContext: OS info Windows 11, 10.0, amd64
+25/11/09 09:52:41.840 nioEventLoopGroup-2-2 INFO SparkContext: Java version 23.0.1
+25/11/09 09:52:41.890 nioEventLoopGroup-2-2 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+25/11/09 11:04:05.395 nioEventLoopGroup-2-2 INFO HiveConf: Found configuration file file:/C:/Users/User/AppData/Local/spark/spark-3.5.0-bin-hadoop3/conf/hive-site.xml
+25/11/09 11:04:05.959 nioEventLoopGroup-2-2 INFO SparkContext: Running Spark version 3.5.0
+25/11/09 11:04:05.961 nioEventLoopGroup-2-2 INFO SparkContext: OS info Windows 11, 10.0, amd64
+25/11/09 11:04:05.962 nioEventLoopGroup-2-2 INFO SparkContext: Java version 23.0.1
+25/11/09 11:04:06.015 nioEventLoopGroup-2-2 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+25/11/09 11:04:19.711 shutdown-hook-0 INFO ShutdownHookManager: Shutdown hook called
+25/11/09 11:04:19.714 shutdown-hook-0 INFO ShutdownHookManager: Deleting directory C:\Users\User\AppData\Local\Temp\spark-b85dab13-d7ac-4c1a-bb52-ee7191f9f0e0
+25/11/09 11:04:20.066 shutdown-hook-0 INFO ShutdownHookManager: Shutdown hook called
+25/11/09 11:04:20.088 shutdown-hook-0 INFO ShutdownHookManager: Deleting directory C:\Users\User\AppData\Local\Temp\spark-e49986de-9833-41b0-ae3b-d9acb9e51352
+25/11/09 11:05:22.812 nioEventLoopGroup-2-2 INFO HiveConf: Found configuration file file:/C:/Users/User/AppData/Local/spark/spark-3.5.0-bin-hadoop3/conf/hive-site.xml
+25/11/09 11:05:23.409 nioEventLoopGroup-2-2 INFO SparkContext: Running Spark version 3.5.0
+25/11/09 11:05:23.411 nioEventLoopGroup-2-2 INFO SparkContext: OS info Windows 11, 10.0, amd64
+25/11/09 11:05:23.413 nioEventLoopGroup-2-2 INFO SparkContext: Java version 23.0.1
+25/11/09 11:05:23.497 nioEventLoopGroup-2-2 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable

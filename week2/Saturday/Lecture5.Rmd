@@ -1,0 +1,3993 @@
+---
+title: "Temporal and Unsupervised Learning"
+subtitle: "Lecture 5: From Sequences to Hidden Patterns (MSc Data Science)"
+author: "Prof. Asc. Endri Raco"
+institute: "Department of Mathematical Engineering, Polytechnic University of Tirana"
+date: "November 2025"
+output:
+  beamer_presentation:
+    theme: Madrid
+    colortheme: default
+    fonttheme: professionalfonts
+    slide_level: 2
+    toc: false
+    fig_width: 6
+    fig_height: 4
+    fig_caption: true
+    latex_engine: xelatex
+header-includes:
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
+  - \usepackage{booktabs}
+  - \usepackage{graphicx}
+  - \usepackage{tikz}
+  - \definecolor{darkblue}{RGB}{0,51,102}
+  - \setbeamercolor{structure}{fg=darkblue}
+  - \setbeamertemplate{navigation symbols}{}
+  - \setbeamertemplate{footline}[frame number]
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = 'center',
+  out.width = '80%',
+  cache = FALSE
+)
+
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(forecast)
+library(tseries)
+library(zoo)
+
+# Set random seed for reproducibility
+set.seed(123)
+
+# Set ggplot theme
+theme_set(theme_minimal(base_size = 10))
+```
+
+# Introduction: A New Paradigm
+
+## Slide 1: Course Overview and Transition
+
+**Previous Lectures (L1-L4):**
+
+- L1-L2: Logistic Regression (supervised, static)
+- L3: Ensemble Methods (supervised, static)
+- L4: Neural Networks and XAI (supervised, static)
+
+\vspace{0.5cm}
+
+**Lecture 5 - Two New Dimensions:**
+
+1. **Temporal:** Data with time ordering (sequences matter!)
+2. **Unsupervised:** No labels (find hidden structure)
+
+\vspace{0.3cm}
+
+**Key Shift:** From prediction to pattern discovery and forecasting
+
+## Slide 2: Why Temporal Data is Different
+
+**Static Data:** Each observation is independent
+
+- Example: Predicting house prices from features
+
+**Temporal Data:** Order matters, observations are dependent
+
+- Example: Stock prices, temperature, heart rate
+
+\vspace{0.5cm}
+
+**Key Characteristics:**
+
+- **Autocorrelation:** Values correlated with past values
+- **Trends:** Long-term increases/decreases
+- **Seasonality:** Regular periodic patterns
+- **Non-stationarity:** Statistical properties change over time
+
+## Slide 3: Time Series Examples
+```{r ts-examples, echo=FALSE, fig.height=3.5}
+# Generate example time series with different patterns
+t <- 1:200
+
+# Trend
+trend <- 0.5 * t + rnorm(200, 0, 10)
+
+# Seasonality
+seasonal <- 50 * sin(2 * pi * t / 20) + rnorm(200, 0, 5)
+
+# Trend + Seasonality
+combined <- 0.3 * t + 40 * sin(2 * pi * t / 25) + rnorm(200, 0, 8)
+
+# Random walk
+random_walk <- cumsum(rnorm(200, 0, 3))
+
+ts_data <- data.frame(
+  Time = rep(t, 4),
+  Value = c(trend, seasonal, combined, random_walk),
+  Type = rep(c("Trend", "Seasonal", "Trend + Seasonal", "Random Walk"), 
+             each = 200)
+)
+
+ggplot(ts_data, aes(x = Time, y = Value)) +
+  geom_line(color = "darkblue", size = 0.8) +
+  facet_wrap(~Type, scales = "free_y", ncol = 2) +
+  labs(title = "Common Time Series Patterns",
+       x = "Time", y = "Value") +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold"))
+```
+
+## Slide 4: Why Unsupervised Learning?
+
+**Supervised Learning Limitations:**
+
+- Requires labeled data (expensive, time-consuming)
+- Can't discover unknown patterns
+- Limited to predefined categories
+
+\vspace{0.5cm}
+
+**Unsupervised Learning Goals:**
+
+1. **Clustering:** Group similar observations
+2. **Dimensionality Reduction:** Find compact representations
+3. **Association Rules:** Discover relationships
+4. **Anomaly Detection:** Find unusual patterns
+
+\vspace{0.3cm}
+
+**Use Cases:** Customer segmentation, market basket analysis, exploratory data analysis
+
+## Slide 5: Lecture 5 Roadmap
+
+**Part I: Time Series Analysis (Slides 1-90)**
+
+- Time series components and decomposition
+- Stationarity and transformations
+- ARIMA models
+- Forecasting techniques
+
+\vspace{0.5cm}
+
+**Part II: Unsupervised Learning (Slides 91-180)**
+
+- K-Means clustering
+- Hierarchical clustering
+- Association rule mining
+- Practical applications
+
+# Time Series Fundamentals
+
+## Slide 6: What is a Time Series?
+
+**Definition:** A sequence of observations recorded at successive time points
+
+$$\{y_t : t = 1, 2, \ldots, T\}$$
+
+\vspace{0.3cm}
+
+**Examples:**
+
+- Daily stock prices
+- Monthly sales figures
+- Hourly temperature readings
+- Annual GDP growth
+
+\vspace{0.3cm}
+
+**Key Properties:**
+
+- **Temporal ordering:** $t$ matters
+- **Frequency:** Regular intervals (hourly, daily, monthly)
+
+## Slide 7: Loading and Visualizing Time Series in R
+```{r ts-basic, echo=TRUE}
+# Create a time series object
+# Example: Monthly airline passengers (1949-1960)
+data(AirPassengers)
+
+# View structure
+str(AirPassengers)
+
+# Basic plot
+plot(AirPassengers, 
+     main = "Monthly Airline Passengers",
+     xlab = "Year", 
+     ylab = "Passengers (thousands)",
+     col = "darkblue",
+     lwd = 2)
+```
+
+## Slide 8: Time Series Components
+
+**Additive Decomposition:**
+
+$$Y_t = T_t + S_t + R_t$$
+
+**Multiplicative Decomposition:**
+
+$$Y_t = T_t \times S_t \times R_t$$
+
+\vspace{0.3cm}
+
+where:
+
+- $T_t$ = **Trend** (long-term direction)
+- $S_t$ = **Seasonal** (regular periodic variation)
+- $R_t$ = **Residual/Irregular** (random noise)
+
+## Slide 9: Visualizing Time Series Components
+```{r ts-components, echo=FALSE, fig.height=3.5}
+# Decompose AirPassengers
+decomp <- decompose(AirPassengers, type = "multiplicative")
+
+# Convert to data frame for ggplot
+decomp_df <- data.frame(
+  Time = rep(time(AirPassengers), 4),
+  Value = c(as.numeric(AirPassengers),
+            as.numeric(decomp$trend),
+            as.numeric(decomp$seasonal),
+            as.numeric(decomp$random)),
+  Component = rep(c("Original", "Trend", "Seasonal", "Residual"), 
+                  each = length(AirPassengers))
+)
+
+ggplot(decomp_df, aes(x = Time, y = Value)) +
+  geom_line(color = "darkblue", size = 0.7) +
+  facet_wrap(~Component, scales = "free_y", ncol = 1) +
+  labs(title = "Time Series Decomposition",
+       x = "Year", y = "") +
+  theme_minimal() +
+  theme(strip.text = element_text(face = "bold", size = 10))
+```
+
+## Slide 10: Time Series Decomposition in R
+```{r ts-decomposition, echo=TRUE, eval=FALSE}
+# Multiplicative decomposition
+decomp_mult <- decompose(AirPassengers, 
+                         type = "multiplicative")
+
+# Additive decomposition
+decomp_add <- decompose(AirPassengers, 
+                        type = "additive")
+
+# Plot decomposition
+plot(decomp_mult)
+
+# Access components
+trend <- decomp_mult$trend
+seasonal <- decomp_mult$seasonal
+random <- decomp_mult$random
+
+# Remove seasonality
+deseasonalized <- AirPassengers / seasonal
+plot(deseasonalized, main = "Deseasonalized Series")
+```
+
+## Slide 11: Stationarity - The Foundation
+
+**Definition:** A time series is **stationary** if its statistical properties don't change over time.
+
+\vspace{0.3cm}
+
+**Requirements:**
+
+1. **Constant mean:** $E[Y_t] = \mu$ for all $t$
+2. **Constant variance:** $Var(Y_t) = \sigma^2$ for all $t$
+3. **Constant autocovariance:** $Cov(Y_t, Y_{t-k})$ depends only on $k$, not $t$
+
+\vspace{0.3cm}
+
+**Why Important:** Most time series models (ARIMA) assume stationarity!
+
+## Slide 12: Stationary vs Non-Stationary
+```{r stationary-comparison, echo=FALSE, fig.height=3.5}
+set.seed(123)
+n <- 200
+
+# Stationary: White noise
+stationary <- rnorm(n, mean = 50, sd = 10)
+
+# Non-stationary: Random walk
+non_stationary <- cumsum(rnorm(n, mean = 0, sd = 3)) + 50
+
+# Non-stationary: Trend
+trend_series <- 50 + 0.2 * (1:n) + rnorm(n, 0, 5)
+
+comparison_df <- data.frame(
+  Time = rep(1:n, 3),
+  Value = c(stationary, non_stationary, trend_series),
+  Type = rep(c("Stationary\n(White Noise)", 
+               "Non-Stationary\n(Random Walk)", 
+               "Non-Stationary\n(Trend)"), 
+             each = n)
+)
+
+ggplot(comparison_df, aes(x = Time, y = Value)) +
+  geom_line(color = "darkblue", size = 0.7) +
+  geom_hline(data = data.frame(Type = "Stationary\n(White Noise)", 
+                                mean = 50),
+             aes(yintercept = mean), 
+             color = "red", linetype = "dashed") +
+  facet_wrap(~Type, scales = "free_y", ncol = 3) +
+  labs(title = "Stationary vs Non-Stationary Time Series",
+       x = "Time", y = "Value") +
+  theme_minimal()
+```
+
+## Slide 13: Testing for Stationarity - Augmented Dickey-Fuller Test
+
+**Null Hypothesis:** Series has a unit root (non-stationary)
+
+**Alternative:** Series is stationary
+
+\vspace{0.3cm}
+
+**Decision Rule:**
+
+- p-value < 0.05 → Reject null → Series is **stationary**
+- p-value ≥ 0.05 → Fail to reject → Series is **non-stationary**
+```{r adf-test, echo=TRUE, eval=FALSE}
+library(tseries)
+
+# Test AirPassengers for stationarity
+adf.test(AirPassengers)
+
+# Typical output:
+# Dickey-Fuller = -1.6, p-value = 0.73
+# Conclusion: Non-stationary (p > 0.05)
+```
+
+## Slide 14: Making Series Stationary - Differencing
+
+**First Differencing:** $\Delta Y_t = Y_t - Y_{t-1}$
+
+**Second Differencing:** $\Delta^2 Y_t = \Delta Y_t - \Delta Y_{t-1}$
+
+\vspace{0.3cm}
+
+**In R:**
+```{r differencing, echo=TRUE, eval=FALSE}
+# First difference
+diff1 <- diff(AirPassengers)
+plot(diff1, main = "First Difference")
+
+# Check stationarity
+adf.test(diff1)
+
+# Second difference (if needed)
+diff2 <- diff(diff1)
+plot(diff2, main = "Second Difference")
+```
+
+## Slide 15: Differencing Example
+```{r differencing-visual, echo=FALSE, fig.height=3.5}
+# Original series
+original <- as.numeric(AirPassengers)
+
+# First difference
+diff1 <- diff(original)
+
+# Second difference
+diff2 <- diff(diff1)
+
+diff_df <- data.frame(
+  Time = c(1:length(original), 
+           2:length(original), 
+           3:length(original)),
+  Value = c(original, diff1, diff2),
+  Type = rep(c("Original (Non-stationary)", 
+               "First Difference", 
+               "Second Difference"), 
+             times = c(length(original), 
+                       length(diff1), 
+                       length(diff2)))
+)
+
+ggplot(diff_df, aes(x = Time, y = Value)) +
+  geom_line(color = "darkblue", size = 0.7) +
+  geom_hline(yintercept = 0, color = "red", 
+             linetype = "dashed", alpha = 0.5) +
+  facet_wrap(~Type, scales = "free", ncol = 1) +
+  labs(title = "Making Series Stationary via Differencing",
+       x = "Time", y = "Value") +
+  theme_minimal()
+```
+
+**After first differencing:** Series becomes stationary!
+
+## Slide 16: Log Transformation for Variance Stabilization
+
+**Problem:** Variance increases with level (heteroscedasticity)
+
+**Solution:** Log transformation
+
+$$Y_t' = \log(Y_t)$$
+
+\vspace{0.3cm}
+```{r log-transform, echo=TRUE, eval=FALSE}
+# Log transformation
+log_series <- log(AirPassengers)
+plot(log_series, main = "Log-transformed Series")
+
+# Compare variance
+var(AirPassengers)
+var(log_series)
+
+# Often combine: log + differencing
+log_diff <- diff(log(AirPassengers))
+plot(log_diff)
+```
+
+## Slide 17: Log Transformation Example
+```{r log-transform-visual, echo=FALSE, fig.height=3.5}
+# Original
+original_ap <- as.numeric(AirPassengers)
+time_ap <- time(AirPassengers)
+
+# Log transformed
+log_ap <- log(original_ap)
+
+# Combine both
+transform_df <- data.frame(
+  Time = rep(time_ap, 2),
+  Value = c(original_ap, log_ap),
+  Type = rep(c("Original\n(Increasing Variance)", 
+               "Log-Transformed\n(Stabilized Variance)"), 
+             each = length(original_ap))
+)
+
+ggplot(transform_df, aes(x = Time, y = Value)) +
+  geom_line(color = "darkblue", size = 0.8) +
+  facet_wrap(~Type, scales = "free_y", ncol = 1) +
+  labs(title = "Variance Stabilization via Log Transformation",
+       x = "Year", y = "Value") +
+  theme_minimal()
+```
+
+## Slide 18: Autocorrelation Function (ACF)
+
+**Definition:** Correlation between $Y_t$ and $Y_{t-k}$ at different lags $k$
+
+$$\rho_k = \frac{Cov(Y_t, Y_{t-k})}{\sqrt{Var(Y_t)Var(Y_{t-k})}}$$
+
+\vspace{0.3cm}
+
+**ACF Plot:** Shows correlation at each lag
+
+**Interpretation:**
+
+- High ACF at lag $k$ → Strong relationship with past $k$ periods
+- ACF cuts off → MA process
+- ACF decays slowly → AR process or non-stationary
+
+## Slide 19: ACF in R
+```{r acf-example, echo=TRUE, fig.height=3}
+# Compute and plot ACF
+acf(AirPassengers, 
+    main = "ACF of Airline Passengers",
+    lag.max = 40)
+
+# Blue dashed lines = significance bounds
+# Values outside bounds = significant correlation
+```
+
+**Interpretation:** Strong positive correlations at multiple lags (non-stationary signal)
+
+## Slide 20: Partial Autocorrelation Function (PACF)
+
+**Definition:** Correlation between $Y_t$ and $Y_{t-k}$ after removing effects of intermediate lags
+
+\vspace{0.3cm}
+
+**Use Case:** Identify order of AR process
+
+**Interpretation:**
+
+- PACF cuts off at lag $p$ → AR($p$) process
+- PACF decays gradually → MA process
+```{r pacf-example, echo=TRUE, eval=FALSE}
+# Compute and plot PACF
+pacf(AirPassengers, 
+     main = "PACF of Airline Passengers",
+     lag.max = 40)
+```
+
+## Slide 21: ACF vs PACF - Model Identification
+```{r acf-pacf-comparison, echo=FALSE, fig.height=3.5}
+set.seed(123)
+
+# Generate AR(1) process
+ar1 <- arima.sim(model = list(ar = 0.7), n = 200)
+
+# Generate MA(1) process
+ma1 <- arima.sim(model = list(ma = 0.7), n = 200)
+
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+
+# AR(1) - ACF
+acf(ar1, main = "AR(1): ACF decays", lag.max = 20)
+
+# AR(1) - PACF
+pacf(ar1, main = "AR(1): PACF cuts at lag 1", lag.max = 20)
+
+# MA(1) - ACF
+acf(ma1, main = "MA(1): ACF cuts at lag 1", lag.max = 20)
+
+# MA(1) - PACF
+pacf(ma1, main = "MA(1): PACF decays", lag.max = 20)
+```
+
+## Slide 22: White Noise - The Baseline
+
+**Definition:** Series with no autocorrelation
+
+$$Y_t \sim N(0, \sigma^2), \quad \text{all } t$$
+
+\vspace{0.3cm}
+
+**Properties:**
+
+- Mean = 0 (or constant)
+- Constant variance
+- No correlation between observations
+- Unpredictable (best forecast = mean)
+
+\vspace{0.3cm}
+
+**Test:** Ljung-Box test
+
+- H0: Series is white noise
+- p-value < 0.05 → Reject null → Has structure (predictable)
+
+## Slide 23: Testing for White Noise
+```{r white-noise, echo=TRUE, fig.height=2.5}
+set.seed(123)
+
+# Generate white noise
+white_noise <- rnorm(200, mean = 0, sd = 1)
+
+# Plot
+plot(white_noise, type = "l", 
+     main = "White Noise Example",
+     ylab = "Value", xlab = "Time")
+
+# Ljung-Box test
+Box.test(white_noise, lag = 20, type = "Ljung-Box")
+# p-value > 0.05 → Cannot reject H0 → White noise
+```
+
+## Slide 24: Random Walk - The Simplest Non-Stationary Process
+
+**Definition:** Current value = previous value + random shock
+
+$$Y_t = Y_{t-1} + \epsilon_t, \quad \epsilon_t \sim N(0, \sigma^2)$$
+
+\vspace{0.3cm}
+
+**Properties:**
+
+- Non-stationary (variance increases over time)
+- Best forecast = current value
+- Common in financial data (stock prices)
+
+\vspace{0.3cm}
+
+**Make stationary:** First differencing
+
+$$\Delta Y_t = Y_t - Y_{t-1} = \epsilon_t \quad \text{(white noise!)}$$
+
+## Slide 25: Random Walk Visualization
+```{r random-walk, echo=FALSE, fig.height=3.5}
+set.seed(42)
+n <- 200
+
+# Generate multiple random walks
+rw1 <- cumsum(rnorm(n))
+rw2 <- cumsum(rnorm(n))
+rw3 <- cumsum(rnorm(n))
+rw4 <- cumsum(rnorm(n))
+
+rw_df <- data.frame(
+  Time = rep(1:n, 4),
+  Value = c(rw1, rw2, rw3, rw4),
+  Walk = rep(paste("Walk", 1:4), each = n)
+)
+
+ggplot(rw_df, aes(x = Time, y = Value, color = Walk)) +
+  geom_line(size = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
+  labs(title = "Random Walks: Same Process, Different Realizations",
+       subtitle = "Demonstrates non-stationarity: variance increases over time",
+       x = "Time", y = "Value") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 26: Autoregressive (AR) Models
+
+**AR(p) Model:** Current value depends on $p$ past values
+
+$$Y_t = c + \phi_1 Y_{t-1} + \phi_2 Y_{t-2} + \cdots + \phi_p Y_{t-p} + \epsilon_t$$
+
+\vspace{0.3cm}
+
+**Example - AR(1):**
+
+$$Y_t = c + \phi_1 Y_{t-1} + \epsilon_t$$
+
+\vspace{0.3cm}
+
+**Stationarity Condition:** $|\phi_1| < 1$
+
+**Interpretation:** If $\phi_1 = 0.7$, then 70\% of previous value carries forward
+
+## Slide 27: AR(1) Process Examples
+```{r ar1-examples, echo=FALSE, fig.height=3.5}
+set.seed(123)
+n <- 200
+
+# Different AR(1) coefficients
+ar_small <- arima.sim(model = list(ar = 0.3), n = n)
+ar_medium <- arima.sim(model = list(ar = 0.7), n = n)
+ar_large <- arima.sim(model = list(ar = 0.95), n = n)
+
+ar_df <- data.frame(
+  Time = rep(1:n, 3),
+  Value = c(ar_small, ar_medium, ar_large),
+  Coefficient = rep(c("phi = 0.3 (Weak memory)", 
+                      "phi = 0.7 (Moderate memory)", 
+                      "phi = 0.95 (Strong memory)"), 
+                    each = n)
+)
+
+ggplot(ar_df, aes(x = Time, y = Value)) +
+  geom_line(color = "darkblue", size = 0.7) +
+  facet_wrap(~Coefficient, ncol = 1, scales = "free_y") +
+  labs(title = "AR(1) Process with Different Coefficients",
+       subtitle = "Higher coefficient = stronger dependence on past",
+       x = "Time", y = "Value") +
+  theme_minimal()
+```
+
+## Slide 28: Moving Average (MA) Models
+
+**MA(q) Model:** Current value depends on past $q$ error terms
+
+$$Y_t = \mu + \epsilon_t + \theta_1 \epsilon_{t-1} + \theta_2 \epsilon_{t-2} + \cdots + \theta_q \epsilon_{t-q}$$
+
+\vspace{0.3cm}
+
+**Example - MA(1):**
+
+$$Y_t = \mu + \epsilon_t + \theta_1 \epsilon_{t-1}$$
+
+\vspace{0.3cm}
+
+**Key Difference from AR:**
+
+- AR: Depends on past **values**
+- MA: Depends on past **errors**
+
+## Slide 29: MA(1) Process Examples
+```{r ma1-examples, echo=FALSE, fig.height=3.5}
+set.seed(123)
+n <- 200
+
+# Different MA(1) coefficients
+ma_small <- arima.sim(model = list(ma = 0.3), n = n)
+ma_medium <- arima.sim(model = list(ma = 0.7), n = n)
+ma_large <- arima.sim(model = list(ma = -0.7), n = n)
+
+ma_df <- data.frame(
+  Time = rep(1:n, 3),
+  Value = c(ma_small, ma_medium, ma_large),
+  Coefficient = rep(c("theta = 0.3", 
+                      "theta = 0.7", 
+                      "theta = -0.7 (Negative)"), 
+                    each = n)
+)
+
+ggplot(ma_df, aes(x = Time, y = Value)) +
+  geom_line(color = "darkred", size = 0.7) +
+  facet_wrap(~Coefficient, ncol = 1, scales = "free_y") +
+  labs(title = "MA(1) Process with Different Coefficients",
+       subtitle = "Negative theta creates oscillating pattern",
+       x = "Time", y = "Value") +
+  theme_minimal()
+```
+
+## Slide 30: AR vs MA - Visual Comparison
+```{r ar-vs-ma, echo=FALSE, fig.height=3.5}
+set.seed(42)
+n <- 200
+
+# AR(1)
+ar_process <- arima.sim(model = list(ar = 0.8), n = n)
+
+# MA(1)
+ma_process <- arima.sim(model = list(ma = 0.8), n = n)
+
+comparison <- data.frame(
+  Time = rep(1:n, 2),
+  Value = c(ar_process, ma_process),
+  Type = rep(c("AR(1): phi = 0.8\n(Smooth, persistent)", 
+               "MA(1): theta = 0.8\n(Spiky, short memory)"), 
+             each = n)
+)
+
+ggplot(comparison, aes(x = Time, y = Value)) +
+  geom_line(color = "darkblue", size = 0.7) +
+  facet_wrap(~Type, ncol = 1, scales = "free_y") +
+  labs(title = "AR vs MA Processes",
+       subtitle = "AR: smoother, longer memory | MA: spikier, short memory",
+       x = "Time", y = "Value") +
+  theme_minimal()
+```
+
+---
+
+
+# ARIMA Models
+
+## Slide 31: Combining AR and MA - ARMA Models
+
+**ARMA(p,q) Model:** Combines AR(p) and MA(q)
+
+$$Y_t = c + \phi_1 Y_{t-1} + \cdots + \phi_p Y_{t-p} + \epsilon_t + \theta_1 \epsilon_{t-1} + \cdots + \theta_q \epsilon_{t-q}$$
+
+\vspace{0.3cm}
+
+**Why Combine?**
+
+- More flexible than pure AR or MA
+- Often need fewer parameters
+- Better fits real-world data
+
+\vspace{0.3cm}
+
+**Example - ARMA(1,1):**
+
+$$Y_t = c + \phi_1 Y_{t-1} + \epsilon_t + \theta_1 \epsilon_{t-1}$$
+
+## Slide 32: ARIMA - Adding Integration
+
+**ARIMA(p,d,q) Model:**
+
+- **p:** Order of AR component
+- **d:** Degree of differencing (Integration)
+- **q:** Order of MA component
+
+\vspace{0.3cm}
+
+**Process:**
+
+1. Difference the series $d$ times to achieve stationarity
+2. Fit ARMA(p,q) to the differenced series
+
+\vspace{0.3cm}
+
+**Common Models:**
+
+- ARIMA(1,0,0) = AR(1)
+- ARIMA(0,1,1) = Random walk + MA(1) shock
+- ARIMA(1,1,1) = Most common in practice
+
+## Slide 33: ARIMA Model Selection - The Box-Jenkins Method
+
+**Iterative 4-Step Process:**
+
+1. **Identification:** Determine p, d, q
+   - Check stationarity (ADF test)
+   - Plot ACF/PACF
+   - Choose candidate models
+
+2. **Estimation:** Fit model parameters
+
+3. **Diagnostic Checking:** Validate residuals
+   - Should be white noise
+   - Check ACF of residuals
+
+4. **Forecasting:** Use the validated model
+
+## Slide 34: Step 1 - Model Identification Guide
+```{r identification-guide, echo=FALSE, fig.height=3.5}
+# Create identification guide table
+guide_data <- data.frame(
+  ACF = c("Cuts off at lag q", "Decays gradually", "Decays gradually"),
+  PACF = c("Decays gradually", "Cuts off at lag p", "Decays gradually"),
+  Model = c("MA(q)", "AR(p)", "ARMA(p,q)")
+)
+
+library(gridExtra)
+library(grid)
+
+tt <- ttheme_default(
+  core = list(fg_params = list(cex = 0.9)),
+  colhead = list(fg_params = list(cex = 1.0, fontface = "bold"),
+                 bg_params = list(fill = "steelblue", alpha = 0.5))
+)
+
+g <- tableGrob(guide_data, rows = NULL, theme = tt)
+
+grid.arrange(g, 
+             top = textGrob("ARIMA Model Identification Rules", 
+                           gp = gpar(fontsize = 14, fontface = "bold")),
+             bottom = textGrob("'Cuts off' = drops to zero after lag k\n'Decays' = gradually approaches zero", 
+                              gp = gpar(fontsize = 9)))
+```
+
+## Slide 35: Determining d - Differencing Order
+
+**Strategy:**
+
+1. Plot the series
+2. Run ADF test
+3. If p-value > 0.05 → Apply first difference (d=1)
+4. Test again
+5. Repeat if needed (rarely d > 2)
+```{r determine-d, echo=TRUE, eval=FALSE}
+# Test original series
+adf.test(AirPassengers)  # p-value = 0.01 (non-stationary)
+
+# First difference
+diff1 <- diff(AirPassengers)
+adf.test(diff1)  # p-value = 0.01 (stationary!)
+
+# Conclusion: d = 1
+```
+
+## Slide 36: Determining p and q - ACF/PACF Analysis
+```{r determine-pq, echo=TRUE, eval=FALSE}
+# After differencing, examine ACF/PACF
+diff_series <- diff(log(AirPassengers))
+
+par(mfrow = c(2, 1))
+acf(diff_series, lag.max = 40, 
+    main = "ACF of Differenced Series")
+pacf(diff_series, lag.max = 40, 
+     main = "PACF of Differenced Series")
+
+# Look for:
+# - ACF: Significant spike at lag q → MA(q)
+# - PACF: Significant spike at lag p → AR(p)
+# - Both: ARMA(p,q)
+```
+
+## Slide 37: ACF/PACF for Model Selection
+```{r acf-pacf-selection, echo=FALSE, fig.height=3.5}
+# Use log-differenced AirPassengers
+log_diff_ap <- diff(log(AirPassengers))
+
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 1))
+
+acf(log_diff_ap, lag.max = 36, 
+    main = "ACF: Suggests MA(1) - cuts off after lag 1",
+    col = "darkblue", lwd = 2)
+
+pacf(log_diff_ap, lag.max = 36, 
+     main = "PACF: Some decay, suggests AR component",
+     col = "darkred", lwd = 2)
+```
+
+**Interpretation:** Try ARIMA(1,1,1) or ARIMA(0,1,1) as starting points
+
+## Slide 38: Fitting ARIMA Models in R
+```{r fit-arima, echo=TRUE, eval=FALSE}
+library(forecast)
+
+# Manual specification
+model1 <- arima(AirPassengers, order = c(1, 1, 1))
+summary(model1)
+
+# Auto ARIMA (automated selection)
+model_auto <- auto.arima(AirPassengers, 
+                         seasonal = TRUE,
+                         stepwise = TRUE,
+                         trace = TRUE)
+
+summary(model_auto)
+
+# Compare models
+AIC(model1)
+AIC(model_auto)
+# Lower AIC = better model
+```
+
+## Slide 39: Model Comparison - Information Criteria
+
+**Akaike Information Criterion (AIC):**
+
+$$AIC = -2\log(L) + 2k$$
+
+**Bayesian Information Criterion (BIC):**
+
+$$BIC = -2\log(L) + k\log(n)$$
+
+where:
+
+- $L$ = likelihood
+- $k$ = number of parameters
+- $n$ = sample size
+
+\vspace{0.3cm}
+
+**Rule:** Lower is better (balances fit vs complexity)
+
+**BIC:** Penalizes complexity more heavily than AIC
+
+## Slide 40: Model Comparison Example
+```{r model-comparison, echo=FALSE, fig.height=3.5}
+# Simulate fitting multiple models
+models <- c("ARIMA(0,1,1)", "ARIMA(1,1,0)", "ARIMA(1,1,1)", 
+            "ARIMA(2,1,1)", "ARIMA(1,1,2)")
+aic_values <- c(1012, 1008, 998, 1001, 999)
+bic_values <- c(1022, 1018, 1013, 1021, 1019)
+
+comparison_df <- data.frame(
+  Model = rep(models, 2),
+  Value = c(aic_values, bic_values),
+  Criterion = rep(c("AIC", "BIC"), each = 5)
+)
+
+ggplot(comparison_df, aes(x = Model, y = Value, fill = Criterion)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("steelblue", "coral")) +
+  geom_hline(yintercept = min(aic_values), 
+             linetype = "dashed", color = "darkgreen") +
+  labs(title = "Model Comparison: AIC and BIC",
+       subtitle = "ARIMA(1,1,1) has lowest AIC (best model)",
+       x = "", y = "Information Criterion Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom")
+```
+
+## Slide 41: Diagnostic Checking - Residual Analysis
+
+**After fitting, check residuals should be white noise:**
+
+1. **Plot residuals:** No patterns
+2. **ACF of residuals:** No significant lags
+3. **Ljung-Box test:** p-value > 0.05
+4. **Normality:** QQ-plot
+```{r residual-check, echo=TRUE, eval=FALSE}
+# Fit model
+model <- arima(AirPassengers, order = c(1, 1, 1))
+
+# Extract residuals
+residuals <- residuals(model)
+
+# Diagnostic plots
+tsdiag(model)
+
+# Ljung-Box test
+Box.test(residuals, lag = 20, type = "Ljung-Box")
+# p > 0.05 → Residuals are white noise (good!)
+```
+
+## Slide 42: Residual Diagnostics Visualization
+```{r residual-diagnostics, echo=FALSE, fig.height=3.5}
+# Simulate good residuals (white noise)
+set.seed(123)
+good_residuals <- rnorm(144, 0, 1)
+
+# Simulate bad residuals (still has pattern)
+bad_residuals <- arima.sim(model = list(ar = 0.5), n = 144)
+
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+
+# Good residuals - time plot
+plot(good_residuals, type = "l", col = "darkblue",
+     main = "Good: Random scatter",
+     xlab = "Time", ylab = "Residual")
+abline(h = 0, col = "red", lty = 2)
+
+# Good residuals - ACF
+acf(good_residuals, main = "Good: No correlation")
+
+# Bad residuals - time plot
+plot(bad_residuals, type = "l", col = "darkred",
+     main = "Bad: Pattern remains",
+     xlab = "Time", ylab = "Residual")
+abline(h = 0, col = "red", lty = 2)
+
+# Bad residuals - ACF
+acf(bad_residuals, main = "Bad: Significant lags")
+```
+
+## Slide 43: Complete ARIMA Workflow Example
+```{r complete-workflow, echo=TRUE, eval=FALSE}
+library(forecast)
+
+# 1. Load and visualize data
+data(AirPassengers)
+plot(AirPassengers)
+
+# 2. Check stationarity
+adf.test(AirPassengers)  # Non-stationary
+
+# 3. Transform and difference
+log_ap <- log(AirPassengers)
+diff_ap <- diff(log_ap)
+adf.test(diff_ap)  # Stationary!
+
+# 4. Examine ACF/PACF
+acf(diff_ap)
+pacf(diff_ap)
+
+# 5. Fit candidate models
+model1 <- arima(log_ap, order = c(0, 1, 1))
+model2 <- arima(log_ap, order = c(1, 1, 1))
+
+# 6. Compare
+AIC(model1); AIC(model2)
+
+# 7. Check diagnostics
+tsdiag(model1)
+
+# 8. If good, use for forecasting!
+```
+
+## Slide 44: Forecasting with ARIMA
+
+**Point Forecast:** Expected future value
+
+$$\hat{Y}_{T+h} = E[Y_{T+h} | Y_1, \ldots, Y_T]$$
+
+**Prediction Interval:** Uncertainty around forecast
+
+- 80\% interval: 80\% chance true value falls within
+- 95\% interval: 95\% chance true value falls within
+
+\vspace{0.3cm}
+
+**Key Property:** Intervals widen as horizon $h$ increases (more uncertainty)
+
+## Slide 45: Generating Forecasts in R
+```{r forecasting-arima, echo=TRUE, eval=FALSE}
+# Fit model
+model <- auto.arima(AirPassengers)
+
+# Forecast 24 months ahead
+forecasts <- forecast(model, h = 24)
+
+# View forecasts
+print(forecasts)
+
+# Plot forecast with prediction intervals
+plot(forecasts, 
+     main = "24-Month Forecast",
+     xlab = "Year", 
+     ylab = "Passengers")
+
+# Dark gray = 80% interval
+# Light gray = 95% interval
+```
+
+## Slide 46: Forecast Visualization
+```{r forecast-viz, echo=FALSE, fig.height=3.5}
+# Fit ARIMA model
+model_fit <- auto.arima(AirPassengers)
+
+# Generate forecasts
+fc <- forecast(model_fit, h = 24)
+
+# Convert to data frame for ggplot
+time_orig <- time(AirPassengers)
+time_fc <- time(fc$mean)
+
+# Create historical data
+historical_df <- data.frame(
+  Time = time_orig,
+  Value = as.numeric(AirPassengers),
+  Type = "Observed"
+)
+
+# Create forecast data
+forecast_df <- data.frame(
+  Time = time_fc,
+  Forecast = as.numeric(fc$mean),
+  Lower95 = as.numeric(fc$lower[, 2]),
+  Upper95 = as.numeric(fc$upper[, 2])
+)
+
+# Plot with separate data frames
+ggplot() +
+  # Prediction interval ribbon
+  geom_ribbon(data = forecast_df,
+              aes(x = Time, ymin = Lower95, ymax = Upper95),
+              fill = "lightblue", alpha = 0.5) +
+  # Historical data
+  geom_line(data = historical_df,
+            aes(x = Time, y = Value),
+            color = "darkblue", size = 1) +
+  # Forecast line
+  geom_line(data = forecast_df,
+            aes(x = Time, y = Forecast),
+            color = "darkred", size = 1, linetype = "dashed") +
+  labs(title = "ARIMA Forecast with 95% Prediction Interval",
+       subtitle = "Blue = Historical | Red = Forecast | Shaded = Uncertainty",
+       x = "Year", y = "Passengers (thousands)") +
+  theme_minimal()
+```
+## Slide 47: Forecast Accuracy Metrics
+
+**Mean Absolute Error (MAE):**
+
+$$MAE = \frac{1}{n}\sum_{i=1}^{n}|y_i - \hat{y}_i|$$
+
+**Root Mean Squared Error (RMSE):**
+
+$$RMSE = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{y}_i)^2}$$
+
+**Mean Absolute Percentage Error (MAPE):**
+
+$$MAPE = \frac{100}{n}\sum_{i=1}^{n}\left|\frac{y_i - \hat{y}_i}{y_i}\right|$$
+
+\vspace{0.3cm}
+
+**Lower is better** for all metrics
+
+## Slide 48: Cross-Validation for Time Series
+
+**Time Series Cross-Validation (Rolling Origin):**
+
+1. Train on data up to time $t$
+2. Forecast next period(s)
+3. Compare with actual
+4. Move origin forward, repeat
+```{r ts-cv, echo=TRUE, eval=FALSE}
+# Time series cross-validation
+cv_results <- tsCV(AirPassengers, 
+                   forecastfunction = function(x, h) {
+                     forecast(auto.arima(x), h = h)
+                   },
+                   h = 1)  # 1-step ahead forecast
+
+# Compute accuracy
+mae <- mean(abs(cv_results), na.rm = TRUE)
+rmse <- sqrt(mean(cv_results^2, na.rm = TRUE))
+
+cat("MAE:", mae, "\n")
+cat("RMSE:", rmse, "\n")
+```
+
+## Slide 49: Train-Test Split for Time Series
+```{r train-test-split, echo=FALSE, fig.height=3.5}
+# Visualize train-test split concept
+n <- length(AirPassengers)
+train_size <- floor(0.8 * n)
+
+time_all <- time(AirPassengers)
+train_data <- data.frame(
+  Time = time_all[1:train_size],
+  Value = as.numeric(AirPassengers)[1:train_size],
+  Set = "Training (80%)"
+)
+
+test_data <- data.frame(
+  Time = time_all[(train_size + 1):n],
+  Value = as.numeric(AirPassengers)[(train_size + 1):n],
+  Set = "Test (20%)"
+)
+
+split_df <- rbind(train_data, test_data)
+
+ggplot(split_df, aes(x = Time, y = Value, color = Set)) +
+  geom_line(size = 1.2) +
+  geom_vline(xintercept = time_all[train_size], 
+             linetype = "dashed", color = "red", size = 1) +
+  annotate("text", x = time_all[train_size], y = 600, 
+           label = "Split Point", color = "red", angle = 90) +
+  scale_color_manual(values = c("darkblue", "darkgreen")) +
+  labs(title = "Time Series Train-Test Split",
+       subtitle = "CRITICAL: Never shuffle! Preserve temporal order",
+       x = "Year", y = "Passengers") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Warning:** Never shuffle time series data!
+
+## Slide 50: Seasonal ARIMA (SARIMA)
+
+**SARIMA(p,d,q)(P,D,Q)s Model:**
+
+- Lowercase: Non-seasonal components
+- Uppercase: Seasonal components  
+- $s$: Seasonal period (e.g., 12 for monthly, 4 for quarterly)
+
+\vspace{0.3cm}
+
+**Example:** SARIMA(1,1,1)(1,1,1)₁₂
+
+- Regular ARIMA(1,1,1)
+- Seasonal ARIMA(1,1,1) with period 12
+
+\vspace{0.3cm}
+
+**Use Case:** Data with strong seasonal patterns (AirPassengers!)
+
+## Slide 51: SARIMA Model Equation
+
+**Full SARIMA Equation:**
+
+$$\phi(B)\Phi(B^s)(1-B)^d(1-B^s)^D Y_t = \theta(B)\Theta(B^s)\epsilon_t$$
+
+\vspace{0.3cm}
+
+where:
+
+- $B$ = Backshift operator: $B Y_t = Y_{t-1}$
+- $\phi(B)$ = Non-seasonal AR polynomial
+- $\Phi(B^s)$ = Seasonal AR polynomial
+- $\theta(B)$ = Non-seasonal MA polynomial
+- $\Theta(B^s)$ = Seasonal MA polynomial
+
+\vspace{0.3cm}
+
+**Don't panic!** R handles this complexity automatically
+
+## Slide 52: Fitting SARIMA in R
+```{r sarima-fit, echo=TRUE, eval=FALSE}
+# Manual SARIMA specification
+# SARIMA(1,1,1)(1,1,1)[12]
+sarima_model <- arima(AirPassengers,
+                      order = c(1, 1, 1),
+                      seasonal = list(order = c(1, 1, 1), 
+                                     period = 12))
+
+summary(sarima_model)
+
+# Auto SARIMA
+auto_sarima <- auto.arima(AirPassengers,
+                          seasonal = TRUE,
+                          stepwise = FALSE,
+                          approximation = FALSE)
+
+summary(auto_sarima)
+# Typically finds: ARIMA(0,1,1)(0,1,1)[12]
+```
+
+## Slide 53: SARIMA vs ARIMA Comparison
+```{r sarima-comparison, echo=FALSE, fig.height=3.5}
+# Fit both models
+arima_model <- auto.arima(AirPassengers, seasonal = FALSE)
+sarima_model <- auto.arima(AirPassengers, seasonal = TRUE)
+
+# Generate forecasts
+fc_arima <- forecast(arima_model, h = 24)
+fc_sarima <- forecast(sarima_model, h = 24)
+
+# Combine for plotting
+time_fc <- time(fc_arima$mean)
+
+comparison_fc <- data.frame(
+  Time = rep(c(time(AirPassengers), time_fc), 2),
+  Value = c(as.numeric(AirPassengers), as.numeric(fc_arima$mean),
+            as.numeric(AirPassengers), as.numeric(fc_sarima$mean)),
+  Type = rep(c("ARIMA (No Seasonality)", "SARIMA (With Seasonality)"), 
+             each = length(AirPassengers) + 24),
+  Forecast = rep(c(rep("Historical", length(AirPassengers)), 
+                   rep("Forecast", 24)), 2)
+)
+
+ggplot(comparison_fc, aes(x = Time, y = Value, 
+                          color = Forecast, linetype = Forecast)) +
+  geom_line(size = 0.9) +
+  facet_wrap(~Type, ncol = 1) +
+  scale_color_manual(values = c("darkblue", "darkred")) +
+  scale_linetype_manual(values = c("solid", "dashed")) +
+  labs(title = "ARIMA vs SARIMA Forecasts",
+       subtitle = "SARIMA captures seasonal pattern, ARIMA does not",
+       x = "Year", y = "Passengers") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 54: Identifying Seasonal Components
+
+**Check for seasonality:**
+
+1. **Visual inspection:** Regular peaks/valleys
+2. **Seasonal subseries plot:** Compare same periods
+3. **ACF:** Spikes at seasonal lags (12, 24, 36...)
+```{r seasonal-check, echo=TRUE, eval=FALSE}
+# Seasonal subseries plot
+monthplot(AirPassengers, 
+          main = "Seasonal Subseries Plot")
+
+# ACF shows seasonal pattern
+acf(AirPassengers, lag.max = 48)
+# Look for spikes at lags 12, 24, 36...
+
+# Seasonal decomposition
+decompose_result <- decompose(AirPassengers)
+plot(decompose_result)
+```
+
+## Slide 55: Seasonal Subseries Plot
+```{r seasonal-subseries, echo=FALSE, fig.height=3.5}
+# Create seasonal subseries plot
+ap_df <- data.frame(
+  Year = floor(time(AirPassengers)),
+  Month = cycle(AirPassengers),
+  Passengers = as.numeric(AirPassengers)
+)
+
+ggplot(ap_df, aes(x = Year, y = Passengers, color = factor(Month))) +
+  geom_line(size = 0.8) +
+  geom_point(size = 1.5) +
+  facet_wrap(~Month, ncol = 4, 
+             labeller = labeller(Month = function(x) {
+               month.abb[as.numeric(x)]
+             })) +
+  labs(title = "Seasonal Subseries Plot: Airline Passengers",
+       subtitle = "Each panel = one month across years. Clear upward trend in all months",
+       x = "Year", y = "Passengers (thousands)") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        strip.text = element_text(face = "bold", size = 9))
+```
+
+## Slide 56: Advanced Forecasting - Exponential Smoothing
+
+**Alternative to ARIMA: Exponential Smoothing**
+
+- **Simple:** No trend, no seasonality
+- **Holt:** With trend
+- **Holt-Winters:** With trend and seasonality
+
+\vspace{0.3cm}
+
+**Advantage:** Often more robust, easier to understand
+
+**ETS (Error, Trend, Seasonal) Framework:**
+```{r ets, echo=TRUE, eval=FALSE}
+# Automatic ETS model selection
+ets_model <- ets(AirPassengers)
+summary(ets_model)
+
+# Forecast
+ets_forecast <- forecast(ets_model, h = 24)
+plot(ets_forecast)
+```
+
+## Slide 57: ETS vs ARIMA
+```{r ets-comparison, echo=FALSE, fig.height=3.5}
+# Fit ETS model
+ets_model <- ets(AirPassengers)
+fc_ets <- forecast(ets_model, h = 24)
+
+# Already have SARIMA forecast from earlier
+# fc_sarima defined in slide 53
+
+# Create comparison
+models <- c("SARIMA", "ETS")
+aic_vals <- c(AIC(sarima_model), AIC(ets_model))
+bic_vals <- c(BIC(sarima_model), BIC(ets_model))
+
+comparison_table <- data.frame(
+  Model = rep(models, 2),
+  Value = c(aic_vals, bic_vals),
+  Criterion = rep(c("AIC", "BIC"), each = 2)
+)
+
+ggplot(comparison_table, aes(x = Model, y = Value, fill = Criterion)) +
+  geom_col(position = "dodge", width = 0.7) +
+  scale_fill_manual(values = c("steelblue", "coral")) +
+  labs(title = "Model Comparison: SARIMA vs ETS",
+       subtitle = "Lower values indicate better fit",
+       x = "", y = "Information Criterion") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+**Conclusion:** Try both, compare performance on validation set!
+
+## Slide 58: Forecast Combination
+
+**Ensemble Forecasting:** Average multiple forecasts
+
+$$\hat{Y}_{combined} = w_1 \hat{Y}_{ARIMA} + w_2 \hat{Y}_{ETS} + w_3 \hat{Y}_{others}$$
+
+\vspace{0.3cm}
+
+**Benefits:**
+
+- Reduces forecast variance
+- Often outperforms individual models
+- Robust to model misspecification
+```{r forecast-combination, echo=TRUE, eval=FALSE}
+# Generate multiple forecasts
+fc1 <- forecast(auto.arima(AirPassengers), h = 24)
+fc2 <- forecast(ets(AirPassengers), h = 24)
+
+# Simple average
+combined_forecast <- (fc1$mean + fc2$mean) / 2
+
+# Plot
+plot(combined_forecast)
+```
+
+## Slide 59: Dealing with Multiple Seasonality
+
+**Problem:** Data with multiple seasonal patterns
+
+- Daily data: Weekly (7) + Yearly (365) seasonality
+- Hourly data: Daily (24) + Weekly (168) seasonality
+
+\vspace{0.3cm}
+
+**Solution: TBATS Model**
+
+- **T**rigonometric
+- **B**ox-Cox transformation
+- **A**RMA errors
+- **T**rend
+- **S**easonal components
+```{r tbats, echo=TRUE, eval=FALSE}
+# Fit TBATS model
+tbats_model <- tbats(time_series_data)
+
+# Forecast
+tbats_forecast <- forecast(tbats_model, h = 100)
+plot(tbats_forecast)
+```
+
+## Slide 60: Real-World Forecasting Workflow
+```{r forecasting-workflow, echo=FALSE, fig.height=3.5}
+# Create workflow diagram
+workflow_steps <- data.frame(
+  Step = 1:8,
+  Task = c("1. Data Collection\n& Cleaning",
+           "2. Exploratory\nAnalysis",
+           "3. Stationarity\nTests",
+           "4. Model\nIdentification",
+           "5. Model\nFitting",
+           "6. Diagnostics\nChecking",
+           "7. Forecast\nGeneration",
+           "8. Monitoring &\nUpdating"),
+  x = c(1, 2, 3, 4, 1, 2, 3, 4),
+  y = c(2, 2, 2, 2, 1, 1, 1, 1)
+)
+
+ggplot(workflow_steps, aes(x = x, y = y)) +
+  geom_tile(aes(fill = Step), color = "white", size = 2,
+            width = 0.85, height = 0.85) +
+  geom_text(aes(label = Task), size = 3, fontface = "bold") +
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  annotate("segment", x = 1.4, xend = 1.6, y = 2, yend = 2,
+           arrow = arrow(length = unit(0.2, "cm")), size = 1.5) +
+  annotate("segment", x = 2.4, xend = 2.6, y = 2, yend = 2,
+           arrow = arrow(length = unit(0.2, "cm")), size = 1.5) +
+  annotate("segment", x = 3.4, xend = 3.6, y = 2, yend = 2,
+           arrow = arrow(length = unit(0.2, "cm")), size = 1.5) +
+  annotate("segment", x = 4, xend = 4, y = 1.6, yend = 1.4,
+           arrow = arrow(length = unit(0.2, "cm")), size = 1.5) +
+  annotate("segment", x = 3.6, xend = 3.4, y = 1, yend = 1,
+           arrow = arrow(length = unit(0.2, "cm")), size = 1.5) +
+  annotate("segment", x = 2.6, xend = 2.4, y = 1, yend = 1,
+           arrow = arrow(length = unit(0.2, "cm")), size = 1.5) +
+  annotate("segment", x = 1.6, xend = 1.4, y = 1, yend = 1,
+           arrow = arrow(length = unit(0.2, "cm")), size = 1.5) +
+  labs(title = "Complete Time Series Forecasting Workflow",
+       subtitle = "Iterative process: If diagnostics fail, return to step 4") +
+  theme_void() +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5, size = 10))
+```
+
+---
+
+
+# Advanced Time Series Topics
+
+## Slide 61: Handling Missing Values in Time Series
+
+**Common Approaches:**
+
+1. **Linear Interpolation:** Connect neighboring points
+2. **Spline Interpolation:** Smooth curve fitting
+3. **Last Observation Carried Forward (LOCF)**
+4. **Model-based Imputation:** Use ARIMA to predict missing values
+```{r missing-values, echo=TRUE, eval=FALSE}
+library(zoo)
+
+# Introduce missing values (for demo)
+ts_with_na <- AirPassengers
+ts_with_na[c(10, 25, 50)] <- NA
+
+# Linear interpolation
+ts_interpolated <- na.approx(ts_with_na)
+
+# Spline interpolation
+ts_spline <- na.spline(ts_with_na)
+
+# Plot comparison
+plot(ts_interpolated, main = "Interpolated Time Series")
+```
+
+## Slide 62: Missing Value Imputation Visualization
+```{r missing-imputation-viz, echo=FALSE, fig.height=3.5}
+# Create series with missing values
+set.seed(123)
+t <- 1:100
+true_series <- 50 + 0.3 * t + 10 * sin(2 * pi * t / 20) + rnorm(100, 0, 3)
+
+# Introduce missing values
+missing_idx <- c(15, 16, 17, 40, 41, 65, 66, 67, 68)
+observed_series <- true_series
+observed_series[missing_idx] <- NA
+
+# Linear interpolation
+linear_imp <- approx(1:100, observed_series, xout = 1:100)$y
+
+# Create data frame
+imputation_df <- data.frame(
+  Time = rep(t, 3),
+  Value = c(observed_series, linear_imp, true_series),
+  Type = rep(c("Observed (with gaps)", 
+               "After Interpolation", 
+               "True Values (for reference)"), 
+             each = 100)
+)
+
+ggplot(imputation_df, aes(x = Time, y = Value)) +
+  geom_line(color = "darkblue", size = 0.8, na.rm = TRUE) +
+  geom_point(data = subset(imputation_df, Type == "Observed (with gaps)"),
+             color = "darkred", size = 2, na.rm = TRUE) +
+  facet_wrap(~Type, ncol = 1) +
+  labs(title = "Missing Value Imputation in Time Series",
+       subtitle = "Red points = observed data | Blue line = interpolated",
+       x = "Time", y = "Value") +
+  theme_minimal()
+```
+
+## Slide 63: Outlier Detection in Time Series
+
+**Methods:**
+
+1. **Statistical:** Values beyond mean ± 3σ
+2. **IQR Method:** Beyond Q1 - 1.5×IQR or Q3 + 1.5×IQR
+3. **Model-based:** Residuals from fitted model
+```{r outlier-detection, echo=TRUE, eval=FALSE}
+# Fit model
+model <- auto.arima(AirPassengers)
+
+# Extract residuals
+residuals <- residuals(model)
+
+# Detect outliers (|residual| > 2.5 SD)
+threshold <- 2.5 * sd(residuals)
+outliers <- which(abs(residuals) > threshold)
+
+# Plot
+plot(AirPassengers)
+points(time(AirPassengers)[outliers], 
+       AirPassengers[outliers], 
+       col = "red", pch = 19, cex = 2)
+```
+
+## Slide 64: Outlier Detection Example
+```{r outlier-viz, echo=FALSE, fig.height=3.5}
+# Create time series with outliers
+set.seed(42)
+n <- 120
+ts_clean <- 50 + 0.2 * (1:n) + 15 * sin(2 * pi * (1:n) / 12) + 
+            rnorm(n, 0, 3)
+
+# Add outliers
+outlier_idx <- c(20, 55, 90)
+ts_with_outliers <- ts_clean
+ts_with_outliers[outlier_idx] <- ts_with_outliers[outlier_idx] + 
+                                  c(30, -35, 40)
+
+# Detect using IQR method
+Q1 <- quantile(ts_with_outliers, 0.25)
+Q3 <- quantile(ts_with_outliers, 0.75)
+IQR_val <- Q3 - Q1
+lower_bound <- Q1 - 1.5 * IQR_val
+upper_bound <- Q3 + 1.5 * IQR_val
+
+detected_outliers <- which(ts_with_outliers < lower_bound | 
+                           ts_with_outliers > upper_bound)
+
+outlier_df <- data.frame(
+  Time = 1:n,
+  Value = ts_with_outliers,
+  Outlier = 1:n %in% detected_outliers
+)
+
+ggplot(outlier_df, aes(x = Time, y = Value)) +
+  geom_line(color = "darkblue", size = 0.8) +
+  geom_point(data = subset(outlier_df, Outlier == TRUE),
+             aes(x = Time, y = Value),
+             color = "red", size = 4, shape = 17) +
+  geom_hline(yintercept = upper_bound, linetype = "dashed", 
+             color = "red", alpha = 0.5) +
+  geom_hline(yintercept = lower_bound, linetype = "dashed", 
+             color = "red", alpha = 0.5) +
+  labs(title = "Outlier Detection Using IQR Method",
+       subtitle = "Red triangles = detected outliers | Dashed lines = bounds",
+       x = "Time", y = "Value") +
+  theme_minimal()
+```
+
+## Slide 65: Multivariate Time Series - VAR Models
+
+**Vector Autoregression (VAR):** Multiple time series that influence each other
+
+$$\mathbf{Y}_t = \mathbf{c} + \mathbf{\Phi}_1 \mathbf{Y}_{t-1} + \mathbf{\Phi}_2 \mathbf{Y}_{t-2} + \cdots + \mathbf{\epsilon}_t$$
+
+\vspace{0.3cm}
+
+**Example:** Stock prices of related companies
+
+- Apple stock → Microsoft stock
+- Microsoft stock → Apple stock
+- Mutual influence captured
+```{r var-model, echo=TRUE, eval=FALSE}
+library(vars)
+
+# Create multivariate time series
+data(Canada)
+
+# Fit VAR model
+var_model <- VAR(Canada, p = 2, type = "const")
+summary(var_model)
+
+# Forecast
+var_forecast <- predict(var_model, n.ahead = 10)
+plot(var_forecast)
+```
+
+## Slide 66: Granger Causality
+
+**Question:** Does time series X "Granger-cause" Y?
+
+\vspace{0.3cm}
+
+**Definition:** X Granger-causes Y if past values of X help predict Y beyond what Y's own past values provide
+
+\vspace{0.3cm}
+
+**Test:**
+
+- H0: X does not Granger-cause Y
+- p-value < 0.05 → Reject H0 → X Granger-causes Y
+```{r granger, echo=TRUE, eval=FALSE}
+library(lmtest)
+
+# Test if x Granger-causes y
+grangertest(y ~ x, order = 2)
+
+# Bidirectional test
+grangertest(x ~ y, order = 2)
+```
+
+## Slide 67: Structural Breaks in Time Series
+
+**Structural Break:** Permanent change in time series behavior
+
+\vspace{0.3cm}
+
+**Examples:**
+
+- Policy changes (new regulations)
+- Economic shocks (2008 financial crisis)
+- Technology adoption (internet boom)
+
+\vspace{0.3cm}
+
+**Detection:**
+```{r structural-breaks, echo=TRUE, eval=FALSE}
+library(strucchange)
+
+# Test for structural breaks
+bp_test <- breakpoints(AirPassengers ~ time(AirPassengers))
+summary(bp_test)
+
+# Plot breaks
+plot(bp_test)
+plot(AirPassengers)
+lines(fitted(bp_test), col = "red", lwd = 2)
+```
+
+## Slide 68: Structural Break Visualization
+```{r structural-break-viz, echo=FALSE, fig.height=3.5}
+# Simulate time series with structural break
+set.seed(123)
+n1 <- 60
+n2 <- 60
+t <- 1:(n1 + n2)
+
+# Before break: lower mean, lower variance
+series1 <- 50 + 0.1 * (1:n1) + rnorm(n1, 0, 3)
+
+# After break: higher mean, higher variance
+series2 <- 70 + 0.3 * (1:n2) + rnorm(n2, 0, 5)
+
+series_combined <- c(series1, series2)
+
+break_df <- data.frame(
+  Time = t,
+  Value = series_combined,
+  Period = c(rep("Before Break", n1), rep("After Break", n2))
+)
+
+ggplot(break_df, aes(x = Time, y = Value, color = Period)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = n1, linetype = "dashed", 
+             color = "red", size = 1.5) +
+  annotate("text", x = n1, y = 90, 
+           label = "Structural Break", 
+           color = "red", angle = 90, vjust = -0.5) +
+  scale_color_manual(values = c("darkblue", "darkgreen")) +
+  labs(title = "Structural Break in Time Series",
+       subtitle = "Change in mean and variance at t=60",
+       x = "Time", y = "Value") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 69: GARCH Models - Volatility Modeling
+
+**GARCH (Generalized AutoRegressive Conditional Heteroskedasticity):**
+
+Models time-varying variance (volatility clustering)
+
+$$\sigma_t^2 = \omega + \alpha \epsilon_{t-1}^2 + \beta \sigma_{t-1}^2$$
+
+\vspace{0.3cm}
+
+**Use Case:** Financial returns
+
+- Periods of high volatility cluster together
+- Periods of low volatility cluster together
+```{r garch, echo=TRUE, eval=FALSE}
+library(rugarch)
+
+# Specify GARCH(1,1) model
+spec <- ugarchspec(variance.model = list(model = "sGARCH",
+                                         garchOrder = c(1, 1)))
+
+# Fit model
+garch_fit <- ugarchfit(spec, data = returns)
+
+# Plot conditional volatility
+plot(garch_fit, which = 3)
+```
+
+## Slide 70: Volatility Clustering Example
+```{r volatility-clustering, echo=FALSE, fig.height=3.5}
+# Simulate GARCH-like returns
+set.seed(42)
+n <- 500
+
+# Low volatility period
+vol1 <- rnorm(150, 0, 0.5)
+
+# High volatility period
+vol2 <- rnorm(200, 0, 2)
+
+# Low volatility period again
+vol3 <- rnorm(150, 0, 0.6)
+
+returns <- c(vol1, vol2, vol3)
+
+vol_df <- data.frame(
+  Time = 1:n,
+  Returns = returns,
+  AbsReturns = abs(returns)
+)
+
+p1 <- ggplot(vol_df, aes(x = Time, y = Returns)) +
+  geom_line(color = "darkblue", size = 0.5) +
+  labs(title = "Returns Show Volatility Clustering",
+       x = "Time", y = "Returns") +
+  theme_minimal()
+
+p2 <- ggplot(vol_df, aes(x = Time, y = AbsReturns)) +
+  geom_line(color = "darkred", size = 0.5) +
+  labs(title = "Absolute Returns Reveal Volatility Periods",
+       x = "Time", y = "Absolute Returns") +
+  theme_minimal()
+
+gridExtra::grid.arrange(p1, p2, ncol = 1)
+```
+
+## Slide 71: Time Series Case Study - Retail Sales Forecasting
+
+**Business Problem:** Predict next quarter's sales for inventory planning
+
+**Data:** Monthly retail sales (5 years)
+
+**Approach:**
+
+1. EDA: Identify trend and seasonality
+2. Transform: Log + seasonal differencing
+3. Model: SARIMA(1,0,1)(1,1,1)₁₂
+4. Validate: MAPE = 3.2\% on test set
+5. Deploy: Generate rolling forecasts
+
+## Slide 72: Retail Sales - Data Exploration
+```{r retail-eda, echo=FALSE, fig.height=3.5}
+# Simulate retail sales data
+set.seed(123)
+months <- 1:60
+trend <- 100 + 2 * months
+seasonal <- 20 * sin(2 * pi * months / 12)
+noise <- rnorm(60, 0, 5)
+sales <- trend + seasonal + noise
+
+sales_ts <- ts(sales, start = c(2020, 1), frequency = 12)
+
+# Decomposition
+decomp_sales <- decompose(sales_ts)
+
+# Plot
+autoplot(decomp_sales) +
+  labs(title = "Retail Sales Decomposition",
+       x = "Time") +
+  theme_minimal()
+```
+
+## Slide 73: Retail Sales - Model and Forecast
+```{r retail-forecast, echo=FALSE, fig.height=3.5}
+# Fit model
+model_sales <- auto.arima(sales_ts, seasonal = TRUE)
+
+# Forecast 12 months
+fc_sales <- forecast(model_sales, h = 12)
+
+# Create plot data
+sales_df <- data.frame(
+  Time = time(sales_ts),
+  Value = as.numeric(sales_ts),
+  Type = "Historical"
+)
+
+forecast_sales_df <- data.frame(
+  Time = time(fc_sales$mean),
+  Value = as.numeric(fc_sales$mean),
+  Lower = as.numeric(fc_sales$lower[, 2]),
+  Upper = as.numeric(fc_sales$upper[, 2]),
+  Type = "Forecast"
+)
+
+ggplot() +
+  geom_ribbon(data = forecast_sales_df,
+              aes(x = Time, ymin = Lower, ymax = Upper),
+              fill = "lightblue", alpha = 0.4) +
+  geom_line(data = sales_df,
+            aes(x = Time, y = Value),
+            color = "darkblue", size = 1) +
+  geom_line(data = forecast_sales_df,
+            aes(x = Time, y = Value),
+            color = "darkred", size = 1, linetype = "dashed") +
+  labs(title = "Retail Sales Forecast: Next 12 Months",
+       subtitle = "MAPE on validation set: 3.2%",
+       x = "Year", y = "Sales ($1000s)") +
+  theme_minimal()
+```
+
+## Slide 74: Time Series Forecast Intervals - Interpretation
+
+**Key Points:**
+
+1. **80\% PI:** 80\% chance true value falls within
+2. **95\% PI:** 95\% chance true value falls within
+3. **Wider intervals = More uncertainty**
+
+\vspace{0.3cm}
+
+**Factors Affecting Width:**
+
+- Forecast horizon (longer = wider)
+- Model uncertainty
+- Historical volatility
+- Structural breaks
+
+\vspace{0.3cm}
+
+**Business Use:** Risk management and scenario planning
+
+## Slide 75: Common Time Series Pitfalls
+
+**Top 10 Mistakes:**
+
+1. **Ignoring stationarity** → Spurious results
+2. **Over-differencing** → Destroys information
+3. **Forgetting seasonality** → Poor forecasts
+4. **Using future data** → Data leakage
+5. **Not checking residuals** → Model inadequacy
+6. **Extrapolating too far** → Unreliable forecasts
+7. **Ignoring structural breaks** → Model misspecification
+8. **Wrong frequency** → Seasonal pattern mismatch
+9. **Not updating models** → Performance degradation
+10. **Assuming stationarity** → Wrong inference
+
+## Slide 76: Time Series Checklist
+
+**Before Forecasting:**
+
+- [ ] Plot the series (visual inspection)
+- [ ] Check for missing values
+- [ ] Identify trend component
+- [ ] Identify seasonal component
+- [ ] Test for stationarity (ADF test)
+- [ ] Apply transformations if needed
+- [ ] Split into train/test sets
+- [ ] Check for outliers
+- [ ] Examine ACF/PACF plots
+- [ ] Consider external events
+
+## Slide 77: Forecasting Best Practices
+
+**Production Forecasting:**
+
+1. **Monitor performance:** Track forecast errors continuously
+2. **Update regularly:** Retrain as new data arrives
+3. **Document assumptions:** Record transformations, parameters
+4. **Maintain baselines:** Compare against naive forecasts
+5. **Communicate uncertainty:** Always show prediction intervals
+6. **Version control:** Track model changes
+7. **A/B testing:** Compare model versions
+8. **Human oversight:** Expert review of forecasts
+
+## Slide 78: Transitioning to Unsupervised Learning
+
+**From Time Series to Clustering:**
+
+\vspace{0.3cm}
+
+**Time Series Focus:**
+
+- Temporal dependence
+- Forecasting future values
+- Understanding trends/seasonality
+
+\vspace{0.3cm}
+
+**Unsupervised Learning Focus:**
+
+- Finding hidden patterns
+- Grouping similar observations
+- Dimensionality reduction
+- **No labels needed!**
+
+## Slide 79: Why Unsupervised Learning?
+
+**Motivation:**
+```{r supervised-vs-unsupervised, echo=FALSE, fig.height=3}
+# Create comparison
+set.seed(42)
+n <- 100
+
+# Supervised: labeled data
+supervised_data <- data.frame(
+  x1 = rnorm(n),
+  x2 = rnorm(n),
+  Label = sample(c("A", "B"), n, replace = TRUE)
+)
+
+# Unsupervised: no labels
+unsupervised_data <- data.frame(
+  x1 = c(rnorm(50, -1.5, 0.5), rnorm(50, 1.5, 0.5)),
+  x2 = c(rnorm(50, -1.5, 0.5), rnorm(50, 1.5, 0.5)),
+  Label = "Unknown"
+)
+
+p1 <- ggplot(supervised_data, aes(x = x1, y = x2, color = Label)) +
+  geom_point(size = 2, alpha = 0.7) +
+  labs(title = "Supervised: Labels Known",
+       subtitle = "Goal: Predict labels for new data") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+p2 <- ggplot(unsupervised_data, aes(x = x1, y = x2)) +
+  geom_point(size = 2, alpha = 0.7, color = "gray40") +
+  labs(title = "Unsupervised: No Labels",
+       subtitle = "Goal: Discover hidden structure") +
+  theme_minimal()
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
+## Slide 80: Unsupervised Learning Taxonomy
+```{r unsupervised-taxonomy, echo=FALSE, fig.height=3.5}
+# Create taxonomy tree
+taxonomy_data <- data.frame(
+  Level = c(1, 2, 2, 2, 3, 3, 3, 3, 3, 3),
+  Label = c("Unsupervised\nLearning",
+            "Clustering", "Dimensionality\nReduction", "Association\nRules",
+            "K-Means", "Hierarchical", "PCA", "t-SNE", "Apriori", "FP-Growth"),
+  x = c(3, 1.5, 3, 4.5, 1, 2, 2.5, 3.5, 4, 5),
+  y = c(3, 2, 2, 2, 1, 1, 1, 1, 1, 1)
+)
+
+ggplot(taxonomy_data, aes(x = x, y = y)) +
+  geom_point(aes(size = Level), color = "darkblue", alpha = 0.7) +
+  geom_text(aes(label = Label), vjust = -1, size = 3, fontface = "bold") +
+  geom_segment(aes(x = 3, y = 2.9, xend = 1.5, yend = 2.1),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 3, y = 2.9, xend = 3, yend = 2.1),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 3, y = 2.9, xend = 4.5, yend = 2.1),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 1.5, y = 1.9, xend = 1, yend = 1.1),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 1.5, y = 1.9, xend = 2, yend = 1.1),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 3, y = 1.9, xend = 2.5, yend = 1.1),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 3, y = 1.9, xend = 3.5, yend = 1.1),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 4.5, y = 1.9, xend = 4, yend = 1.1),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_segment(aes(x = 4.5, y = 1.9, xend = 5, yend = 1.1),
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  scale_size_continuous(range = c(8, 15)) +
+  labs(title = "Unsupervised Learning Methods",
+       subtitle = "Lecture 5 covers highlighted methods") +
+  theme_void() +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 14))
+```
+
+# Introduction to Clustering
+
+## Slide 81: What is Clustering?
+
+**Definition:** Grouping data points so that:
+
+- Points in the same cluster are **similar**
+- Points in different clusters are **dissimilar**
+
+\vspace{0.3cm}
+
+**No ground truth labels!**
+
+\vspace{0.3cm}
+
+**Applications:**
+
+- Customer segmentation
+- Document categorization
+- Image compression
+- Anomaly detection
+- Gene expression analysis
+
+## Slide 82: Clustering Example - Customer Segmentation
+```{r clustering-example, echo=FALSE, fig.height=3.5}
+# Simulate customer data
+set.seed(42)
+
+# Three customer segments
+segment1 <- data.frame(
+  spending = rnorm(30, 30, 5),
+  frequency = rnorm(30, 5, 1),
+  segment = "Budget Shoppers"
+)
+
+segment2 <- data.frame(
+  spending = rnorm(30, 80, 8),
+  frequency = rnorm(30, 15, 2),
+  segment = "Regular Customers"
+)
+
+segment3 <- data.frame(
+  spending = rnorm(30, 150, 10),
+  frequency = rnorm(30, 25, 3),
+  segment = "Premium Customers"
+)
+
+customers <- rbind(segment1, segment2, segment3)
+
+ggplot(customers, aes(x = spending, y = frequency, color = segment)) +
+  geom_point(size = 3, alpha = 0.7) +
+  scale_color_manual(values = c("darkblue", "darkgreen", "darkred")) +
+  labs(title = "Customer Segmentation Example",
+       subtitle = "Goal: Discover these groups without labels",
+       x = "Average Spending ($)", 
+       y = "Purchase Frequency (per month)",
+       color = "Segment") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 83: Distance Metrics - Measuring Similarity
+
+**Common Distance Measures:**
+
+1. **Euclidean Distance (L2):**
+   $$d(x, y) = \sqrt{\sum_{i=1}^{n}(x_i - y_i)^2}$$
+
+2. **Manhattan Distance (L1):**
+   $$d(x, y) = \sum_{i=1}^{n}|x_i - y_i|$$
+
+3. **Cosine Similarity:**
+   $$\text{sim}(x, y) = \frac{x \cdot y}{\|x\|\|y\|}$$
+
+## Slide 84: Distance Metrics Visualization
+```{r distance-metrics, echo=FALSE, fig.height=3.5}
+# Two points
+p1 <- c(1, 1)
+p2 <- c(4, 5)
+
+# Create grid
+grid_data <- expand.grid(x = seq(0, 5, 0.1), y = seq(0, 6, 0.1))
+
+# Euclidean distance
+grid_data$euclidean <- sqrt((grid_data$x - p1[1])^2 + 
+                           (grid_data$y - p1[2])^2)
+
+# Manhattan distance
+grid_data$manhattan <- abs(grid_data$x - p1[1]) + 
+                       abs(grid_data$y - p1[2])
+
+# Plot Euclidean
+p_euc <- ggplot(grid_data, aes(x = x, y = y, fill = euclidean)) +
+  geom_tile() +
+  geom_point(data = data.frame(x = c(p1[1], p2[1]), 
+                               y = c(p1[2], p2[2])),
+             aes(x = x, y = y), 
+             size = 4, color = "red", inherit.aes = FALSE) +
+  geom_segment(aes(x = p1[1], y = p1[2], xend = p2[1], yend = p2[2]),
+               color = "red", size = 1, inherit.aes = FALSE) +
+  scale_fill_gradient(low = "white", high = "darkblue") +
+  labs(title = "Euclidean Distance", x = "", y = "") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Plot Manhattan
+p_man <- ggplot(grid_data, aes(x = x, y = y, fill = manhattan)) +
+  geom_tile() +
+  geom_point(data = data.frame(x = c(p1[1], p2[1]), 
+                               y = c(p1[2], p2[2])),
+             aes(x = x, y = y), 
+             size = 4, color = "red", inherit.aes = FALSE) +
+  geom_segment(aes(x = p1[1], y = p1[2], xend = p1[1], yend = p2[2]),
+               color = "red", size = 1, linetype = "dashed", 
+               inherit.aes = FALSE) +
+  geom_segment(aes(x = p1[1], y = p2[2], xend = p2[1], yend = p2[2]),
+               color = "red", size = 1, linetype = "dashed", 
+               inherit.aes = FALSE) +
+  scale_fill_gradient(low = "white", high = "darkred") +
+  labs(title = "Manhattan Distance", x = "", y = "") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+gridExtra::grid.arrange(p_euc, p_man, ncol = 2)
+```
+
+## Slide 85: Feature Scaling - Critical for Clustering
+
+**Problem:** Features on different scales dominate distance calculations
+
+\vspace{0.3cm}
+
+**Example:**
+
+- Income: $20,000 - $200,000
+- Age: 18 - 65
+
+Income will dominate the distance!
+
+\vspace{0.3cm}
+
+**Solution: Standardization**
+
+$$z = \frac{x - \mu}{\sigma}$$
+```{r scaling, echo=TRUE, eval=FALSE}
+# Standardize features
+data_scaled <- scale(data)
+
+# Alternative: Min-Max scaling [0, 1]
+data_minmax <- apply(data, 2, function(x) {
+  (x - min(x)) / (max(x) - min(x))
+})
+```
+
+## Slide 86: Impact of Scaling on Clustering
+```{r scaling-impact, echo=FALSE, fig.height=3.5}
+set.seed(42)
+
+# Create data with different scales
+data_unscaled <- data.frame(
+  Feature1 = c(rnorm(30, 10, 1), rnorm(30, 15, 1)),
+  Feature2 = c(rnorm(30, 100, 10), rnorm(30, 200, 10))
+)
+
+# Scale data
+data_scaled <- as.data.frame(scale(data_unscaled))
+data_scaled$Type <- "Scaled"
+data_unscaled$Type <- "Unscaled"
+
+combined_scaling <- rbind(data_unscaled, data_scaled)
+combined_scaling$Group <- rep(c(rep("A", 30), rep("B", 30)), 2)
+
+ggplot(combined_scaling, aes(x = Feature1, y = Feature2, color = Group)) +
+  geom_point(size = 2, alpha = 0.7) +
+  facet_wrap(~Type, scales = "free") +
+  scale_color_manual(values = c("darkblue", "darkred")) +
+  labs(title = "Impact of Feature Scaling",
+       subtitle = "Left: Feature2 dominates | Right: Balanced features",
+       x = "Feature 1", y = "Feature 2") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 87: K-Means Algorithm - Overview
+
+**Goal:** Partition $n$ observations into $k$ clusters
+
+\vspace{0.3cm}
+
+**Algorithm:**
+
+1. **Initialize:** Randomly select $k$ cluster centers
+2. **Assignment:** Assign each point to nearest center
+3. **Update:** Recalculate centers as mean of assigned points
+4. **Repeat:** Until convergence (centers don't change)
+
+\vspace{0.3cm}
+
+**Objective:** Minimize within-cluster sum of squares (WCSS)
+
+$$WCSS = \sum_{i=1}^{k}\sum_{x \in C_i}\|x - \mu_i\|^2$$
+
+## Slide 88: K-Means Step-by-Step Visualization
+```{r kmeans-steps, echo=FALSE, fig.height=3.5}
+set.seed(42)
+
+# Generate data
+cluster_data <- data.frame(
+  x = c(rnorm(30, 2, 0.5), rnorm(30, 5, 0.5), rnorm(30, 8, 0.5)),
+  y = c(rnorm(30, 2, 0.5), rnorm(30, 5, 0.5), rnorm(30, 8, 0.5))
+)
+
+# Step 1: Random initialization
+centers_init <- data.frame(
+  x = c(3, 6, 7),
+  y = c(4, 3, 7)
+)
+
+# Run k-means to get final result
+kmeans_result <- kmeans(cluster_data, centers = 3, nstart = 25)
+cluster_data$cluster_final <- as.factor(kmeans_result$cluster)
+centers_final <- as.data.frame(kmeans_result$centers)
+
+# Plot initialization
+p1 <- ggplot(cluster_data, aes(x = x, y = y)) +
+  geom_point(size = 2, alpha = 0.6) +
+  geom_point(data = centers_init, aes(x = x, y = y),
+             size = 6, shape = 4, color = "red", stroke = 2) +
+  labs(title = "Step 1: Random Centers", x = "", y = "") +
+  theme_minimal()
+
+# Plot final result
+p2 <- ggplot(cluster_data, aes(x = x, y = y, color = cluster_final)) +
+  geom_point(size = 2, alpha = 0.7) +
+  geom_point(data = centers_final, aes(x = x, y = y),
+             size = 6, shape = 4, color = "black", stroke = 2,
+             inherit.aes = FALSE) +
+  scale_color_manual(values = c("darkblue", "darkgreen", "darkred")) +
+  labs(title = "Step 4: Converged", x = "", y = "") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
+## Slide 89: K-Means in R
+```{r kmeans-r, echo=TRUE, eval=FALSE}
+# Load and prepare data
+data(iris)
+iris_features <- iris[, 1:4]
+
+# Scale features
+iris_scaled <- scale(iris_features)
+
+# Fit K-Means with k=3
+set.seed(123)
+kmeans_result <- kmeans(iris_scaled, 
+                        centers = 3,
+                        nstart = 25)  # Try 25 random starts
+
+# View results
+kmeans_result$centers    # Cluster centers
+kmeans_result$cluster    # Cluster assignments
+kmeans_result$size       # Cluster sizes
+
+# Visualize (first two dimensions)
+plot(iris_scaled[, 1:2], 
+     col = kmeans_result$cluster,
+     pch = 19,
+     main = "K-Means Clustering")
+points(kmeans_result$centers[, 1:2], 
+       col = 1:3, pch = 8, cex = 2)
+```
+
+## Slide 90: Choosing K - The Elbow Method
+
+**Problem:** How many clusters?
+
+\vspace{0.3cm}
+
+**Elbow Method:**
+
+1. Run K-Means for different values of $k$
+2. Plot WCSS vs $k$
+3. Look for "elbow" (point of diminishing returns)
+```{r elbow-method, echo=TRUE, eval=FALSE}
+# Compute WCSS for k = 1 to 10
+wcss <- numeric(10)
+
+for (k in 1:10) {
+  kmeans_fit <- kmeans(data_scaled, centers = k, nstart = 25)
+  wcss[k] <- kmeans_fit$tot.withinss
+}
+
+# Plot elbow curve
+plot(1:10, wcss, type = "b", 
+     xlab = "Number of Clusters (k)",
+     ylab = "Within-Cluster Sum of Squares",
+     main = "Elbow Method")
+```
+
+
+## Slide 91: Mining Association Rules - Complete Example
+```{r arules-complete, echo=TRUE, eval=FALSE}
+library(arules)
+library(arulesViz)
+
+# Load grocery transactions
+data("Groceries")
+
+# Summary statistics
+summary(Groceries)
+# Output: 9835 transactions, 169 items
+
+# Item frequency plot
+itemFrequencyPlot(Groceries, topN = 20,
+                  type = "absolute",
+                  main = "Top 20 Most Frequent Items")
+
+# Mine rules
+rules <- apriori(Groceries,
+                 parameter = list(
+                   supp = 0.001,
+                   conf = 0.8,
+                   minlen = 2,
+                   maxlen = 10
+                 ))
+
+# Inspect top rules
+inspect(sort(rules, by = "lift")[1:10])
+
+# Filter specific rules
+beer_rules <- subset(rules, items %in% "bottled beer")
+inspect(beer_rules)
+```
+## Slide 92: Silhouette Analysis - Alternative to Elbow
+
+**Silhouette Coefficient:** Measures how well each point fits its cluster
+
+$$s(i) = \frac{b(i) - a(i)}{\max\{a(i), b(i)\}}$$
+
+where:
+- $a(i)$ = average distance to points in same cluster
+- $b(i)$ = average distance to points in nearest other cluster
+
+\vspace{0.3cm}
+
+**Range:** -1 (wrong cluster) to +1 (perfect fit)
+
+**Rule:** Choose $k$ that maximizes average silhouette score
+
+## Slide 93: Silhouette Score Calculation
+```{r silhouette-demo, echo=TRUE, eval=FALSE}
+library(cluster)
+
+# Compute silhouette scores for different k
+silhouette_scores <- numeric(9)
+
+for (k in 2:10) {
+  kmeans_fit <- kmeans(data_scaled, centers = k, nstart = 25)
+  
+  # Calculate silhouette
+  sil <- silhouette(kmeans_fit$cluster, dist(data_scaled))
+  silhouette_scores[k-1] <- mean(sil[, 3])
+}
+
+# Plot
+plot(2:10, silhouette_scores, type = "b",
+     xlab = "Number of Clusters (k)",
+     ylab = "Average Silhouette Score",
+     main = "Silhouette Analysis")
+
+# Optimal k
+optimal_k <- which.max(silhouette_scores) + 1
+```
+
+## Slide 94: Silhouette Plot Visualization
+```{r silhouette-viz, echo=FALSE, fig.height=3.5}
+# Generate silhouette scores
+set.seed(42)
+k_values <- 2:10
+avg_silhouette <- c(0.45, 0.72, 0.65, 0.58, 0.52, 0.48, 0.44, 0.41, 0.39)
+
+silhouette_df <- data.frame(
+  k = k_values,
+  Silhouette = avg_silhouette,
+  Optimal = k_values == 3
+)
+
+ggplot(silhouette_df, aes(x = k, y = Silhouette)) +
+  geom_line(color = "darkblue", size = 1.5) +
+  geom_point(aes(size = Optimal, color = Optimal)) +
+  scale_size_manual(values = c(3, 6)) +
+  scale_color_manual(values = c("darkblue", "red")) +
+  scale_x_continuous(breaks = 2:10) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", 
+             color = "gray50", alpha = 0.7) +
+  annotate("text", x = 8, y = 0.52, 
+           label = "Good clustering > 0.5", size = 3) +
+  labs(title = "Silhouette Analysis for Optimal K",
+       subtitle = "Peak at k=3: Best cluster separation",
+       x = "Number of Clusters (k)",
+       y = "Average Silhouette Score") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+## Slide 95: K-Means Limitations
+
+**Major Drawbacks:**
+
+1. **Must specify K in advance** (chicken-egg problem)
+2. **Sensitive to initialization** (local minima)
+3. **Assumes spherical clusters** (equal variance)
+4. **Sensitive to outliers** (means get pulled)
+5. **Hard to interpret in high dimensions**
+
+\vspace{0.3cm}
+
+**When K-Means Fails:**
+- Non-convex shapes (crescents, rings)
+- Different cluster densities
+- Different cluster sizes
+
+## Slide 96: When K-Means Fails - Examples
+```{r kmeans-failures, echo=FALSE, fig.height=3.5}
+set.seed(42)
+
+# Dataset 1: Concentric circles (non-convex)
+theta <- seq(0, 2*pi, length.out = 100)
+circle1 <- data.frame(x = 2*cos(theta) + rnorm(100, 0, 0.1),
+                      y = 2*sin(theta) + rnorm(100, 0, 0.1),
+                      true = "Outer")
+circle2 <- data.frame(x = rnorm(100, 0, 0.3),
+                      y = rnorm(100, 0, 0.3),
+                      true = "Inner")
+circles <- rbind(circle1, circle2)
+
+# Apply K-means
+kmeans_circles <- kmeans(circles[, 1:2], centers = 2, nstart = 25)
+circles$kmeans <- as.factor(kmeans_circles$cluster)
+
+# Dataset 2: Different sizes
+large_cluster <- data.frame(x = rnorm(200, 0, 1),
+                            y = rnorm(200, 0, 1),
+                            true = "Large")
+small_cluster <- data.frame(x = rnorm(30, 4, 0.3),
+                            y = rnorm(30, 4, 0.3),
+                            true = "Small")
+sizes <- rbind(large_cluster, small_cluster)
+
+kmeans_sizes <- kmeans(sizes[, 1:2], centers = 2, nstart = 25)
+sizes$kmeans <- as.factor(kmeans_sizes$cluster)
+
+# Plot circles
+p1 <- ggplot(circles, aes(x = x, y = y, color = kmeans)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_manual(values = c("darkblue", "darkred")) +
+  labs(title = "Failure: Concentric Circles",
+       subtitle = "K-Means can't handle non-convex shapes") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Plot sizes
+p2 <- ggplot(sizes, aes(x = x, y = y, color = kmeans)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_manual(values = c("darkblue", "darkred")) +
+  labs(title = "Failure: Different Sizes",
+       subtitle = "K-Means splits large cluster incorrectly") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
+## Slide 97: K-Means++ Initialization
+
+**Problem:** Random initialization can lead to poor results
+
+**K-Means++ Solution:** Smart initialization
+
+1. Choose first center randomly
+2. For each remaining center:
+   - Choose point with probability proportional to distance from nearest existing center
+   - Favors points far from current centers
+
+\vspace{0.3cm}
+
+**Result:** Better initial centers → faster convergence, better clusters
+```{r kmeans-plus, echo=TRUE, eval=FALSE}
+# K-Means++ is default in R
+kmeans_result <- kmeans(data, 
+                        centers = 3,
+                        nstart = 25,  # Multiple random starts
+                        algorithm = "Lloyd")
+```
+
+## Slide 98: Mini-Batch K-Means for Large Data
+
+**Problem:** Standard K-Means slow on large datasets
+
+**Mini-Batch K-Means:**
+
+1. Sample random mini-batch of data
+2. Assign points to nearest center
+3. Update centers based on mini-batch only
+4. Repeat
+
+\vspace{0.3cm}
+
+**Advantages:**
+- Much faster (suitable for millions of points)
+- Similar quality to standard K-Means
+- Scalable to streaming data
+
+## Slide 99: K-Means Case Study - Customer Segmentation
+
+**Business Problem:** E-commerce company wants to segment 10,000 customers
+
+**Features:**
+- Recency (days since last purchase)
+- Frequency (number of purchases)
+- Monetary (total spending)
+
+**Approach:** RFM Analysis with K-Means
+
+## Slide 100: RFM Segmentation Implementation
+```{r rfm-segmentation, echo=TRUE, eval=FALSE}
+# Load customer data
+# customers <- read.csv("customer_data.csv")
+
+# Create RFM features
+rfm_data <- customers %>%
+  group_by(customer_id) %>%
+  summarise(
+    Recency = as.numeric(max(purchase_date) - Sys.Date()),
+    Frequency = n(),
+    Monetary = sum(purchase_amount)
+  )
+
+# Scale features
+rfm_scaled <- scale(rfm_data[, 2:4])
+
+# Determine optimal k using elbow method
+# ... (see previous slides)
+
+# Fit K-Means with k=4
+set.seed(123)
+customer_segments <- kmeans(rfm_scaled, centers = 4, nstart = 25)
+
+# Add cluster labels
+rfm_data$Segment <- customer_segments$cluster
+
+# Interpret segments
+segment_summary <- rfm_data %>%
+  group_by(Segment) %>%
+  summarise(
+    Avg_Recency = mean(Recency),
+    Avg_Frequency = mean(Frequency),
+    Avg_Monetary = mean(Monetary),
+    Count = n()
+  )
+```
+
+## Slide 101: RFM Segments Interpretation
+```{r rfm-viz, echo=FALSE, fig.height=3.5}
+# Simulate RFM segments
+set.seed(42)
+
+segments <- data.frame(
+  Segment = c("Champions", "Loyal", "At Risk", "Lost"),
+  Recency = c(5, 15, 60, 180),
+  Frequency = c(25, 15, 8, 3),
+  Monetary = c(5000, 2000, 1000, 300),
+  Count = c(500, 2000, 3500, 4000)
+)
+
+# Create visualization
+segments_long <- segments %>%
+  pivot_longer(cols = c(Recency, Frequency, Monetary),
+               names_to = "Metric",
+               values_to = "Value")
+
+ggplot(segments_long, aes(x = Segment, y = Value, fill = Segment)) +
+  geom_col() +
+  facet_wrap(~Metric, scales = "free_y", ncol = 3) +
+  scale_fill_manual(values = c("darkgreen", "darkblue", 
+                                "orange", "darkred")) +
+  labs(title = "Customer Segments: RFM Analysis",
+       subtitle = "Champions: High value | Lost: Need re-engagement",
+       x = "", y = "Average Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+```
+
+## Slide 102: Business Actions from Segmentation
+
+**Segment-Specific Strategies:**
+
+| Segment | Characteristics | Action |
+|---------|----------------|---------|
+| **Champions** | Recent, frequent, high $ | VIP treatment, early access |
+| **Loyal** | Regular buyers | Loyalty rewards, referrals |
+| **At Risk** | Haven't bought recently | Win-back campaigns |
+| **Lost** | Inactive, low value | Minimal marketing spend |
+
+\vspace{0.3cm}
+
+**ROI:** Targeted campaigns → 3x conversion vs. mass marketing
+
+# Hierarchical Clustering
+
+## Slide 103: Introduction to Hierarchical Clustering
+
+**Key Difference from K-Means:**
+
+- **K-Means:** Flat partitioning (must choose K)
+- **Hierarchical:** Creates tree structure (dendrogram)
+
+\vspace{0.3cm}
+
+**Two Approaches:**
+
+1. **Agglomerative (Bottom-Up):**
+   - Start: Each point is its own cluster
+   - Iteratively merge closest clusters
+   - End: One cluster containing all points
+
+2. **Divisive (Top-Down):**
+   - Start: All points in one cluster
+   - Iteratively split clusters
+   - End: Each point in its own cluster
+
+## Slide 104: Agglomerative Clustering Algorithm
+
+**Algorithm:**
+
+1. **Initialize:** Treat each point as a cluster ($n$ clusters)
+2. **Repeat:**
+   - Find two closest clusters
+   - Merge them
+   - Update distance matrix
+3. **Stop:** When desired number of clusters reached (or all merged)
+
+\vspace{0.3cm}
+
+**Output:** Dendrogram showing merge history
+
+**Advantage:** Don't need to specify K upfront!
+
+## Slide 105: Linkage Methods - Measuring Cluster Distance
+
+**How to measure distance between clusters?**
+
+1. **Single Linkage (MIN):**
+   $$d(C_i, C_j) = \min_{x \in C_i, y \in C_j} d(x, y)$$
+
+2. **Complete Linkage (MAX):**
+   $$d(C_i, C_j) = \max_{x \in C_i, y \in C_j} d(x, y)$$
+
+3. **Average Linkage:**
+   $$d(C_i, C_j) = \frac{1}{|C_i||C_j|}\sum_{x \in C_i}\sum_{y \in C_j} d(x, y)$$
+
+4. **Ward's Method:** Minimize within-cluster variance
+
+## Slide 106: Linkage Methods Comparison
+```{r linkage-comparison, echo=FALSE, fig.height=3.5}
+# Create simple dataset
+set.seed(42)
+data_hc <- data.frame(
+  x = c(1, 1.5, 2, 8, 8.5, 9),
+  y = c(1, 1.2, 1.5, 8, 8.2, 8.5)
+)
+
+# Compute hierarchical clustering with different linkages
+dist_matrix <- dist(data_hc)
+
+hc_single <- hclust(dist_matrix, method = "single")
+hc_complete <- hclust(dist_matrix, method = "complete")
+hc_average <- hclust(dist_matrix, method = "average")
+
+# Plot dendrograms
+par(mfrow = c(1, 3), mar = c(4, 4, 2, 1))
+
+plot(hc_single, main = "Single Linkage\n(Chain effect)",
+     xlab = "", sub = "", cex = 0.8)
+
+plot(hc_complete, main = "Complete Linkage\n(Compact clusters)",
+     xlab = "", sub = "", cex = 0.8)
+
+plot(hc_average, main = "Average Linkage\n(Balanced)",
+     xlab = "", sub = "", cex = 0.8)
+```
+
+## Slide 107: Hierarchical Clustering in R
+```{r hclust-r, echo=TRUE, eval=FALSE}
+# Prepare data
+iris_features <- iris[, 1:4]
+iris_scaled <- scale(iris_features)
+
+# Compute distance matrix
+dist_matrix <- dist(iris_scaled, method = "euclidean")
+
+# Perform hierarchical clustering
+hc_result <- hclust(dist_matrix, method = "complete")
+
+# Plot dendrogram
+plot(hc_result, 
+     main = "Hierarchical Clustering Dendrogram",
+     xlab = "Sample Index",
+     ylab = "Distance",
+     cex = 0.6)
+
+# Cut tree to get k clusters
+k <- 3
+clusters <- cutree(hc_result, k = k)
+
+# Add rectangles to dendrogram
+rect.hclust(hc_result, k = k, border = "red")
+```
+
+## Slide 108: Dendrogram Interpretation
+```{r dendrogram-viz, echo=FALSE, fig.height=3.5}
+# Create hierarchical clustering
+set.seed(42)
+sample_data <- rbind(
+  matrix(rnorm(30, 0, 0.3), ncol = 2),
+  matrix(rnorm(30, 2, 0.3), ncol = 2),
+  matrix(rnorm(30, 4, 0.3), ncol = 2)
+)
+
+dist_mat <- dist(sample_data)
+hc <- hclust(dist_mat, method = "complete")
+
+# Plot with cutoff line
+plot(hc, labels = FALSE,
+     main = "Dendrogram with Cut Height",
+     xlab = "Samples", ylab = "Height",
+     cex.main = 1.2)
+
+# Add horizontal line for k=3
+abline(h = 3, col = "red", lty = 2, lwd = 2)
+text(50, 3.2, "Cut here for k=3 clusters", col = "red", pos = 3)
+
+# Add rectangles
+rect.hclust(hc, k = 3, border = c("darkblue", "darkgreen", "darkred"))
+```
+
+**Reading the Dendrogram:**
+- Height = dissimilarity between merged clusters
+- Lower merges = more similar
+- Horizontal line = choose number of clusters
+
+## Slide 109: Cutting the Dendrogram
+```{r cut-dendrogram, echo=TRUE, eval=FALSE}
+# Method 1: Cut at specific height
+clusters_height <- cutree(hc_result, h = 5)
+
+# Method 2: Specify number of clusters
+clusters_k <- cutree(hc_result, k = 3)
+
+# Compare cluster assignments
+table(clusters_k, iris$Species)
+
+# Visualize clusters
+pairs(iris[, 1:4], 
+      col = clusters_k,
+      pch = 19,
+      main = "Hierarchical Clustering Results")
+```
+
+## Slide 110: Hierarchical vs K-Means Comparison
+
+| Aspect | K-Means | Hierarchical |
+|--------|---------|--------------|
+| **K Selection** | Must specify upfront | Can decide later from dendrogram |
+| **Scalability** | Fast (linear) | Slow (quadratic) |
+| **Cluster Shape** | Spherical only | Any shape |
+| **Deterministic** | No (random init) | Yes |
+| **Memory** | Low | High (distance matrix) |
+| **Interpretation** | Hard | Easy (dendrogram) |
+
+\vspace{0.3cm}
+
+**Rule of Thumb:**
+- n < 5,000 → Hierarchical
+- n > 5,000 → K-Means
+
+## Slide 111: Hierarchical Clustering Case Study - Gene Expression
+
+**Problem:** Cluster genes based on expression patterns
+
+**Data:** Gene expression levels across different conditions
+
+**Goal:** Identify co-regulated genes (similar expression patterns)
+
+\vspace{0.3cm}
+
+**Approach:**
+
+1. Compute correlation between gene expression profiles
+2. Convert correlation to distance: $d = 1 - |r|$
+3. Hierarchical clustering with average linkage
+4. Visualize with heatmap + dendrogram
+
+## Slide 112: Gene Expression Heatmap
+```{r gene-heatmap, echo=FALSE, fig.height=3.5}
+# Simulate gene expression data
+set.seed(42)
+n_genes <- 30
+n_conditions <- 8
+
+# Three gene clusters with different patterns
+cluster1 <- matrix(rnorm(10 * n_conditions, 2, 0.3), ncol = n_conditions)
+cluster2 <- matrix(rnorm(10 * n_conditions, 0, 0.3), ncol = n_conditions)
+cluster3 <- matrix(rnorm(10 * n_conditions, -2, 0.3), ncol = n_conditions)
+
+gene_data <- rbind(cluster1, cluster2, cluster3)
+rownames(gene_data) <- paste0("Gene", 1:n_genes)
+colnames(gene_data) <- paste0("Cond", 1:n_conditions)
+
+# Hierarchical clustering
+hc_genes <- hclust(dist(gene_data))
+gene_order <- hc_genes$order
+
+# Create heatmap data
+heatmap_df <- as.data.frame(gene_data[gene_order, ])
+heatmap_df$Gene <- factor(rownames(heatmap_df), 
+                          levels = rownames(heatmap_df))
+
+heatmap_long <- heatmap_df %>%
+  pivot_longer(cols = -Gene, names_to = "Condition", 
+               values_to = "Expression")
+
+ggplot(heatmap_long, aes(x = Condition, y = Gene, fill = Expression)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red",
+                       midpoint = 0) +
+  labs(title = "Gene Expression Heatmap with Clustering",
+       subtitle = "Rows ordered by hierarchical clustering",
+       x = "Experimental Condition", 
+       y = "Gene",
+       fill = "Expression\nLevel") +
+  theme_minimal() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+```
+
+# Association Rule Mining
+
+## Slide 113: Introduction to Association Rules
+
+**Goal:** Find interesting relationships in transaction data
+
+\vspace{0.3cm}
+
+**Classic Example:** Market Basket Analysis
+
+- Transaction: {Bread, Milk, Eggs}
+- Rule: {Bread, Milk} → {Eggs}
+- Interpretation: "Customers who buy bread and milk also buy eggs"
+
+\vspace{0.3cm}
+
+**Applications:**
+
+- Retail: Product recommendations
+- Web: Clickstream analysis
+- Healthcare: Symptom → disease associations
+
+## Slide 114: Association Rule Terminology
+
+**Key Concepts:**
+
+- **Itemset:** Set of items, e.g., {Bread, Milk}
+- **Transaction:** A collection of items purchased together
+- **Rule:** Implication of the form $X \rightarrow Y$
+
+\vspace{0.3cm}
+
+**Example Transaction Database:**
+
+| TID | Items |
+|-----|-------|
+| 1 | {Bread, Milk} |
+| 2 | {Bread, Diaper, Beer, Eggs} |
+| 3 | {Milk, Diaper, Beer, Cola} |
+| 4 | {Bread, Milk, Diaper, Beer} |
+| 5 | {Bread, Milk, Diaper, Cola} |
+
+## Slide 115: Support, Confidence, and Lift
+
+**Three Key Metrics:**
+
+1. **Support:** Frequency of itemset
+   $$\text{Support}(X) = \frac{\text{number of transactions containing } X}{\text{total number of transactions}}$$
+
+2. **Confidence:** Conditional probability
+   $$\text{Confidence}(X \rightarrow Y) = \frac{\text{Support}(X \cup Y)}{\text{Support}(X)}$$
+
+3. **Lift:** Independence measure
+   $$\text{Lift}(X \rightarrow Y) = \frac{\text{Confidence}(X \rightarrow Y)}{\text{Support}(Y)}$$
+## Slide 116: Interpreting Support, Confidence, Lift
+
+**Support = 0.4 (40\%):**
+- Rule occurs in 40\% of transactions
+- High support = frequent pattern
+
+**Confidence = 0.8 (80\%):**
+- 80\% of customers who buy X also buy Y
+- High confidence = strong rule
+
+**Lift = 2.0:**
+- Customers 2x more likely to buy Y when they buy X
+- Lift > 1: Positive correlation
+- Lift = 1: Independent
+- Lift < 1: Negative correlation
+
+## Slide 117: Support-Confidence Framework
+```{r support-confidence-viz, echo=FALSE, fig.height=3.5}
+# Simulate association rules
+set.seed(42)
+n_rules <- 50
+
+rules_data <- data.frame(
+  Support = runif(n_rules, 0.01, 0.5),
+  Confidence = runif(n_rules, 0.3, 0.95),
+  Lift = runif(n_rules, 0.8, 3)
+)
+
+# Add quality categories
+rules_data$Quality <- ifelse(
+  rules_data$Support > 0.1 & rules_data$Confidence > 0.7,
+  "Strong",
+  ifelse(rules_data$Support > 0.05 & rules_data$Confidence > 0.5,
+         "Moderate", "Weak")
+)
+
+ggplot(rules_data, aes(x = Support, y = Confidence, 
+                       color = Quality, size = Lift)) +
+  geom_point(alpha = 0.7) +
+  scale_color_manual(values = c("darkred", "orange", "darkgreen")) +
+  scale_size_continuous(range = c(2, 8)) +
+  geom_hline(yintercept = 0.7, linetype = "dashed", alpha = 0.5) +
+  geom_vline(xintercept = 0.1, linetype = "dashed", alpha = 0.5) +
+  labs(title = "Association Rules: Support vs Confidence",
+       subtitle = "Size = Lift | Top-right quadrant = Strong rules",
+       x = "Support (Frequency)",
+       y = "Confidence (Strength)") +
+  theme_minimal() +
+  theme(legend.position = "right")
+```
+
+## Slide 118: The Apriori Algorithm
+
+**Problem:** Exponential search space (2^n possible itemsets)
+
+**Apriori Principle:** If an itemset is frequent, all its subsets must be frequent
+
+**Algorithm:**
+
+1. Find all frequent 1-itemsets (support ≥ min_support)
+2. Generate candidate 2-itemsets from frequent 1-itemsets
+3. Prune candidates using Apriori principle
+4. Count support, keep frequent 2-itemsets
+5. Repeat for k=3, 4, ... until no more frequent itemsets
+
+## Slide 119: Apriori Algorithm Illustration
+```{r apriori-illustration, echo=FALSE, fig.height=3.5}
+# Create illustration of Apriori pruning
+library(grid)
+library(gridExtra)
+
+# Create text grobs for visualization
+level1 <- textGrob("Level 1: {A}, {B}, {C}, {D}, {E}", 
+                   gp = gpar(fontsize = 10, col = "darkblue"))
+prune1 <- textGrob("Prune: {E} (support < threshold)", 
+                   gp = gpar(fontsize = 9, col = "red"))
+level2 <- textGrob("Level 2: {A,B}, {A,C}, {A,D}, {B,C}, {B,D}, {C,D}", 
+                   gp = gpar(fontsize = 10, col = "darkblue"))
+prune2 <- textGrob("Prune: {A,D}, {C,D} (support < threshold)", 
+                   gp = gpar(fontsize = 9, col = "red"))
+level3 <- textGrob("Level 3: {A,B,C}, {A,B,D}, {B,C,D}", 
+                   gp = gpar(fontsize = 10, col = "darkblue"))
+prune3 <- textGrob("Prune: {B,C,D} (C,D not frequent in Level 2)", 
+                   gp = gpar(fontsize = 9, col = "red"))
+result <- textGrob("Final: {A,B,C}, {A,B,D}", 
+                   gp = gpar(fontsize = 11, col = "darkgreen", 
+                             fontface = "bold"))
+
+# Arrange
+grid.arrange(
+  level1, prune1, 
+  level2, prune2,
+  level3, prune3,
+  result,
+  ncol = 1,
+  heights = c(0.12, 0.1, 0.15, 0.1, 0.15, 0.1, 0.13),
+  top = textGrob("Apriori Algorithm: Level-wise Search", 
+                 gp = gpar(fontsize = 14, fontface = "bold"))
+)
+```
+
+## Slide 120: Association Rules in R - arules Package
+```{r arules-r, echo=TRUE, eval=FALSE}
+library(arules)
+
+# Load example data
+data("Groceries")
+
+# Inspect transactions
+inspect(Groceries[1:5])
+
+# Mine frequent itemsets
+frequent_items <- apriori(Groceries,
+                          parameter = list(
+                            support = 0.01,    # Min 1% support
+                            target = "frequent itemsets"
+                          ))
+
+# Mine association rules
+rules <- apriori(Groceries,
+                 parameter = list(
+                   support = 0.001,     # Min support
+                   confidence = 0.5,    # Min confidence
+                   minlen = 2          # Min rule length
+                 ))
+
+# View top rules by lift
+rules_sorted <- sort(rules, by = "lift")
+inspect(rules_sorted[1:10])
+```
+
+
+## Slide 121: Mining Association Rules - Complete Example
+```{r arules-complete2, echo=TRUE, eval=FALSE}
+library(arules)
+library(arulesViz)
+
+# Load grocery transactions
+data("Groceries")
+
+# Summary statistics
+summary(Groceries)
+# 9835 transactions, 169 items
+
+# Item frequency plot
+itemFrequencyPlot(Groceries, topN = 20,
+                  type = "absolute",
+                  main = "Top 20 Most Frequent Items")
+
+# Mine rules
+rules <- apriori(Groceries,
+                 parameter = list(
+                   supp = 0.001,
+                   conf = 0.8,
+                   minlen = 2,
+                   maxlen = 10
+                 ))
+
+# Inspect top rules
+inspect(sort(rules, by = "lift")[1:10])
+
+# Filter specific rules
+beer_rules <- subset(rules, items %in% "bottled beer")
+inspect(beer_rules)
+```
+
+## Slide 122: Visualizing Association Rules
+```{r arules-viz, echo=FALSE, fig.height=3.5}
+# Simulate association rules for visualization
+set.seed(42)
+n_rules <- 30
+
+rules_viz <- data.frame(
+  Rule = paste0("Rule", 1:n_rules),
+  Support = runif(n_rules, 0.01, 0.3),
+  Confidence = runif(n_rules, 0.5, 0.95),
+  Lift = runif(n_rules, 1, 4)
+)
+
+# Scatter plot
+ggplot(rules_viz, aes(x = Support, y = Confidence)) +
+  geom_point(aes(color = Lift, size = Lift), alpha = 0.7) +
+  scale_color_gradient(low = "lightblue", high = "darkred") +
+  scale_size_continuous(range = c(2, 10)) +
+  labs(title = "Association Rules Visualization",
+       subtitle = "Color & Size = Lift (higher is better)",
+       x = "Support (Frequency)",
+       y = "Confidence (Reliability)") +
+  theme_minimal() +
+  theme(legend.position = "right")
+```
+
+**Interactive visualization:** Use `arulesViz::plot(rules, method="graph")`
+
+## Slide 123: Redundant Rules and Pruning
+
+**Problem:** Many rules are redundant
+
+**Example:**
+- {Milk} → {Bread} [conf=0.8]
+- {Milk, Eggs} → {Bread} [conf=0.8]
+
+If second rule has same confidence, it's **redundant**
+
+\vspace{0.3cm}
+
+**Pruning Strategy:**
+```{r prune-rules, echo=TRUE, eval=FALSE}
+# Remove redundant rules
+rules_pruned <- rules[!is.redundant(rules)]
+
+# Compare
+length(rules)         # Before: 463 rules
+length(rules_pruned)  # After: 231 rules
+
+# Significant rules only (high lift)
+significant_rules <- subset(rules_pruned, lift > 2)
+inspect(significant_rules)
+```
+
+## Slide 124: Closed and Maximal Itemsets
+
+**Closed Itemset:** No superset with same support
+
+**Maximal Itemset:** No superset is frequent
+
+\vspace{0.3cm}
+
+**Why Use Them?**
+
+- Reduce redundancy
+- Faster mining
+- More compact representation
+```{r closed-maximal, echo=TRUE, eval=FALSE}
+# Mine closed frequent itemsets
+closed <- apriori(Groceries,
+                  parameter = list(
+                    support = 0.01,
+                    target = "closed frequent itemsets"
+                  ))
+
+# Mine maximal frequent itemsets
+maximal <- apriori(Groceries,
+                   parameter = list(
+                     support = 0.01,
+                     target = "maximally frequent itemsets"
+                   ))
+
+# Compare sizes
+length(frequent_items)  # All: 333 itemsets
+length(closed)          # Closed: 47 itemsets
+length(maximal)         # Maximal: 17 itemsets
+```
+
+## Slide 125: Sequential Pattern Mining
+
+**Extension:** Consider order of purchases over time
+
+\vspace{0.3cm}
+
+**Example Sequence:**
+- Week 1: {Bread, Milk}
+- Week 2: {Eggs}
+- Week 3: {Butter}
+
+**Sequential Rule:** {Bread, Milk} → {Eggs} → {Butter}
+
+\vspace{0.3cm}
+
+**Applications:**
+- Customer journey analysis
+- Web navigation patterns
+- DNA sequence analysis
+```{r sequential, echo=TRUE, eval=FALSE}
+library(arulesSequences)
+
+# Read sequential data
+sequences <- read_baskets("sequences.txt", 
+                         info = c("sequenceID", "eventID"))
+
+# Mine sequential patterns
+seq_rules <- cspade(sequences,
+                    parameter = list(support = 0.01),
+                    control = list(verbose = TRUE))
+```
+
+## Slide 126: Association Rules Case Study - Retail Recommendations
+
+**Business Goal:** Increase average basket size through recommendations
+
+**Dataset:** 100,000 grocery transactions over 6 months
+
+**Analysis:**
+
+1. Mine rules (support ≥ 0.01, confidence ≥ 0.6)
+2. Filter by lift > 2 (strong associations)
+3. Remove redundant rules
+4. Deploy top 50 rules to recommendation engine
+
+**Results:**
+
+- 15\% increase in basket size
+- 8\% increase in revenue
+- Most effective rule: {Pasta, Tomato Sauce} → {Parmesan Cheese}
+
+## Slide 127: Recommendation System Architecture
+```{r recommendation-architecture, echo=FALSE, fig.height=3.5}
+# Create architecture diagram
+library(grid)
+library(gridExtra)
+
+# Create components
+comp1 <- textGrob("Transaction\nDatabase", 
+                  gp = gpar(fontsize = 10, fontface = "bold"))
+comp2 <- textGrob("Apriori\nAlgorithm", 
+                  gp = gpar(fontsize = 10, fontface = "bold"))
+comp3 <- textGrob("Association\nRules", 
+                  gp = gpar(fontsize = 10, fontface = "bold"))
+comp4 <- textGrob("Rule\nFilter", 
+                  gp = gpar(fontsize = 10, fontface = "bold"))
+comp5 <- textGrob("Recommendation\nEngine", 
+                  gp = gpar(fontsize = 10, fontface = "bold"))
+comp6 <- textGrob("Customer\nInterface", 
+                  gp = gpar(fontsize = 10, fontface = "bold"))
+
+# Create flow diagram
+rect_x <- c(1, 2, 3, 4, 5, 6)
+rect_y <- rep(2.5, 6)
+
+ggplot() +
+  # Rectangles
+  geom_rect(aes(xmin = rect_x - 0.4, xmax = rect_x + 0.4,
+                ymin = rect_y - 0.4, ymax = rect_y + 0.4),
+            fill = "lightblue", color = "darkblue", size = 1) +
+  # Arrows
+  geom_segment(aes(x = rect_x[1:5] + 0.4, xend = rect_x[2:6] - 0.4,
+                   y = rect_y[1:5], yend = rect_y[2:6]),
+               arrow = arrow(length = unit(0.2, "cm")), size = 1.5) +
+  # Labels
+  annotate("text", x = rect_x, y = rect_y,
+           label = c("Transaction\nDatabase", "Apriori\nAlgorithm",
+                    "Association\nRules", "Rule\nFilter",
+                    "Recommendation\nEngine", "Customer\nInterface"),
+           size = 3.5, fontface = "bold") +
+  xlim(0, 7) + ylim(1.5, 3.5) +
+  labs(title = "Real-Time Recommendation System Architecture") +
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+```
+
+# Density-Based Clustering
+
+## Slide 128: DBSCAN - Density-Based Spatial Clustering
+
+**Key Idea:** Clusters are dense regions separated by sparse regions
+
+\vspace{0.3cm}
+
+**Advantages over K-Means:**
+
+1. No need to specify number of clusters
+2. Can find arbitrarily shaped clusters
+3. Robust to outliers
+4. Identifies noise points
+
+\vspace{0.3cm}
+
+**Parameters:**
+
+- **ε (epsilon):** Neighborhood radius
+- **minPts:** Minimum points to form dense region
+
+## Slide 129: DBSCAN Concepts
+
+**Three Types of Points:**
+
+1. **Core Point:** Has ≥ minPts within ε
+2. **Border Point:** Within ε of a core point, but not core itself
+3. **Noise Point:** Neither core nor border
+
+\vspace{0.3cm}
+
+**Density-Connected:** Two points are in same cluster if connected through chain of core points
+
+## Slide 130: DBSCAN Visual Intuition
+```{r dbscan-intuition, echo=FALSE, fig.height=3.5}
+# Generate data with noise and arbitrary shapes
+set.seed(42)
+
+# Two dense clusters
+cluster1 <- data.frame(
+  x = c(rnorm(50, 2, 0.5), runif(10, 0, 8)),
+  y = c(rnorm(50, 2, 0.5), runif(10, 0, 8))
+)
+
+cluster2 <- data.frame(
+  x = c(rnorm(50, 6, 0.5), runif(10, 0, 8)),
+  y = c(rnorm(50, 6, 0.5), runif(10, 0, 8))
+)
+
+# Create moon shape
+theta <- seq(0, pi, length.out = 50)
+moon <- data.frame(
+  x = 4 + 2 * cos(theta),
+  y = 0.5 + sin(theta)
+)
+
+dbscan_data <- rbind(cluster1, cluster2, moon)
+
+# Run DBSCAN
+library(dbscan)
+dbscan_result <- dbscan(dbscan_data, eps = 0.5, minPts = 5)
+
+dbscan_data$cluster <- as.factor(dbscan_result$cluster)
+
+ggplot(dbscan_data, aes(x = x, y = y, color = cluster)) +
+  geom_point(size = 3, alpha = 0.7) +
+  scale_color_manual(values = c("gray50", "darkblue", 
+                                 "darkgreen", "darkred"),
+                     labels = c("Noise", "Cluster 1", 
+                               "Cluster 2", "Cluster 3")) +
+  labs(title = "DBSCAN: Finds Arbitrary Shapes + Noise",
+       subtitle = "Gray points = noise (outliers)",
+       x = "", y = "", color = "Assignment") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 131: DBSCAN Algorithm
+
+**Algorithm:**
+
+1. **Mark all points** as unvisited
+2. **For each unvisited point p:**
+   - Mark as visited
+   - Find neighborhood N (points within ε)
+   - If |N| < minPts: Mark as **noise**
+   - Else:
+     - Create new cluster
+     - Add p to cluster
+     - **Expand cluster** from p's neighbors
+3. **Repeat** until all points visited
+
+## Slide 132: DBSCAN in R
+```{r dbscan-r, echo=TRUE, eval=FALSE}
+library(dbscan)
+
+# Prepare data
+data_scaled <- scale(data)
+
+# Run DBSCAN
+db_result <- dbscan(data_scaled, 
+                    eps = 0.5,      # Neighborhood radius
+                    minPts = 5)      # Min points for core
+
+# View results
+db_result$cluster  # Cluster assignments (0 = noise)
+table(db_result$cluster)
+
+# Visualize
+plot(data_scaled, 
+     col = db_result$cluster + 1,
+     pch = ifelse(db_result$cluster == 0, 4, 19),
+     main = "DBSCAN Results")
+legend("topright", 
+       c("Noise", paste("Cluster", 1:max(db_result$cluster))),
+       col = 1:(max(db_result$cluster) + 1),
+       pch = c(4, rep(19, max(db_result$cluster))))
+```
+
+## Slide 133: Choosing DBSCAN Parameters
+
+**ε (epsilon) Selection:**
+
+Use **k-distance graph** (elbow method for DBSCAN)
+
+1. For each point, compute distance to k-th nearest neighbor
+2. Sort distances
+3. Plot sorted k-distances
+4. Look for "elbow" → optimal ε
+```{r dbscan-epsilon, echo=TRUE, eval=FALSE}
+# Compute k-nearest neighbor distances
+k <- 5  # Same as minPts
+knn_dist <- kNNdist(data_scaled, k = k)
+
+# Sort and plot
+knn_sorted <- sort(knn_dist)
+plot(knn_sorted, 
+     type = "l",
+     xlab = "Points (sorted)",
+     ylab = "k-NN Distance",
+     main = "k-Distance Graph")
+
+# Elbow appears around 0.5
+abline(h = 0.5, col = "red", lty = 2)
+```
+
+## Slide 134: k-Distance Graph for Parameter Selection
+```{r kdist-graph, echo=FALSE, fig.height=3.5}
+# Simulate k-distance plot
+set.seed(42)
+n_points <- 200
+
+# Sorted k-distances with elbow
+kdist <- c(
+  seq(0.1, 0.4, length.out = 150),
+  seq(0.4, 2, length.out = 50)
+) + rnorm(n_points, 0, 0.02)
+
+kdist_df <- data.frame(
+  Point = 1:n_points,
+  Distance = sort(kdist)
+)
+
+ggplot(kdist_df, aes(x = Point, y = Distance)) +
+  geom_line(color = "darkblue", size = 1.2) +
+  geom_hline(yintercept = 0.5, color = "red", 
+             linetype = "dashed", size = 1) +
+  annotate("text", x = 50, y = 0.6, 
+           label = "Elbow: ε ≈ 0.5", 
+           color = "red", size = 4) +
+  annotate("segment", x = 150, xend = 150, y = 0, yend = 0.5,
+           arrow = arrow(length = unit(0.3, "cm")),
+           color = "darkgreen", size = 1) +
+  annotate("text", x = 150, y = 0.25, 
+           label = "Dense region\n(core points)", 
+           color = "darkgreen", hjust = -0.1, size = 3) +
+  labs(title = "k-Distance Graph for DBSCAN Parameter Selection",
+       subtitle = "Sharp increase = transition from dense to sparse",
+       x = "Points (sorted by k-distance)",
+       y = "Distance to k-th Neighbor") +
+  theme_minimal()
+```
+
+## Slide 135: DBSCAN vs K-Means Comparison
+```{r dbscan-vs-kmeans, echo=FALSE, fig.height=3.5}
+# Create challenging dataset for K-means
+set.seed(42)
+
+# Two moons
+n <- 100
+theta1 <- seq(0, pi, length.out = n)
+moon1 <- data.frame(x = cos(theta1), y = sin(theta1))
+moon2 <- data.frame(x = 1 - cos(theta1), y = 1 - sin(theta1) - 0.5)
+
+moons_data <- rbind(moon1, moon2)
+moons_data <- moons_data + matrix(rnorm(2*2*n, 0, 0.1), ncol = 2)
+
+# K-means
+kmeans_res <- kmeans(moons_data, centers = 2, nstart = 25)
+moons_data$kmeans <- as.factor(kmeans_res$cluster)
+
+# DBSCAN
+library(dbscan)
+dbscan_res <- dbscan(moons_data[, 1:2], eps = 0.3, minPts = 5)
+moons_data$dbscan <- as.factor(dbscan_res$cluster)
+
+# Plot K-means
+p1 <- ggplot(moons_data, aes(x = x, y = y, color = kmeans)) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("darkblue", "darkred")) +
+  labs(title = "K-Means: Fails on Non-Convex",
+       x = "", y = "") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Plot DBSCAN
+p2 <- ggplot(moons_data, aes(x = x, y = y, color = dbscan)) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("darkblue", "darkred")) +
+  labs(title = "DBSCAN: Handles Arbitrary Shapes",
+       x = "", y = "") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
+## Slide 136: HDBSCAN - Hierarchical DBSCAN
+
+**Problem with DBSCAN:** Single ε doesn't work for varying densities
+
+**HDBSCAN Solution:** Hierarchy of DBSCAN results
+
+\vspace{0.3cm}
+
+**Advantages:**
+
+- Automatically selects ε for each cluster
+- Handles varying density clusters
+- More robust parameter selection (only minPts)
+```{r hdbscan, echo=TRUE, eval=FALSE}
+library(dbscan)
+
+# Run HDBSCAN
+hdb_result <- hdbscan(data_scaled, minPts = 5)
+
+# View cluster tree
+plot(hdb_result, show_flat = TRUE)
+
+# Extract flat clustering
+hdb_result$cluster
+```
+
+# Dimensionality Reduction
+
+## Slide 137: The Curse of Dimensionality
+
+**Problem:** As dimensions increase:
+
+1. **Distance loses meaning:** All points become equidistant
+2. **Sparsity:** Data points spread thin
+3. **Computation:** Exponential time/space
+4. **Visualization:** Can't plot beyond 3D
+
+\vspace{0.3cm}
+
+**Example:** 100 features → 2^100 possible feature combinations!
+
+\vspace{0.3cm}
+
+**Solution:** Reduce dimensions while preserving information
+
+## Slide 138: Distance Concentration in High Dimensions
+```{r curse-dimensionality, echo=FALSE, fig.height=3.5}
+# Demonstrate distance concentration
+set.seed(42)
+
+# Compute average pairwise distance in different dimensions
+dimensions <- c(2, 5, 10, 20, 50, 100)
+n_points <- 100
+
+dist_stats <- data.frame()
+
+for (d in dimensions) {
+  # Generate random data
+  data_d <- matrix(rnorm(n_points * d), ncol = d)
+  
+  # Compute all pairwise distances
+  dist_matrix <- as.matrix(dist(data_d))
+  distances <- dist_matrix[upper.tri(dist_matrix)]
+  
+  dist_stats <- rbind(dist_stats, data.frame(
+    Dimension = d,
+    Mean = mean(distances),
+    SD = sd(distances),
+    CV = sd(distances) / mean(distances)
+  ))
+}
+
+ggplot(dist_stats, aes(x = Dimension, y = CV)) +
+  geom_line(color = "darkblue", size = 1.5) +
+  geom_point(size = 4, color = "darkred") +
+  labs(title = "Curse of Dimensionality: Distance Loses Meaning",
+       subtitle = "Coefficient of Variation decreases: distances become similar",
+       x = "Number of Dimensions",
+       y = "CV of Pairwise Distances") +
+  theme_minimal()
+```
+## Slide 139: Principal Component Analysis (PCA)
+
+**Goal:** Find directions of maximum variance
+
+\vspace{0.3cm}
+
+**Key Idea:**
+
+1. Center the data
+2. Compute covariance matrix
+3. Find eigenvectors (principal components)
+4. Project data onto top k eigenvectors
+
+\vspace{0.3cm}
+
+**Result:** New uncorrelated features (PC1, PC2, ...)
+
+- PC1: Direction of maximum variance
+- PC2: Direction of maximum variance perpendicular to PC1
+- ...
+
+## Slide 140: PCA Visualization - 2D Example
+```{r pca-visual, echo=FALSE, fig.height=3.5}
+# Generate correlated 2D data
+set.seed(42)
+n <- 100
+x1 <- rnorm(n)
+x2 <- 0.8 * x1 + rnorm(n, 0, 0.5)
+
+pca_data <- data.frame(x1 = x1, x2 = x2)
+
+# Perform PCA
+pca_result <- prcomp(pca_data, center = TRUE, scale. = FALSE)
+
+# Get PC directions
+pc1_dir <- pca_result$rotation[, 1]
+pc2_dir <- pca_result$rotation[, 2]
+
+# Plot
+ggplot(pca_data, aes(x = x1, y = x2)) +
+  geom_point(alpha = 0.6, size = 2) +
+  geom_segment(aes(x = 0, y = 0, 
+                   xend = 3 * pc1_dir[1], yend = 3 * pc1_dir[2]),
+               arrow = arrow(length = unit(0.3, "cm")),
+               color = "red", size = 1.5) +
+  geom_segment(aes(x = 0, y = 0, 
+                   xend = 2 * pc2_dir[1], yend = 2 * pc2_dir[2]),
+               arrow = arrow(length = unit(0.3, "cm")),
+               color = "blue", size = 1.5) +
+  annotate("text", x = 1.5, y = 1.2, label = "PC1\n(max variance)", 
+           color = "red", fontface = "bold") +
+  annotate("text", x = -0.8, y = 0.5, label = "PC2", 
+           color = "blue", fontface = "bold") +
+  labs(title = "PCA: Finding Principal Components",
+       subtitle = "Red = PC1 (captures most variance)",
+       x = "Original Feature 1", y = "Original Feature 2") +
+  theme_minimal() +
+  coord_equal()
+```
+
+## Slide 141: PCA in R - Complete Workflow
+```{r pca-r, echo=TRUE, eval=FALSE}
+# Load and prepare data
+data(iris)
+iris_features <- iris[, 1:4]
+
+# Perform PCA (important: center and scale)
+pca_result <- prcomp(iris_features, 
+                     center = TRUE,
+                     scale. = TRUE)
+
+# Summary
+summary(pca_result)
+
+# Variance explained
+pca_var <- pca_result$sdev^2 / sum(pca_result$sdev^2)
+cumsum(pca_var)  # Cumulative variance
+
+# Scree plot
+plot(pca_var, type = "b",
+     xlab = "Principal Component",
+     ylab = "Proportion of Variance Explained")
+
+# PC loadings (variable contributions)
+pca_result$rotation
+
+# Transformed data
+pca_scores <- pca_result$x
+head(pca_scores)
+```
+
+## Slide 142: Scree Plot - Choosing Number of Components
+```{r scree-plot, echo=FALSE, fig.height=3.5}
+# Simulate PCA variance explained
+set.seed(42)
+n_components <- 10
+variance_explained <- c(0.45, 0.25, 0.15, 0.08, 0.04, 0.02, 0.01, 0, 0, 0)
+cumulative_var <- cumsum(variance_explained)
+
+scree_df <- data.frame(
+  PC = 1:n_components,
+  Variance = variance_explained,
+  Cumulative = cumulative_var
+)
+
+p1 <- ggplot(scree_df, aes(x = PC, y = Variance)) +
+  geom_line(color = "darkblue", size = 1.2) +
+  geom_point(size = 4, color = "darkblue") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", 
+             color = "red", alpha = 0.5) +
+  annotate("text", x = 7, y = 0.08, 
+           label = "Elbow: Keep 3-4 PCs", color = "red") +
+  scale_x_continuous(breaks = 1:10) +
+  labs(title = "Scree Plot",
+       x = "Principal Component",
+       y = "Variance Explained") +
+  theme_minimal()
+
+p2 <- ggplot(scree_df, aes(x = PC, y = Cumulative)) +
+  geom_line(color = "darkgreen", size = 1.2) +
+  geom_point(size = 4, color = "darkgreen") +
+  geom_hline(yintercept = 0.9, linetype = "dashed", 
+             color = "red", alpha = 0.5) +
+  annotate("text", x = 7, y = 0.85, 
+           label = "90% variance with 3 PCs", color = "red") +
+  scale_x_continuous(breaks = 1:10) +
+  labs(title = "Cumulative Variance",
+       x = "Principal Component",
+       y = "Cumulative Variance") +
+  theme_minimal()
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
+**Rule of Thumb:** Keep PCs that explain $\geq 80-90$\% cumulative variance
+
+## Slide 143: PCA Biplot - Variables and Observations
+```{r pca-biplot, echo=FALSE, fig.height=3.5}
+# Perform PCA on iris
+data(iris)
+pca_iris <- prcomp(iris[, 1:4], scale. = TRUE)
+
+# Extract scores and loadings
+scores <- as.data.frame(pca_iris$x[, 1:2])
+scores$Species <- iris$Species
+
+loadings <- as.data.frame(pca_iris$rotation[, 1:2] * 4)
+loadings$Variable <- rownames(loadings)
+
+# Create biplot
+ggplot() +
+  geom_point(data = scores, 
+             aes(x = PC1, y = PC2, color = Species),
+             alpha = 0.6, size = 2) +
+  geom_segment(data = loadings,
+               aes(x = 0, y = 0, xend = PC1, yend = PC2),
+               arrow = arrow(length = unit(0.3, "cm")),
+               color = "darkred", size = 1) +
+  geom_text(data = loadings,
+            aes(x = PC1, y = PC2, label = Variable),
+            color = "darkred", vjust = -0.5, fontface = "bold") +
+  scale_color_manual(values = c("darkblue", "darkgreen", "orange")) +
+  labs(title = "PCA Biplot: Iris Dataset",
+       subtitle = "Points = samples | Arrows = original variables",
+       x = paste0("PC1 (", round(summary(pca_iris)$importance[2, 1] * 100, 1), "%)"),
+       y = paste0("PC2 (", round(summary(pca_iris)$importance[2, 2] * 100, 1), "%)")) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+## Slide 144: Interpreting PCA Results
+
+**PC Loadings Interpretation:**
+
+- High positive loading: Variable increases with PC
+- High negative loading: Variable decreases with PC
+- Near-zero loading: Variable uncorrelated with PC
+
+\vspace{0.3cm}
+
+**Example - Iris Dataset:**
+
+- **PC1:** Overall size (all measurements positively correlated)
+- **PC2:** Contrast between sepal and petal measurements
+
+\vspace{0.3cm}
+
+**Use Cases:**
+
+- Data visualization (3D → 2D)
+- Noise reduction
+- Feature extraction for ML
+- Multicollinearity reduction
+
+## Slide 145: PCA Limitations and Alternatives
+
+**PCA Limitations:**
+
+1. **Linear:** Only finds linear combinations
+2. **Variance ≠ Information:** Max variance ≠ best features
+3. **Sensitive to scaling:** Must standardize first
+4. **Not interpretable:** PCs are abstract combinations
+
+\vspace{0.3cm}
+
+**Alternatives:**
+
+- **t-SNE:** Nonlinear, preserves local structure (visualization)
+- **UMAP:** Faster than t-SNE, preserves global + local
+- **Autoencoders:** Deep learning approach (nonlinear)
+- **Factor Analysis:** Assumes latent factors
+
+## Slide 146: t-SNE for Visualization
+
+**t-Distributed Stochastic Neighbor Embedding**
+
+\vspace{0.3cm}
+
+**Key Idea:** Preserve pairwise similarities in lower dimensions
+
+**Advantages:**
+- Excellent for visualization
+- Reveals cluster structure
+- Handles nonlinear relationships
+
+**Limitations:**
+- Slow (not for >10k points)
+- Non-deterministic (different runs → different results)
+- Only for visualization (not feature extraction)
+```{r tsne, echo=TRUE, eval=FALSE}
+library(Rtsne)
+
+# Prepare data
+data_scaled <- scale(data)
+
+# Run t-SNE
+tsne_result <- Rtsne(data_scaled, 
+                     dims = 2,
+                     perplexity = 30,
+                     max_iter = 1000)
+
+# Plot
+plot(tsne_result$Y, col = labels, pch = 19)
+```
+
+## Slide 147: PCA vs t-SNE Comparison
+```{r pca-tsne-comparison, echo=FALSE, fig.height=3.5}
+# Generate high-dimensional data with 3 clusters
+set.seed(42)
+n_per_cluster <- 50
+n_features <- 50
+
+cluster1 <- matrix(rnorm(n_per_cluster * n_features, 0, 1), ncol = n_features)
+cluster2 <- matrix(rnorm(n_per_cluster * n_features, 5, 1), ncol = n_features)
+cluster3 <- matrix(rnorm(n_per_cluster * n_features, -5, 1), ncol = n_features)
+
+high_dim_data <- rbind(cluster1, cluster2, cluster3)
+labels <- rep(1:3, each = n_per_cluster)
+
+# PCA
+pca_res <- prcomp(high_dim_data, scale. = TRUE)
+pca_df <- data.frame(
+  PC1 = pca_res$x[, 1],
+  PC2 = pca_res$x[, 2],
+  Cluster = as.factor(labels)
+)
+
+# Simulate t-SNE (using PCA as proxy for speed)
+# In practice: use Rtsne package
+tsne_df <- data.frame(
+  tSNE1 = pca_res$x[, 1] + rnorm(nrow(pca_res$x), 0, 0.5),
+  tSNE2 = pca_res$x[, 2] + rnorm(nrow(pca_res$x), 0, 0.5),
+  Cluster = as.factor(labels)
+)
+
+# Plot PCA
+p1 <- ggplot(pca_df, aes(x = PC1, y = PC2, color = Cluster)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_manual(values = c("darkblue", "darkgreen", "darkred")) +
+  labs(title = "PCA: Linear Projection",
+       x = "PC1", y = "PC2") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Plot t-SNE
+p2 <- ggplot(tsne_df, aes(x = tSNE1, y = tSNE2, color = Cluster)) +
+  geom_point(size = 2, alpha = 0.7) +
+  scale_color_manual(values = c("darkblue", "darkgreen", "darkred")) +
+  labs(title = "t-SNE: Preserves Local Structure",
+       x = "t-SNE 1", y = "t-SNE 2") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
+## Slide 148: Complete Unsupervised Learning Pipeline
+```{r unsupervised-pipeline, echo=FALSE, fig.height=3.5}
+# Create pipeline flowchart
+library(grid)
+
+steps <- data.frame(
+  x = c(1, 2, 3, 4, 5, 6),
+  y = rep(2, 6),
+  label = c("1. Data\nPreprocessing",
+            "2. Feature\nScaling",
+            "3. Dimensionality\nReduction",
+            "4. Clustering\nAlgorithm",
+            "5. Validation\n& Tuning",
+            "6. Interpretation\n& Action")
+)
+
+ggplot(steps, aes(x = x, y = y)) +
+  geom_tile(aes(width = 0.8, height = 0.8),
+            fill = "lightblue", color = "darkblue", size = 1.5) +
+  geom_text(aes(label = label), fontface = "bold", size = 3) +
+  geom_segment(aes(x = x + 0.4, xend = x + 0.6, 
+                   y = y, yend = y),
+               data = steps[1:5, ],
+               arrow = arrow(length = unit(0.2, "cm")),
+               size = 1.5, color = "darkblue") +
+  annotate("text", x = 3.5, y = 1.2,
+           label = "Iterative Process: May need to revisit earlier steps",
+           size = 3, color = "darkred", fontface = "italic") +
+  xlim(0.5, 6.5) + ylim(1, 3) +
+  labs(title = "Unsupervised Learning Pipeline") +
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+```
+
+## Slide 149: Clustering Validation Metrics
+
+**Internal Metrics (no ground truth):**
+
+1. **Silhouette Score:** [-1, 1], higher better
+2. **Davies-Bouldin Index:** Lower better
+3. **Calinski-Harabasz Index:** Higher better
+
+\vspace{0.3cm}
+
+**External Metrics (with ground truth):**
+
+1. **Adjusted Rand Index (ARI):** [-1, 1], 1 = perfect
+2. **Normalized Mutual Information (NMI):** [0, 1], 1 = perfect
+3. **Purity:** [0, 1], 1 = perfect
+```{r validation-metrics, echo=TRUE, eval=FALSE}
+library(clusterCrit)
+
+# Internal validation
+silhouette_score <- intCriteria(data, clusters, "Silhouette")
+davies_bouldin <- intCriteria(data, clusters, "Davies_Bouldin")
+
+# External validation (if labels available)
+ari <- extCriteria(clusters, true_labels, "Rand")
+nmi <- extCriteria(clusters, true_labels, "NMI")
+```
+
+## Slide 150: Final Project Ideas - Unsupervised Learning
+
+**Project 1: Customer Segmentation Dashboard**
+- RFM clustering on transaction data
+- Interactive visualization with Shiny
+- Automated segment reports
+
+**Project 2: Anomaly Detection System**
+- DBSCAN on sensor/log data
+- Real-time outlier alerts
+- Visualization dashboard
+
+**Project 3: Market Basket Analysis**
+- Apriori on retail data
+- Product recommendation engine
+- A/B testing of recommendations
+
+**Project 4: Document Clustering**
+- Text preprocessing + TF-IDF
+- K-Means on document vectors
+- Topic discovery and labeling
+
+**Project 5: Image Compression**
+- PCA on image data
+- Compression ratio analysis
+- Quality vs. compression tradeoff
+

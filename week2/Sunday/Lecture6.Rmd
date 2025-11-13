@@ -1,0 +1,1492 @@
+---
+title: "Big Data Tools: KNIME, Spark, and Databricks"
+subtitle: "Lecture 6: Scalable Data Science with Free Tools (MSc Data Science)"
+author: "Prof. Asc. Endri Raco, Ph.D. and AI Team"
+institute: "Department of Mathematical Engineering, Polytechnic University of Tirana"
+date: "November 2025"
+output:
+  beamer_presentation:
+    theme: Madrid
+    colortheme: default
+    fonttheme: professionalfonts
+    slide_level: 2
+    toc: false
+    fig_width: 6
+    fig_height: 4
+    fig_caption: true
+    latex_engine: xelatex
+header-includes:
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
+  - \usepackage{booktabs}
+  - \usepackage{graphicx}
+  - \usepackage{tikz}
+  - \definecolor{darkblue}{RGB}{0,51,102}
+  - \setbeamercolor{structure}{fg=darkblue}
+  - \setbeamertemplate{navigation symbols}{}
+  - \setbeamertemplate{footline}[frame number]
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = 'center',
+  out.width = '80%',
+  cache = FALSE,
+  eval = FALSE  # Code shown but not executed during compilation
+)
+
+# Load libraries for visualizations
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(grid)
+library(gridExtra)
+
+# Set random seed
+set.seed(123)
+
+# Set theme
+theme_set(theme_minimal(base_size = 10))
+```
+
+# Part I: The Big Data Challenge and KNIME Workflows
+
+## Slide 1: The Big Data Revolution
+
+**Evolution of Data Science Tools:**
+```{r data-evolution, echo=FALSE, eval=TRUE, fig.height=3}
+# Timeline of data tools
+timeline <- data.frame(
+  Year = c(1990, 2000, 2006, 2010, 2014, 2020),
+  Tool = c("Excel", "R/Python", "Hadoop", "Spark", "KNIME", "Cloud ML"),
+  DataSize = c("MB", "GB", "TB", "PB", "Any", "Any"),
+  Type = c("Desktop", "Desktop", "Cluster", "Cluster", "Hybrid", "Cloud")
+)
+
+ggplot(timeline, aes(x = Year, y = seq_along(Year))) +
+  geom_point(size = 6, color = "darkblue") +
+  geom_text(aes(label = Tool), vjust = -1, fontface = "bold") +
+  geom_text(aes(label = paste("Max:", DataSize)), vjust = 2, 
+            size = 3, color = "darkred") +
+  labs(title = "Evolution of Data Science Tools",
+       subtitle = "From desktop to distributed computing",
+       x = "Year", y = "") +
+  theme_minimal() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+```
+
+## Slide 2: Why Traditional Tools Break Down
+
+**The Scaling Problem:**
+
+| Data Size | Tool | Processing Time | Memory |
+|-----------|------|----------------|---------|
+| 1 GB | R (laptop) | Minutes | 8 GB RAM |
+| 10 GB | R (laptop) | Hours | 32 GB RAM |
+| 100 GB | R (laptop) | **Crash!** | Not enough |
+| 100 GB | Spark (cluster) | Minutes | Distributed |
+| 1 TB | Spark (cluster) | Hours | Distributed |
+
+\vspace{0.3cm}
+
+**Key Insight:** When data doesn't fit in memory, you need distributed computing
+
+## Slide 3: Lecture 6 Structure and Tools
+
+**Three Free Tools for Big Data:**
+
+1. **KNIME Analytics (Slides 1-40):**
+   - Visual workflow designer (no-code)
+   - Runs on laptop
+   - Perfect for learning and prototyping
+
+2. **Apache Spark + Databricks CE (Slides 41-100):**
+   - Distributed computing framework
+   - Free cloud tier (15 GB RAM)
+   - Industry standard
+
+3. **Integration (Slides 101-150):**
+   - Combining KNIME, R, and Python
+   - Deployment strategies
+
+## Slide 4: What is KNIME?
+
+**KNIME Analytics Platform:**
+
+- **K**onstanz **N**formation **M**iner
+- Open-source, visual workflow tool
+- Drag-and-drop interface (no coding required!)
+- 2000+ pre-built nodes (operations)
+
+\vspace{0.3cm}
+
+**Key Advantages:**
+
+- Free and open-source
+- Runs on Windows, Mac, Linux
+- Integrates R, Python, SQL, Spark
+- Visual pipelines (easy to understand and share)
+- Production-ready (can deploy workflows)
+
+## Slide 5: KNIME vs. Traditional Coding
+```{r knime-comparison, echo=FALSE, eval=TRUE, fig.height=3.5}
+# Create comparison
+comparison <- data.frame(
+  Aspect = c("Learning Curve", "Speed to Prototype", "Debugging",
+             "Reproducibility", "Collaboration", "Scalability"),
+  Traditional_Code = c("Steep", "Slow", "Complex", "High", "Medium", "High"),
+  KNIME_Workflows = c("Gentle", "Fast", "Visual", "High", "Easy", "High")
+)
+
+comparison_long <- comparison %>%
+  pivot_longer(cols = c(Traditional_Code, KNIME_Workflows),
+               names_to = "Approach", values_to = "Rating")
+
+comparison_long$Rating_numeric <- ifelse(
+  comparison_long$Rating == "Steep", 1,
+  ifelse(comparison_long$Rating == "Complex", 1,
+  ifelse(comparison_long$Rating == "Slow", 2,
+  ifelse(comparison_long$Rating == "Medium", 3,
+  ifelse(comparison_long$Rating == "Gentle", 4,
+  ifelse(comparison_long$Rating == "Fast", 4,
+  ifelse(comparison_long$Rating == "Visual", 4,
+  ifelse(comparison_long$Rating == "Easy", 4, 3))))))))
+
+ggplot(comparison_long, aes(x = Aspect, y = Rating_numeric, 
+                             fill = Approach)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("steelblue", "darkgreen"),
+                    labels = c("KNIME Workflows", "Traditional Code")) +
+  labs(title = "KNIME vs. Traditional Coding",
+       subtitle = "Higher = Better",
+       x = "", y = "Performance", fill = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text.y = element_blank(),
+        legend.position = "bottom")
+```
+
+## Slide 6: Installing KNIME Analytics Platform
+
+**Installation Steps:**
+
+1. Visit: **https://www.knime.com/downloads**
+2. Download KNIME Analytics Platform (free)
+3. Install (no license needed)
+4. Launch KNIME
+
+\vspace{0.3cm}
+
+**System Requirements:**
+
+- Windows 10+, macOS 10.15+, or Linux
+- 4 GB RAM minimum (8 GB recommended)
+- 2 GB disk space
+- Java 11+ (included in installer)
+
+\vspace{0.3cm}
+
+**First Launch:** Creates workspace folder for your workflows
+
+## Slide 7: KNIME Interface Overview
+
+**Main Components:**
+
+1. **Node Repository (Left):** Library of 2000+ operations
+2. **Workflow Canvas (Center):** Drag nodes here
+3. **Workflow Coach (Right):** Suggests next steps
+4. **Description (Bottom):** Node documentation
+5. **Console (Bottom):** Execution messages
+
+\vspace{0.3cm}
+
+**Key Terms:**
+
+- **Node:** Single operation (read file, filter, model)
+- **Workflow:** Connected nodes (complete pipeline)
+- **Port:** Connection point (triangle = data table)
+- **Configure:** Set node parameters (double-click)
+- **Execute:** Run node (right-click → Execute)
+
+## Slide 8: Your First KNIME Workflow - Hello Data
+
+**Simple 3-Node Workflow:**
+```
+[Data Generator] → [Row Filter] → [Table View]
+```
+
+\vspace{0.3cm}
+
+**Steps:**
+
+1. **Node Repository → Manipulation → Row → Data Generator**
+   - Drag to canvas
+   - Configure: 100 rows
+   - Execute (green light = success)
+
+2. **Manipulation → Row → Row Filter**
+   - Drag to canvas, connect to Data Generator
+   - Configure: Keep rows where Column0 > 50
+   - Execute
+
+3. **Views → Table View**
+   - Connect and execute
+   - View results
+
+## Slide 9: KNIME Node Types - Color Coding
+
+**Node Colors Indicate Function:**
+```{r node-colors, echo=FALSE, eval=TRUE, fig.height=3}
+node_types <- data.frame(
+  Type = c("I/O", "Manipulation", "Analytics", "Views", "Other"),
+  Color = c("Green", "Orange", "Blue", "Yellow", "Gray"),
+  Example = c("CSV Reader", "Row Filter", "Linear Regression", 
+              "Scatter Plot", "Variable")
+)
+
+ggplot(node_types, aes(x = Type, y = 1, fill = Color)) +
+  geom_tile(height = 0.5, color = "black", size = 1) +
+  geom_text(aes(label = Example), vjust = 2, size = 3) +
+  scale_fill_manual(values = c("Blue" = "lightblue", 
+                                "Gray" = "gray70",
+                                "Green" = "lightgreen",
+                                "Orange" = "orange",
+                                "Yellow" = "yellow")) +
+  labs(title = "KNIME Node Color Coding",
+       subtitle = "Colors help identify node categories") +
+  theme_void() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 10, face = "bold"))
+```
+
+**Port Shapes:** Triangle = data table, Square = model, Circle = other
+
+## Slide 10: Reading Data in KNIME
+
+**Common Data Sources:**
+
+1. **CSV Reader** (most common)
+   - File → CSV Reader
+   - Browse to file
+   - Auto-detects delimiter, headers
+
+2. **Excel Reader**
+   - Reads .xlsx files
+   - Select specific sheets
+
+3. **Database Connector**
+   - MySQL, PostgreSQL, SQLite
+   - Execute SQL queries
+
+4. **File Reader** (generic)
+   - Auto-detects format
+
+\vspace{0.3cm}
+
+**Demo:** Read iris.csv dataset
+
+## Slide 11: Data Exploration Nodes
+
+**Essential Exploration Nodes:**
+```
+[CSV Reader] → [Statistics] → [Table View]
+                ↓
+           [Color Manager] → [Scatter Plot]
+                ↓
+           [Histogram]
+```
+
+\vspace{0.3cm}
+
+**Key Nodes:**
+
+- **Statistics:** Mean, median, min, max per column
+- **Table View:** Browse data (like View() in R)
+- **Histogram:** Distribution of numeric columns
+- **Scatter Plot:** Relationships between variables
+- **Box Plot:** Outlier detection
+- **Missing Value:** Check for NAs
+
+## Slide 12: Data Cleaning Workflow
+
+**Common Cleaning Operations:**
+```
+[CSV Reader]
+    ↓
+[Column Filter] (remove unwanted columns)
+    ↓
+[Row Filter] (remove outliers/bad data)
+    ↓
+[Missing Value] (handle NAs)
+    ↓
+[String Manipulation] (clean text)
+    ↓
+[Normalizer] (scale numeric features)
+    ↓
+[Column Rename] (standardize names)
+```
+
+\vspace{0.3cm}
+
+**Best Practice:** Chain nodes to create reproducible cleaning pipeline
+
+## Slide 13: Feature Engineering in KNIME
+
+**Creating New Features:**
+
+1. **Math Formula Node:**
+   - Create derived columns
+   - Example: `$price$ / $area$ = price_per_sqm`
+
+2. **String Manipulation:**
+   - Extract substrings
+   - Convert case
+   - Replace patterns
+
+3. **Rule Engine:**
+   - If-then-else logic
+   - Example: `$age$ > 65 => "Senior"`
+
+4. **Java Snippet:**
+   - Custom code for complex operations
+
+## Slide 14: Partitioning Data - Train/Test Split
+
+**Node:** Partitioning
+```
+[CSV Reader]
+    ↓
+[Partitioning] (80% train / 20% test)
+    ↓ (two outputs)
+[Training Data]    [Test Data]
+```
+
+\vspace{0.3cm}
+
+**Configuration:**
+
+- **Relative:** 80% / 20%
+- **Absolute:** First 1000 rows / rest
+- **Stratified:** Preserve class distribution
+- **Random Sampling:** With seed for reproducibility
+
+\vspace{0.3cm}
+
+**Important:** Set random seed for reproducible splits!
+
+## Slide 15: End-to-End Classification Workflow - Overview
+
+**Complete Iris Classification Pipeline:**
+```
+[CSV Reader] → [Partitioning] → [Logistic Regression Learner]
+                     ↓                        ↓
+              [Test Data] ← ← ← ← [Predictor]
+                     ↓
+              [Scorer] → [Confusion Matrix]
+```
+
+\vspace{0.3cm}
+
+**Workflow Steps:**
+
+1. Load iris data
+2. Split 80/20
+3. Train logistic regression on training set
+4. Predict on test set
+5. Evaluate with confusion matrix
+
+## Slide 16: Step 1 - Load Iris Data
+
+**Node: CSV Reader**
+
+**Configuration:**
+
+- Browse to `iris.csv`
+- Check "Has Column Headers"
+- Check "Has Row IDs"
+- Click OK
+
+\vspace{0.3cm}
+
+**Execute and View:**
+
+- Right-click → Execute
+- Right-click → Output → Data Table
+- Verify: 150 rows, 5 columns
+- Species column should be categorical
+
+\vspace{0.3cm}
+
+**If Species is not categorical:** Add **String to Number** node
+
+## Slide 17: Step 2 - Partition Data
+
+**Node: Partitioning**
+
+**Configuration:**
+
+1. Drag **Manipulation → Row → Partitioning**
+2. Connect to CSV Reader
+3. Configure:
+   - Relative: 80% top / 20% bottom
+   - Stratified sampling: Check ✓
+   - Column: Species
+   - Random seed: 123
+
+\vspace{0.3cm}
+
+**Why Stratified?** Preserves class distribution in both sets
+
+**Execute:** Node should show two output ports (top = train, bottom = test)
+
+## Slide 18: Step 3 - Train Logistic Regression
+
+**Node: Logistic Regression Learner**
+
+**Path:** Analytics → Mining → Logistic Regression Learner
+
+**Configuration:**
+
+1. Connect top port of Partitioning node
+2. Double-click to configure:
+   - Target column: Species
+   - Feature columns: Select all numeric columns
+   - Solver: Default (IRLS)
+
+\vspace{0.3cm}
+
+**Execute:** 
+
+- Green light = model trained successfully
+- Model object stored in output port (square shape)
+
+## Slide 19: Step 4 - Make Predictions
+
+**Node: Predictor**
+
+**Configuration:**
+
+1. Drag **Analytics → Mining → Predictor**
+2. Connect TWO inputs:
+   - Model from Logistic Regression Learner (square port)
+   - Test data from Partitioning (bottom triangle port)
+3. Configure:
+   - Append columns with suffix: \_predicted
+   - Include probabilities: Check ✓
+
+\vspace{0.3cm}
+
+**Execute:** Adds prediction columns to test data
+
+## Slide 20: Step 5 - Evaluate Model
+
+**Nodes: Scorer + Confusion Matrix**
+```
+[Predictor] → [Scorer] → [Confusion Matrix]
+```
+
+\vspace{0.3cm}
+
+**Scorer Node:**
+
+- Analytics → Mining → Scorer
+- Connect to Predictor output
+- Configure:
+  - First column: Species (actual)
+  - Second column: Species\_predicted
+- Execute
+
+**Confusion Matrix:**
+
+- Views → Confusion Matrix
+- Connect to Scorer
+- Execute and view results
+
+## Slide 21: Understanding KNIME Output
+
+**Scorer Output Statistics:**
+
+- **Accuracy:** Overall correctness
+- **Precision:** True positives / (TP + FP)
+- **Recall:** True positives / (TP + FN)
+- **F1-Score:** Harmonic mean of precision and recall
+
+\vspace{0.3cm}
+
+**Confusion Matrix:**
+
+|  | Predicted Setosa | Predicted Versicolor | Predicted Virginica |
+|---|---|---|---|
+| **Actual Setosa** | TP | FP | FP |
+| **Actual Versicolor** | FN | TP | FP |
+| **Actual Virginica** | FN | FN | TP |
+
+## Slide 22: Saving Your Workflow
+
+**Save Workflow:**
+
+1. File → Save As
+2. Choose location
+3. Name: `Iris_Classification`
+4. Creates `.knwf` file
+
+\vspace{0.3cm}
+
+**Export Workflow:**
+
+1. File → Export KNIME Workflow
+2. Creates portable `.knwf` archive
+3. Can share with others
+
+\vspace{0.3cm}
+
+**Best Practice:**
+
+- Save frequently
+- Use version control (Git-friendly)
+- Add annotations (Edit → Workflow Annotations)
+
+## Slide 23: Adding Documentation to Workflows
+
+**Making Workflows Understandable:**
+
+1. **Node Descriptions:**
+   - Right-click node → Edit Node Description
+   - Explain what this node does
+
+2. **Workflow Annotations:**
+   - Right-click canvas → Workflow Annotation
+   - Add text boxes explaining sections
+
+3. **Meta Nodes:**
+   - Group related nodes
+   - Right-click nodes → Create Meta Node
+   - Collapse complex sections
+
+\vspace{0.3cm}
+
+**Good Practice:** Document as you build, not after!
+
+## Slide 24: KNIME Components - Reusable Modules
+
+**What are Components?**
+
+- Reusable sub-workflows
+- Encapsulate complex logic
+- Share across projects
+
+\vspace{0.3cm}
+
+**Create Component:**
+
+1. Select multiple nodes
+2. Right-click → Create Component
+3. Name it (e.g., "Data Cleaning")
+4. Configure inputs/outputs
+
+\vspace{0.3cm}
+
+**Use Cases:**
+
+- Standard data preprocessing
+- Custom visualization
+- Feature engineering pipelines
+
+## Slide 25: Regression Workflow in KNIME
+
+**Predicting House Prices:**
+```
+[CSV Reader] → [Partitioning] → [Linear Regression Learner]
+                     ↓                        ↓
+              [Test Data] ← ← ← ← [Predictor]
+                     ↓
+              [Numeric Scorer] → [Scatter Plot]
+```
+
+\vspace{0.3cm}
+
+**Key Differences from Classification:**
+
+- **Learner:** Linear Regression (not Logistic)
+- **Scorer:** Numeric Scorer (not Classification Scorer)
+- **Metrics:** RMSE, MAE, R² (not accuracy)
+
+## Slide 26: Regression Evaluation Nodes
+
+**Numeric Scorer Output:**
+```
+[Predictor] → [Numeric Scorer]
+                     ↓
+              Statistics Output:
+              - Mean Absolute Error (MAE)
+              - Root Mean Squared Error (RMSE)
+              - R² (coefficient of determination)
+              - Mean Signed Difference
+```
+
+\vspace{0.3cm}
+
+**Visualization:**
+
+- **Scatter Plot:** Actual vs. Predicted
+  - Perfect predictions = diagonal line
+  - Points above = over-predictions
+  - Points below = under-predictions
+
+## Slide 27: Advanced Nodes - Cross-Validation
+
+**X-Partitioner + X-Aggregator:**
+```
+[Data] → [X-Partitioner (k=5)]
+              ↓ (loop)
+         [Learner] → [Predictor] → [Scorer]
+              ↓ (collect results)
+         [X-Aggregator]
+              ↓
+         [Mean Accuracy across folds]
+```
+
+\vspace{0.3cm}
+
+**Configuration:**
+
+- X-Partitioner: Set number of folds (k=5 or k=10)
+- Stratified: Preserve class distribution
+- X-Aggregator: Calculates average performance
+
+## Slide 28: Parameter Optimization in KNIME
+
+**Parameter Optimization Loop:**
+```
+[Data] → [Parameter Optimization Loop Start]
+              ↓
+         [Learner with varying parameters]
+              ↓
+         [Cross-validation]
+              ↓
+         [Parameter Optimization Loop End]
+              ↓
+         [Best parameters selected]
+```
+
+\vspace{0.3cm}
+
+**Use Case:** Find optimal hyperparameters (similar to grid search in R)
+
+**Example:** Optimize regularization in Logistic Regression
+
+## Slide 29: Exporting Models from KNIME
+
+**Deployment Options:**
+
+1. **PMML (Predictive Model Markup Language):**
+   - Model → PMML Writer
+   - Export model in standard format
+   - Import into R, Python, Java
+
+2. **Python Node:**
+   - Convert KNIME model to Python
+   - Deploy in Python environments
+
+3. **REST Service:**
+   - KNIME Server (commercial)
+   - Expose workflow as API
+
+4. **Batch Scoring:**
+   - Save workflow
+   - Run headless: `knime -consoleLog -nosplash -application org.knime.product.KNIME_BATCH_APPLICATION`
+
+## Slide 30: KNIME Hub - Share and Discover
+
+**KNIME Hub:** hub.knime.com
+
+**Features:**
+
+- **Public Workflows:** Download examples
+- **Components:** Reusable building blocks
+- **Extensions:** Additional node packages
+- **Community:** Ask questions, share solutions
+
+\vspace{0.3cm}
+
+**Popular Extensions:**
+
+- **Deep Learning:** TensorFlow, Keras integration
+- **Text Processing:** NLP nodes
+- **Big Data:** Spark, Hadoop connectors
+- **Time Series:** Specialized forecasting nodes
+
+---
+
+# Part II: Introduction to Spark and Databricks
+
+## Slide 31: Transition - From Single Node to Distributed
+
+**KNIME Limitation:** Still runs on one machine
+
+**What if data is too big for one machine?**
+```{r single-vs-distributed, echo=FALSE, eval=TRUE, fig.height=3}
+# Comparison of architectures
+architectures <- data.frame(
+  Type = c("Single Node", "Single Node", "Distributed", "Distributed"),
+  Metric = c("Data Size", "Processing", "Data Size", "Processing"),
+  Capability = c("RAM limit\n(~32 GB)", "1 CPU\n(4-8 cores)", 
+                 "Unlimited\n(add nodes)", "Many CPUs\n(100+ cores)")
+)
+
+ggplot(architectures, aes(x = Type, y = Metric)) +
+  geom_tile(aes(fill = Type), color = "white", size = 2) +
+  geom_text(aes(label = Capability), size = 3.5, fontface = "bold") +
+  scale_fill_manual(values = c("coral", "lightblue")) +
+  labs(title = "Single Node vs. Distributed Computing",
+       x = "", y = "") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 11, face = "bold"))
+```
+
+**Solution:** Distributed computing with Apache Spark
+
+## Slide 32: What is Apache Spark?
+
+**Apache Spark:** Unified engine for large-scale data processing
+
+\vspace{0.3cm}
+
+**Key Innovations:**
+
+1. **In-Memory Computing:** 100x faster than Hadoop MapReduce
+2. **Unified Platform:** Batch, streaming, ML, graph processing
+3. **Multiple Languages:** Python (PySpark), R, Scala, Java, SQL
+4. **Lazy Evaluation:** Optimizes entire pipeline before execution
+
+\vspace{0.3cm}
+
+**Created:** 2009 at UC Berkeley
+
+**Industry Adoption:** Netflix, Uber, Airbnb, NASA, CERN
+
+**Open Source:** Apache License 2.0
+
+## Slide 33: Hadoop MapReduce vs. Spark
+```{r hadoop-vs-spark, echo=FALSE, eval=TRUE, fig.height=3.5}
+# Performance comparison
+comparison <- data.frame(
+  Framework = c("Hadoop MapReduce", "Apache Spark"),
+  Speed = c(1, 100),
+  Memory = c("Disk-based", "In-memory"),
+  Ease = c("Complex", "Simple"),
+  RealTime = c("No", "Yes")
+)
+
+ggplot(comparison, aes(x = Framework, y = Speed)) +
+  geom_col(aes(fill = Framework), width = 0.6) +
+  scale_fill_manual(values = c("coral", "darkgreen")) +
+  geom_text(aes(label = paste0(Speed, "x")), 
+            vjust = -0.5, size = 6, fontface = "bold") +
+  labs(title = "Speed Comparison: Hadoop vs. Spark",
+       subtitle = "Spark is 100x faster due to in-memory computing",
+       x = "", y = "Relative Speed") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+**Key Difference:** Spark keeps data in RAM between operations
+
+## Slide 34: Spark Architecture - Master/Worker Model
+```{r spark-architecture, echo=FALSE, eval=TRUE, fig.height=3.5}
+# Create Spark architecture diagram
+library(grid)
+
+ggplot() +
+  # Driver (Master)
+  geom_rect(aes(xmin = 2.5, xmax = 4.5, ymin = 4, ymax = 5),
+            fill = "darkblue", color = "white", size = 1.5) +
+  annotate("text", x = 3.5, y = 4.5, 
+           label = "Driver Program\n(SparkContext)", 
+           color = "white", size = 4, fontface = "bold") +
+  
+  # Cluster Manager
+  geom_rect(aes(xmin = 2.5, xmax = 4.5, ymin = 2.5, ymax = 3.5),
+            fill = "darkgreen", color = "white", size = 1.5) +
+  annotate("text", x = 3.5, y = 3, 
+           label = "Cluster Manager\n(YARN/Mesos/Standalone)", 
+           color = "white", size = 3.5, fontface = "bold") +
+  
+  # Workers
+  geom_rect(aes(xmin = 0.5, xmax = 2, ymin = 0.5, ymax = 1.5),
+            fill = "coral", color = "white", size = 1.5) +
+  annotate("text", x = 1.25, y = 1, 
+           label = "Worker 1\nExecutors\nCache", 
+           color = "white", size = 3, fontface = "bold") +
+  
+  geom_rect(aes(xmin = 2.5, xmax = 4, ymin = 0.5, ymax = 1.5),
+            fill = "coral", color = "white", size = 1.5) +
+  annotate("text", x = 3.25, y = 1, 
+           label = "Worker 2\nExecutors\nCache", 
+           color = "white", size = 3, fontface = "bold") +
+  
+  geom_rect(aes(xmin = 4.5, xmax = 6, ymin = 0.5, ymax = 1.5),
+            fill = "coral", color = "white", size = 1.5) +
+  annotate("text", x = 5.25, y = 1, 
+           label = "Worker 3\nExecutors\nCache", 
+           color = "white", size = 3, fontface = "bold") +
+  
+  # Arrows
+  geom_segment(aes(x = 3.5, xend = 3.5, y = 4, yend = 3.5),
+               arrow = arrow(length = unit(0.3, "cm")), 
+               size = 1.5, color = "black") +
+  geom_segment(aes(x = 3.5, xend = 1.25, y = 2.5, yend = 1.5),
+               arrow = arrow(length = unit(0.3, "cm")), 
+               size = 1.5, color = "black") +
+  geom_segment(aes(x = 3.5, xend = 3.25, y = 2.5, yend = 1.5),
+               arrow = arrow(length = unit(0.3, "cm")), 
+               size = 1.5, color = "black") +
+  geom_segment(aes(x = 3.5, xend = 5.25, y = 2.5, yend = 1.5),
+               arrow = arrow(length = unit(0.3, "cm")), 
+               size = 1.5, color = "black") +
+  
+  xlim(0, 6.5) + ylim(0, 5.5) +
+  labs(title = "Apache Spark Cluster Architecture") +
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+```
+
+## Slide 35: Spark Core Concepts - RDD, DataFrame, Dataset
+
+**Three Data Abstractions:**
+
+1. **RDD (Resilient Distributed Dataset):**
+   - Low-level API
+   - Immutable, partitioned collection
+   - Fault-tolerant
+   - Use case: Complex transformations
+
+2. **DataFrame:**
+   - High-level API (like R/Pandas)
+   - Structured data with schema
+   - Optimized execution
+   - **Most common for data science**
+
+3. **Dataset:**
+   - Type-safe (Scala/Java only)
+   - Not available in Python
+
+## Slide 36: Why Databricks?
+
+**Databricks:** Managed Spark platform by Spark creators
+
+\vspace{0.3cm}
+
+**Advantages:**
+
+- **No Setup:** Spark pre-configured
+- **Notebooks:** Interactive development (like Jupyter)
+- **Auto-scaling:** Cluster grows/shrinks automatically
+- **Collaboration:** Share notebooks with team
+- **Visualization:** Built-in plotting
+- **Integration:** Connects to AWS, Azure, GCP
+
+\vspace{0.3cm}
+
+**Community Edition:** FREE tier (15 GB RAM, 1 node)
+
+## Slide 37: Databricks Community Edition - Sign Up
+
+**Step-by-Step Registration:**
+
+1. Visit: **https://community.cloud.databricks.com/**
+2. Click "Sign Up"
+3. Fill form:
+   - Email (use your university email)
+   - First/Last name
+   - Company: "University Student"
+4. Verify email
+5. Login
+
+\vspace{0.3cm}
+
+**What You Get (FREE):**
+
+- 15 GB RAM cluster
+- Unlimited notebooks
+- Sample datasets
+- Community support
+
+## Slide 38: Databricks Interface Tour
+
+**Main Components:**
+
+1. **Workspace (Left Sidebar):**
+   - Organize notebooks and folders
+   - Shared and personal spaces
+
+2. **Clusters:**
+   - Create and manage compute resources
+   - Start/stop clusters
+
+3. **Notebook:**
+   - Interactive code cells
+   - Mix SQL, Python, Scala, R
+
+4. **Data:**
+   - Browse uploaded datasets
+   - Create tables
+
+5. **Jobs:**
+   - Schedule automated workflows
+
+## Slide 39: Creating Your First Cluster
+
+**Steps:**
+
+1. Click **Compute** (left sidebar)
+2. Click **Create Cluster**
+3. Configure:
+   - **Cluster Name:** "My-First-Cluster"
+   - **Cluster Mode:** Standard
+   - **Databricks Runtime:** 13.3 LTS (or latest)
+   - **Terminate after:** 120 minutes idle
+4. Click **Create Cluster**
+
+\vspace{0.3cm}
+
+**Wait 3-5 minutes:** Cluster status changes to "Running" (green)
+
+**Cost:** FREE in Community Edition (limited to 1 cluster)
+
+## Slide 40: Creating Your First Notebook
+
+**Steps:**
+
+1. Click **Workspace** (left sidebar)
+2. Navigate to your folder
+3. Click dropdown → **Create** → **Notebook**
+4. Configure:
+   - **Name:** "Intro-to-PySpark"
+   - **Language:** Python
+   - **Cluster:** Select your running cluster
+5. Click **Create**
+
+\vspace{0.3cm}
+
+**Notebook Opens:** Ready to write Spark code!
+
+## Slide 41: PySpark Basics - Your First Commands
+
+**Cell 1: Check Spark Session**
+```python
+# Spark session is pre-created as 'spark'
+print(spark)
+print(f"Spark version: {spark.version}")
+
+# Get Spark configuration
+print(f"App name: {spark.sparkContext.appName}")
+```
+
+**Output:**
+```
+<pyspark.sql.session.SparkSession object at 0x...>
+Spark version: 3.4.1
+App name: Databricks Shell
+```
+
+\vspace{0.3cm}
+
+**Run Cell:** Shift + Enter
+
+## Slide 42: Creating DataFrames in PySpark
+
+**Method 1: From Python List**
+```python
+# Create simple DataFrame
+data = [
+    ("Alice", 25, "Engineer"),
+    ("Bob", 30, "Doctor"),
+    ("Charlie", 35, "Teacher")
+]
+
+columns = ["Name", "Age", "Occupation"]
+
+df = spark.createDataFrame(data, columns)
+
+# Display DataFrame
+df.show()
+```
+
+**Output:**
+```
++-------+---+----------+
+|   Name|Age|Occupation|
++-------+---+----------+
+|  Alice| 25|  Engineer|
+|    Bob| 30|    Doctor|
+|Charlie| 35|   Teacher|
++-------+---+----------+
+```
+
+## Slide 43: Reading Data in PySpark
+
+**Read CSV File:**
+```python
+# Read built-in sample dataset
+df = spark.read.csv(
+    "/databricks-datasets/samples/population-vs-price/data_geo.csv",
+    header=True,
+    inferSchema=True
+)
+
+# View first few rows
+df.show(5)
+
+# Check schema
+df.printSchema()
+
+# Count rows
+print(f"Number of rows: {df.count()}")
+```
+
+**Note:** Databricks includes sample datasets in `/databricks-datasets/`
+
+## Slide 44: DataFrame Operations - Select and Filter
+
+**Select Columns:**
+```python
+# Select specific columns
+df.select("Name", "Age").show()
+
+# Select with expressions
+df.select(
+    df.Name,
+    (df.Age + 5).alias("Age_in_5_years")
+).show()
+```
+
+**Filter Rows:**
+```python
+# Filter using SQL-like syntax
+df.filter(df.Age > 25).show()
+
+# Multiple conditions
+df.filter((df.Age > 25) & (df.Occupation == "Doctor")).show()
+
+# Using SQL string
+df.filter("Age > 25 AND Occupation = 'Doctor'").show()
+```
+
+## Slide 45: Adding and Modifying Columns
+
+**Add New Columns:**
+```python
+from pyspark.sql.functions import col, lit, when
+
+# Add constant column
+df_with_country = df.withColumn("Country", lit("Albania"))
+
+# Add calculated column
+df_with_age_group = df.withColumn(
+    "AgeGroup",
+    when(col("Age") < 30, "Young")
+    .when(col("Age") < 40, "Middle")
+    .otherwise("Senior")
+)
+
+df_with_age_group.show()
+```
+
+**Rename Columns:**
+```python
+# Rename single column
+df.withColumnRenamed("Name", "FullName").show()
+```
+
+## Slide 46: Aggregations in PySpark
+
+**Group By and Aggregate:**
+```python
+from pyspark.sql.functions import avg, count, sum, min, max
+
+# Group by occupation
+occupation_stats = df.groupBy("Occupation").agg(
+    count("*").alias("Count"),
+    avg("Age").alias("AvgAge"),
+    min("Age").alias("MinAge"),
+    max("Age").alias("MaxAge")
+)
+
+occupation_stats.show()
+```
+
+**Output:**
+```
++----------+-----+------+------+------+
+|Occupation|Count|AvgAge|MinAge|MaxAge|
++----------+-----+------+------+------+
+|  Engineer|    1|  25.0|    25|    25|
+|    Doctor|    1|  30.0|    30|    30|
+|   Teacher|    1|  35.0|    35|    35|
++----------+-----+------+------+------+
+```
+
+## Slide 47: Sorting and Limiting
+
+**Sort Data:**
+```python
+# Sort ascending
+df.orderBy("Age").show()
+
+# Sort descending
+df.orderBy(df.Age.desc()).show()
+
+# Multiple columns
+df.orderBy(["Occupation", "Age"], ascending=[True, False]).show()
+```
+
+**Limit Results:**
+```python
+# Get top 10 rows
+df.orderBy(df.Age.desc()).limit(10).show()
+
+# Alternative: take()
+top_5 = df.orderBy(df.Age.desc()).take(5)
+for row in top_5:
+    print(row)
+```
+
+## Slide 48: Joining DataFrames
+
+**Create Second DataFrame:**
+```python
+# Salary data
+salary_data = [
+    ("Alice", 75000),
+    ("Bob", 95000),
+    ("Charlie", 65000)
+]
+
+df_salary = spark.createDataFrame(
+    salary_data, 
+    ["Name", "Salary"]
+)
+
+# Inner join
+df_joined = df.join(df_salary, on="Name", how="inner")
+df_joined.show()
+```
+
+**Join Types:**
+
+- `inner`: Only matching rows
+- `left`: All from left, matching from right
+- `right`: All from right, matching from left
+- `outer`: All rows from both
+
+## Slide 49: SQL Queries in PySpark
+
+**Register DataFrame as Temporary View:**
+```python
+# Create temporary view
+df.createOrReplaceTempView("people")
+
+# Run SQL query
+result = spark.sql("""
+    SELECT 
+        Occupation,
+        AVG(Age) as AvgAge,
+        COUNT(*) as Count
+    FROM people
+    WHERE Age > 25
+    GROUP BY Occupation
+    ORDER BY AvgAge DESC
+""")
+
+result.show()
+```
+
+**Advantage:** Use familiar SQL syntax!
+
+## Slide 50: Working with Real Data - Load Iris Dataset
+
+**Upload Data to Databricks:**
+
+1. Click **Data** (left sidebar)
+2. Click **Create Table**
+3. Upload `iris.csv`
+4. Or use built-in sample data
+
+**Read Iris Dataset:**
+```python
+# Read iris data
+iris = spark.read.csv(
+    "/databricks-datasets/Rdatasets/data-001/csv/datasets/iris.csv",
+    header=True,
+    inferSchema=True
+)
+
+# View data
+iris.show(5)
+iris.printSchema()
+
+# Basic statistics
+iris.describe().show()
+```
+
+## Slide 51: Exploratory Data Analysis in PySpark
+
+**Data Profiling:**
+```python
+# Row count
+print(f"Rows: {iris.count()}")
+
+# Column names and types
+iris.printSchema()
+
+# Summary statistics
+iris.select("Sepal.Length", "Sepal.Width").summary().show()
+
+# Value counts for categorical
+iris.groupBy("Species").count().show()
+
+# Missing values check
+from pyspark.sql.functions import col, sum as spark_sum
+
+iris.select([
+    spark_sum(col(c).isNull().cast("int")).alias(c) 
+    for c in iris.columns
+]).show()
+```
+
+## Slide 52: Data Visualization in Databricks
+
+**Built-in Plotting:**
+```python
+# Create summary for plotting
+species_summary = iris.groupBy("Species").agg(
+    avg("Sepal.Length").alias("AvgSepalLength"),
+    avg("Sepal.Width").alias("AvgSepalWidth"),
+    avg("Petal.Length").alias("AvgPetalLength"),
+    avg("Petal.Width").alias("AvgPetalWidth")
+)
+
+# Display as table (Databricks auto-creates charts)
+display(species_summary)
+```
+
+**After running:** Click chart icon above output to create visualizations
+
+**Chart Types:** Bar, line, scatter, pie, map
+
+## Slide 53: Feature Engineering for ML
+
+**Prepare Features for Machine Learning:**
+```python
+from pyspark.ml.feature import VectorAssembler, StringIndexer
+
+# Convert Species to numeric labels
+indexer = StringIndexer(
+    inputCol="Species", 
+    outputCol="label"
+)
+
+iris_indexed = indexer.fit(iris).transform(iris)
+
+# Combine features into vector
+feature_cols = ["Sepal.Length", "Sepal.Width", 
+                "Petal.Length", "Petal.Width"]
+
+assembler = VectorAssembler(
+    inputCols=feature_cols,
+    outputCol="features"
+)
+
+iris_final = assembler.transform(iris_indexed)
+iris_final.select("features", "label").show(5)
+```
+
+## Slide 54: Train-Test Split in PySpark
+
+**Split Data:**
+```python
+# Split 80/20
+train_data, test_data = iris_final.randomSplit([0.8, 0.2], seed=42)
+
+print(f"Training rows: {train_data.count()}")
+print(f"Test rows: {test_data.count()}")
+
+# Verify class distribution
+print("\nTraining distribution:")
+train_data.groupBy("label").count().show()
+
+print("\nTest distribution:")
+test_data.groupBy("label").count().show()
+```
+
+**Note:** Use `seed` for reproducibility
+
+## Slide 55: Caching for Performance
+
+**Why Cache?**
+
+Spark recomputes DataFrames on each action. Cache frequently used data.
+```python
+# Cache training data
+train_data.cache()
+
+# Force caching by triggering action
+train_data.count()
+
+# Now subsequent operations are faster
+train_data.groupBy("label").count().show()
+train_data.describe().show()
+
+# Check cache status
+print(f"Is cached: {train_data.is_cached}")
+
+# Unpersist when done
+train_data.unpersist()
+```
+
+**Best Practice:** Cache data used in iterative algorithms (ML training)
+
+## Slide 56: Writing Data in PySpark
+
+**Save Results:**
+```python
+# Save as Parquet (recommended for big data)
+iris_final.write.mode("overwrite").parquet(
+    "/tmp/iris_processed.parquet"
+)
+
+# Save as CSV
+iris_final.select("features", "label").write.mode("overwrite").csv(
+    "/tmp/iris_features.csv",
+    header=True
+)
+
+# Save as table in Databricks
+iris_final.write.mode("overwrite").saveAsTable("iris_ml_ready")
+
+# Read back
+iris_from_table = spark.table("iris_ml_ready")
+iris_from_table.show(5)
+```
+
+## Slide 57: PySpark ML Pipeline Concept
+
+**ML Pipeline Components:**
+```{r pipeline-concept, echo=FALSE, eval=TRUE, fig.height=3}
+# Pipeline stages
+stages <- data.frame(
+  Step = 1:5,
+  Stage = c("Raw Data", "Feature Transform", "Assembler", 
+            "Model Training", "Predictions"),
+  Type = c("Data", "Transformer", "Transformer", 
+           "Estimator", "Output")
+)
+
+ggplot(stages, aes(x = Step, y = 1)) +
+  geom_tile(aes(fill = Type), height = 0.5, color = "black", size = 1.5) +
+  geom_text(aes(label = Stage), fontface = "bold") +
+  scale_fill_manual(values = c("lightblue", "lightgreen", "coral")) +
+  labs(title = "Spark ML Pipeline Flow",
+       subtitle = "Chain transformers and estimators") +
+  theme_void() +
+  theme(legend.position = "bottom",
+        plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+```
+
+**Key Concepts:**
+
+- **Transformer:** Takes DataFrame → returns DataFrame
+- **Estimator:** Takes DataFrame → returns Model (Transformer)
+- **Pipeline:** Chain stages together
+
+## Slide 58: Logistic Regression in PySpark
+
+**Full ML Pipeline:**
+```python
+from pyspark.ml.classification import LogisticRegression
+from pyspark.ml import Pipeline
+
+# Create logistic regression model
+lr = LogisticRegression(
+    featuresCol="features",
+    labelCol="label",
+    maxIter=10,
+    regParam=0.01
+)
+
+# Create pipeline
+pipeline = Pipeline(stages=[indexer, assembler, lr])
+
+# Train model
+model = pipeline.fit(train_data)
+
+# Make predictions
+predictions = model.transform(test_data)
+
+# View predictions
+predictions.select(
+    "label", "prediction", "probability"
+).show(10)
+```
+
+## Slide 59: Model Evaluation in PySpark
+
+**Classification Metrics:**
+```python
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+
+# Accuracy
+evaluator_acc = MulticlassClassificationEvaluator(
+    labelCol="label",
+    predictionCol="prediction",
+    metricName="accuracy"
+)
+
+accuracy = evaluator_acc.evaluate(predictions)
+print(f"Accuracy: {accuracy:.4f}")
+
+# F1 Score
+evaluator_f1 = MulticlassClassificationEvaluator(
+    labelCol="label",
+    predictionCol="prediction",
+    metricName="f1"
+)
+
+f1 = evaluator_f1.evaluate(predictions)
+print(f"F1 Score: {f1:.4f}")
+```
+
+## Slide 60: Confusion Matrix in PySpark
+
+**Create Confusion Matrix:**
+```python
+# Group by actual and predicted labels
+confusion_matrix = predictions.groupBy("label", "prediction").count()
+confusion_matrix.orderBy("label", "prediction").show()
+
+# Pivot for better visualization
+confusion_pivot = confusion_matrix.groupBy("label").pivot("prediction").sum("count")
+confusion_pivot.show()
+
+# Calculate per-class metrics
+from pyspark.sql.functions import col
+
+for label_val in [0.0, 1.0, 2.0]:
+    tp = predictions.filter(
+        (col("label") == label_val) & (col("prediction") == label_val)
+    ).count()
+    
+    total = predictions.filter(col("label") == label_val).count()
+    
+    recall = tp / total if total > 0 else 0
+    print(f"Class {label_val} Recall: {recall:.4f}")
+```
+
+---
+
+
