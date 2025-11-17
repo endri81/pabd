@@ -1,7 +1,7 @@
 ---
 title: "Big Data Tools: KNIME, Spark, and Databricks"
 subtitle: "Lecture 6: Scalable Data Science with Free Tools (MSc Data Science)"
-author: "Prof. Asc. Endri Raco, Ph.D. and AI Team"
+author: "Prof. Asc. Endri Raco"
 institute: "Department of Mathematical Engineering, Polytechnic University of Tirana"
 date: "November 2025"
 output:
